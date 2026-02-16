@@ -18,17 +18,34 @@ const nodeManager = new NodeManager();
 let isTorReady = false;
 
 async function initTor(window?: BrowserWindow) {
+  console.log('[System] --- Tor Initialization Probe ---');
   const useTor = !!store.get('use_tor');
-  if (!useTor) return;
+  console.log('[System] Config use_tor:', useTor);
+  
+  if (!useTor) {
+    console.log('[System] Tor is DISABLED in config. Skipping.');
+    return;
+  }
+
   const logToUI = (msg: string) => {
+    console.log(`[TorManager Feed] ${msg}`);
     window?.webContents.send('tor-status', msg);
     if (msg.includes('Bootstrapped 100%')) {
       isTorReady = true;
       nodeManager.scout(!!store.get('is_stagenet'), true);
     }
   };
+
+  console.log('[System] Checking Tor Binary...');
   const exists = await torManager.ensureTorExists(logToUI);
-  if (exists) torManager.start(logToUI);
+  console.log('[System] Tor Binary Exists:', exists);
+  
+  if (exists) {
+    console.log('[System] Launching Tor Process...');
+    torManager.start(logToUI);
+  } else {
+    console.error('[System] Tor binary missing after check/download.');
+  }
 }
 
 async function startNodeRadar() {

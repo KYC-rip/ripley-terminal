@@ -91,22 +91,40 @@ export class TorManager {
   }
 
   start(onLog: (msg: string) => void) {
-    if (this.process) return;
+    if (this.process) {
+      console.log('[TorManager] Process already running.');
+      return;
+    }
 
-    onLog(`Starting Tor from ${this.binPath}...`);
+    console.log(`[TorManager] Spawning binary at: ${this.binPath}`);
     
-    this.process = spawn(this.binPath, ['--DataDirectory', path.join(this.torDir, 'data')], {
-      stdio: 'pipe'
-    });
+    try {
+      this.process = spawn(this.binPath, ['--DataDirectory', path.join(this.torDir, 'data'), '--ControlPort', '9051'], {
+        stdio: 'pipe'
+      });
 
-    this.process.stdout?.on('data', (data) => {
-      const msg = data.toString();
-      if (msg.includes('Bootstrapped')) onLog(msg.trim());
-    });
+      this.process.stdout?.on('data', (data) => {
+        const msg = data.toString().trim();
+        console.log(`[Tor Stdout] ${msg}`);
+        if (msg.includes('Bootstrapped')) onLog(msg);
+      });
 
-    this.process.on('error', (err) => {
-      onLog(`Tor Process Error: ${err.message}`);
-    });
+      this.process.stderr?.on('data', (data) => {
+        console.error(`[Tor Stderr] ${data.toString()}`);
+      });
+
+      this.process.on('close', (code) => {
+        console.log(`[TorManager] Process exited with code ${code}`);
+        this.process = null;
+      });
+
+      this.process.on('error', (err) => {
+        console.error(`[TorManager] SPAWN_ERROR:`, err.message);
+        onLog(`Tor Process Error: ${err.message}`);
+      });
+    } catch (e: any) {
+      console.error(`[TorManager] FATAL_CATCH:`, e.message);
+    }
   }
 
   stop() {
