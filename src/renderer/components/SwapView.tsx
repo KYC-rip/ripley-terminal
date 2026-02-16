@@ -10,8 +10,8 @@ interface SwapViewProps {
 }
 
 export function SwapView({ localXmrAddress }: SwapViewProps) {
-  const { currencies, isLoading } = useCurrencies();
-  const [fromCoin, setFromCoin] = useState<Currency | null>(null);
+  const { currencies } = useCurrencies();
+  const [fromCoin, setFromCoin] = useState<Currency>(CurrencySelector.Monero);
   const [toCoin, setToCoin] = useState<Currency | null>(null);
   const [amount, setAmount] = useState('100');
   const [quote, setQuote] = useState<BridgeEstimate | null>(null);

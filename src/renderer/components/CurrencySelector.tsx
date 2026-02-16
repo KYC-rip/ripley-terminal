@@ -214,7 +214,7 @@ export function CurrencySelector({
         >
           <div className="flex items-center gap-1 md:gap-3 overflow-hidden">
             <div className={`w-5 h-5 rounded-full bg-[var(--color-xmr-surface)] flex items-center justify-center shrink-0 overflow-hidden border ${isOpen ? "border-[var(--local-brand)]" : "border-[var(--local-border)]"}`}>
-              {selected.image ? (
+              {selected?.image ? (
                 <img
                   src={selected.image}
                   alt={selected.ticker}

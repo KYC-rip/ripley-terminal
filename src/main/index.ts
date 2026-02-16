@@ -46,7 +46,7 @@ const localProxyServer = http.createServer((req, res) => {
   const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
   const isAutoNode = store.get(`auto_node_${configPrefix}`) !== false;
   const customDaemon = store.get(`custom_daemon_${configPrefix}`);
-  
+
   const baseTarget = (isAutoNode || !customDaemon) ? nodeManager.getBestNode() : customDaemon;
 
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -75,7 +75,7 @@ const localProxyServer = http.createServer((req, res) => {
   attemptProxy(0);
 });
 
-localProxyServer.listen(18081, '0.0.0.0');
+localProxyServer.listen(18082, '0.0.0.0');
 
 // --- IPC Handlers ---
 ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isStagenet: !!store.get('is_stagenet') }));
@@ -101,17 +101,20 @@ ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {} }) =
         ...headers
       },
       // Only attach dispatcher/agent if Tor is requested
-      ...(isTorActive ? { dispatcher: torAgent } : {}) 
+      ...(isTorActive ? { dispatcher: torAgent } : {})
     };
 
     if (data) fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
 
     const response = await fetch(url, fetchOptions);
     const resultData = await response.json();
+    console.log(`[Proxy] Response: ${response.status}`, resultData);
     return { data: resultData, status: response.status };
   } catch (error: any) {
     console.error(`[ProxyRequest Fatal]`, error.message);
     return { error: error.message };
+  } finally {
+    console.log(`[Proxy] Request Finished: ${url}`);
   }
 });
 

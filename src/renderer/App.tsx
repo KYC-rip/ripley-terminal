@@ -190,12 +190,7 @@ function MainApp() {
           <span className="flex items-center gap-1 text-white">
             POOL: [ <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-[#00ff41]"}>{stats?.network.mempool ?? '--'} TXs</span> ]
           </span>
-          <span className="flex items-center gap-1 text-white">
-            NET_BK: [ <span className="text-[#00ff41]">{stats?.network.height || '-------'}</span> ]
-          </span>
-          {stats?.resistance.cex_status === 'WARNING' && (
-            <span className="text-red-500 animate-pulse">[ CEX_RISK_DETECTED ]</span>
-          )}
+         
         </div>
         <div className="uppercase tracking-[0.2em] flex items-center gap-2">
           <span className="animate-pulse text-[#00ff41]">●</span>

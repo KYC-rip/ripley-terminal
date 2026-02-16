@@ -59,7 +59,7 @@ export function useVault() {
       setIsStagenet(stagenetActive);
 
       // Point to local tactical proxy gate
-      const rpcUrl = "http://127.0.0.1:18081";
+      const rpcUrl = "http://127.0.0.1:18082";
       
       let retryCount = 0;
       let success = false;
