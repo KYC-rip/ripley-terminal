@@ -2,7 +2,6 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
-import axios from 'axios';
 import * as tar from 'tar';
 import AdmZip from 'adm-zip';
 
@@ -13,7 +12,6 @@ export class TorManager {
 
   constructor() {
     this.torDir = path.join(app.getPath('userData'), 'tor-bin');
-    // Tor expert bundle for macOS might put binary in a 'tor' subfolder
     const exeName = process.platform === 'win32' ? 'tor.exe' : 'tor';
     this.binPath = path.join(this.torDir, 'tor', exeName); 
   }
@@ -29,7 +27,6 @@ export class TorManager {
   }
 
   async ensureTorExists(onProgress: (msg: string) => void) {
-    // If the folder already exists and binary is there, we are good
     if (fs.existsSync(this.binPath) || fs.existsSync(path.join(this.torDir, 'tor'))) return true;
 
     if (!fs.existsSync(this.torDir)) fs.mkdirSync(this.torDir, { recursive: true });
@@ -39,26 +36,29 @@ export class TorManager {
     const tempFile = path.join(this.torDir, 'tor-package.tar.gz');
 
     try {
-      const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream'
-      });
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.body) throw new Error("Response body is null");
 
-      const totalLength = response.headers['content-length'];
+      const totalLength = response.headers.get('content-length');
       let downloadedLength = 0;
 
       const writer = fs.createWriteStream(tempFile);
-      
-      response.data.on('data', (chunk: Buffer) => {
-        downloadedLength += chunk.length;
+      const reader = response.body.getReader();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        downloadedLength += value.length;
         if (totalLength) {
           const percent = ((downloadedLength / parseInt(totalLength)) * 100).toFixed(1);
-          onProgress(`\rDownloading: ${percent}%`);
+          onProgress(`Downloading: ${percent}%`);
         }
-      });
+        writer.write(Buffer.from(value));
+      }
 
-      response.data.pipe(writer);
+      writer.end();
 
       await new Promise((resolve, reject) => {
         writer.on('finish', resolve);
@@ -76,10 +76,8 @@ export class TorManager {
         zip.extractAllTo(this.torDir, true);
       }
 
-      // Cleanup
       fs.unlinkSync(tempFile);
 
-      // Set permissions on Unix
       if (process.platform !== 'win32') {
         fs.chmodSync(this.binPath, 0o755);
       }

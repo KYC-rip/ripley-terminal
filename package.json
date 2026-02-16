@@ -17,7 +17,6 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "assert": "^2.1.0",
-    "axios": "^1.13.5",
     "buffer": "^6.0.3",
     "electron-store": "^11.0.2",
     "ethers": "6.16.0",
@@ -42,7 +41,6 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/vite": "4.1.18",
-    "@types/axios": "^0.14.4",
     "@types/http-proxy": "^1.17.17",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "25.2.3",

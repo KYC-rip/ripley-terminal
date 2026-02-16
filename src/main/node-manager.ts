@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import yaml from 'js-yaml';
 
@@ -12,11 +11,6 @@ const FALLBACK_DATA = {
   },
   stagenet: {
     tor: [
-      "plowsof3t5hogddwabaeiyrno25efmzfxyro2vligremt7sxpsclfaid.onion:38089",
-      "ykqlrp7lumcik3ubzz3nfsahkbplfgqshavmgbxb4fauexqzat6idjad.onion:38089",
-      "lowsoffjexmxalw73tkjmf422gq6575fc7vicuu4javzn2ynnte6tyd.onion:38089",
-      "lowsofe6cleftfmk2raiw5h2x66atrik3nja4bfd3zrfa2hdlgworad.onion:38089",
-      "ct36dsbe3oubpbebpxmiqz4uqk6zb6nhmkhoekileo4fts23rvuse2qd.onion:38081",
       "loveanvthlsepingenr7opdqy6nlhn5jidwvzzxfmwsw2rry5mn2gfqd.onion:18089",
       "ct36dsbe3oubpbebpxmiqz4uqk6zb6nhmkhoekileo4fts23rvuse2qd.onion:38081"
     ],
@@ -44,9 +38,10 @@ export class NodeManager {
   private async fetchRemoteNodes() {
     try {
       console.log('[NodeRadar] Syncing latest nodes from GitHub...');
-      const res = await axios.get(NODES_YAML_URL, { timeout: 10000 });
-      const doc = yaml.load(res.data) as any;
-
+      const res = await fetch(NODES_YAML_URL, { signal: AbortSignal.timeout(10000) });
+      const text = await res.text();
+      const doc = yaml.load(text) as any;
+      
       const parsed: any = { mainnet: { tor: [], clearnet: [] }, stagenet: { tor: [], clearnet: [] } };
 
       const extract = (network: string, type: string) => {
@@ -80,14 +75,17 @@ export class NodeManager {
     const results = await Promise.all(seeds.slice(0, 15).map(async (url: string) => {
       const start = Date.now();
       try {
-        const res = await axios.post(`${url}/json_rpc`, {
-          jsonrpc: '2.0', id: '0', method: 'get_height'
-        }, {
-          timeout: useTor ? 15000 : 8000,
-          httpsAgent: useTor ? this.torAgent : undefined,
-          httpAgent: useTor ? this.torAgent : undefined
+        const res = await fetch(`${url}/json_rpc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_height' }),
+          signal: AbortSignal.timeout(useTor ? 15000 : 8000),
+          // @ts-ignore
+          dispatcher: useTor ? this.torAgent : undefined
         });
-        return { url, latency: Date.now() - start, height: res.data.result.height, isActive: true };
+        
+        const data = await res.json() as any;
+        return { url, latency: Date.now() - start, height: data.result.height, isActive: true };
       } catch (e) {
         return { url, latency: 9999, height: 0, isActive: false };
       }
