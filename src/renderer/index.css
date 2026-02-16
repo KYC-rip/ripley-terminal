@@ -1,0 +1,284 @@
+@import "tailwindcss";
+
+@layer base {
+  /* Chrome, Safari, Edge, Opera */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Firefox */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+/* Tailwind v4 Theme Configuration */
+@theme {
+  /* Color Mapping */
+  --color-xmr-base: var(--bg-primary);
+  --color-xmr-surface: var(--bg-panel);
+  --color-xmr-green: var(--brand-color); /* Brand main color */
+  --color-xmr-dim: var(--text-dim);
+  --color-xmr-accent: var(--text-accent);
+  --color-xmr-border: var(--border-color);
+  --color-xmr-ghost: var(--color-ghost);
+  --color-xmr-warning: var(--warning-color);
+  --color-xmr-error: var(--error-color);
+
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --animate-scan: scan 4s linear infinite;
+
+  @keyframes scan {
+    0% {
+      background-position: 0 0;
+      transform: translateY(-100%);
+    }
+    100% {
+      background-position: 0 100%;
+      transform: translateY(200%);
+    }
+  }
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+:root {
+  /* ... existing ... */
+  --header-mb: 3rem;
+  --section-gap: 3rem;
+  --hero-pt: 1.5rem;
+}
+
+/* 📱 TALL SCREENS (Standard/High Res) */
+@media (min-height: 851px) {
+  .dynamic-header-mb { margin-bottom: 3rem; }
+  .dynamic-section-gap { gap: 3rem; }
+  .dynamic-hero-pt { padding-top: 1rem; }
+}
+
+/* 💻 SHORT SCREENS (e.g., 1280x800 Retina) */
+@media (max-height: 850px) {
+  .dynamic-header-mb { margin-bottom: 1rem; }
+  .dynamic-section-gap { gap: 1.5rem; }
+  .dynamic-hero-pt { padding-top: 0.5rem; }
+  
+  /* Compact Price for Dashboard */
+  .dynamic-price-text {
+    font-size: 4rem !important; /* text-6xl equivalent */
+    line-height: 1 !important;
+  }
+
+  .short-hide { display: none !important; }
+  .short-show { display: flex !important; }
+
+  /* Unify content distance from Header */
+  .compact-content-mt { margin-top: 0 !important; }
+}
+
+/* 📱 TALL SCREENS */
+@media (min-height: 851px) {
+  .short-show { display: none !important; }
+  .short-hide { display: flex !important; }
+}
+
+.dark {
+  /* ... existing ... */
+  --bg-primary: #050505;
+  --bg-panel: rgba(10, 10, 10, 0.9);
+  --brand-color: #00ff41;
+  --text-primary: #00ff41;
+  --text-dim: #00661a;
+  --text-accent: #ff6600;
+  --color-ghost: #a855f7;
+  --border-color: #004d13;
+  --scanline-opacity: 0.15;
+  --vignette-opacity: 0.8;
+  --chart-line: #00ff41;
+  --chart-area-top: rgba(0, 255, 65, 0.25);
+  --chart-grid: rgba(20, 60, 20, 0.3);
+  --img-filter-idle: grayscale(100%) opacity(0.7) contrast(1.1);
+  --img-filter-hover: grayscale(0%) opacity(1) contrast(1);
+  --warning-color: #fbbf24; /* Yellow 400 */
+  --error-color: #f87171; /* Red 400 */
+}
+
+/* ☀️ LIGHT MODE (Professional / Financial) */
+.light {
+  /* Background: Clean Slate */
+  --bg-primary: #f8fafc;
+  --bg-panel: #ffffff;
+
+  /* Brand: Deep Emerald (Money Green) */
+  --brand-color: #047857;
+
+  /* Text */
+  --text-primary: #0f172a; /* Deep Blue-Black (Slate-900) */
+  --text-dim: #64748b; /* Cool Gray (Slate-500) */
+  --text-bg: #e2e8f0; /* Slate-200 */
+
+  --error-color: #ef4444; /* Red 600 */
+
+  /* Monero Orange */
+  --text-accent: #ea580c;
+  --color-ghost: #7e22ce; /* Purple 700 */
+  --warning-color: #d97706; /* Amber 600 */
+
+  --border-color: #cbd5e1; /* Slate-300 for clearer definition */
+
+  --scanline-opacity: 0.02;
+  --vignette-opacity: 0;
+
+  /* Chart Colors (Light) */
+  --chart-line: #059669; /* Emerald-600 */
+  --chart-area-top: rgba(5, 150, 105, 0.1);
+  --chart-grid: rgba(0, 0, 0, 0.05);
+
+  --img-filter-idle: grayscale(20%) opacity(1);
+  --img-filter-hover: grayscale(0%) scale(1.05); /* Slightly enlarge on hover for visual interest */
+}
+
+/* 👁️ HIGH CONTRAST */
+.high-contrast {
+  --scanline-opacity: 0 !important;
+  --vignette-opacity: 0 !important;
+  --text-dim: var(--text-primary) !important;
+  --bg-panel: var(--bg-primary) !important;
+  border-width: 2px !important;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html.high-contrast {
+  border: none !important;
+}
+
+/* Base Styles */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Visual Effects Layers */
+.scanlines {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 0.2)
+  );
+  background-size: 100% 4px;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: var(--scanline-opacity);
+  transition: opacity 0.5s ease;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  box-shadow: 0 0 150px rgba(0, 0, 0, var(--vignette-opacity)) inset;
+  pointer-events: none;
+  z-index: 40;
+  transition: box-shadow 0.5s ease;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-color);
+}
+
+.dynamic-filter {
+  filter: var(--img-filter-hover);
+  transition: all 0.5s ease-out;
+}
+
+@media (hover: hover) {
+  .dynamic-filter {
+    filter: var(--img-filter-idle);
+  }
+
+  .group:hover .dynamic-filter {
+    filter: var(--img-filter-hover);
+  }
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.5);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.5s infinite linear;
+}
+
+@keyframes bounce-right {
+  0%,
+  100% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateX(
+      0.5rem
+    ); /* adjust this value to control the bounce distance */
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+  }
+
+  25% {
+    transform: scale(1.1);
+  }
+
+  50% {
+    transform: scale(1);
+  }
+
+  75% {
+    transform: scale(1.25);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+input {
+  @apply rounded-sm;
+}
