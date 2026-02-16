@@ -1,7 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
-import axios from 'axios';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import http from 'http';
 import httpProxy from 'http-proxy';
@@ -39,14 +38,12 @@ async function startNodeRadar() {
   setInterval(() => nodeManager.scout(!!store.get('is_stagenet'), !!store.get('use_tor')), 10 * 60 * 1000);
 }
 
-// --- Tactical Proxy Gate (V5: Network Isolated) ---
-const proxy = httpProxy.createProxyServer({ changeOrigin: true, timeout: 30000, proxyTimeout: 60000 });
-
+// --- Local Proxy Server ---
+const proxy = httpProxy.createProxyServer({ changeOrigin: true, proxyTimeout: 60000 });
 const localProxyServer = http.createServer((req, res) => {
   const useTor = !!store.get('use_tor');
   const isStagenet = !!store.get('is_stagenet');
   const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
-  
   const isAutoNode = store.get(`auto_node_${configPrefix}`) !== false;
   const customDaemon = store.get(`custom_daemon_${configPrefix}`);
   
@@ -65,10 +62,7 @@ const localProxyServer = http.createServer((req, res) => {
 
   const attemptProxy = (nodeIndex: number) => {
     const currentTarget = nodeIndex === 0 ? baseTarget : nodeManager.getBestNode();
-    if (req.url?.includes('.bin')) console.log(`[Gateway] Payload: ${req.url} -> ${currentTarget} (${configPrefix})`);
-
     proxy.web(req, res, { target: currentTarget, agent: useTor ? torAgent : undefined, buffer: undefined }, async (e: any) => {
-      console.warn(`[Gateway] Lost: ${currentTarget} (${e.message})`);
       if (nodeIndex < 2 && isAutoNode) {
         await nodeManager.scout(isStagenet, useTor);
         attemptProxy(nodeIndex + 1);
@@ -83,8 +77,49 @@ const localProxyServer = http.createServer((req, res) => {
 
 localProxyServer.listen(18081, '0.0.0.0');
 
+// --- IPC Handlers ---
+ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isStagenet: !!store.get('is_stagenet') }));
+ipcMain.handle('get-config', (_, key) => store.get(key));
+ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true; });
+ipcMain.handle('get-seed', () => store.get('master_seed'));
+ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
+ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
+
+// ULTRALIGHT FETCH PROXY (Native fetch based)
+ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {} }) => {
+  try {
+    const useTor = !!store.get('use_tor');
+    const isTorActive = useTor && isTorReady;
+
+    console.log(`[Proxy] Tactical Fetch: ${url} (${isTorActive ? 'TOR' : 'CLEARNET'})`);
+
+    const fetchOptions: any = {
+      method,
+      headers: {
+        'User-Agent': 'curl/7.64.1', // Simulate curl!
+        'Accept': 'application/json',
+        ...headers
+      },
+      // Only attach dispatcher/agent if Tor is requested
+      ...(isTorActive ? { dispatcher: torAgent } : {}) 
+    };
+
+    if (data) fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
+
+    const response = await fetch(url, fetchOptions);
+    const resultData = await response.json();
+    return { data: resultData, status: response.status };
+  } catch (error: any) {
+    console.error(`[ProxyRequest Fatal]`, error.message);
+    return { error: error.message };
+  }
+});
+
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({ width: 1100, height: 720, show: false, backgroundColor: '#050505', titleBarStyle: 'hiddenInset', webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, webSecurity: false } });
+  const mainWindow = new BrowserWindow({
+    width: 1100, height: 720, show: false, backgroundColor: '#050505', titleBarStyle: 'hiddenInset',
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, webSecurity: false }
+  });
   mainWindow.on('ready-to-show', () => mainWindow.show());
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   else mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
@@ -99,43 +134,3 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => torManager.stop());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-
-// IPC
-ipcMain.handle('get-env', () => ({ API_URL: 'https://api.kyc.rip' }));
-ipcMain.handle('get-config', (_, key) => store.get(key));
-ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true; });
-ipcMain.handle('get-seed', () => store.get('master_seed'));
-ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
-ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
-ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isStagenet: !!store.get('is_stagenet') }));
-ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {}, useTor: requestUseTor }) => {
-  try {
-    // Priority: Explicit request param, but fallback to store if undefined
-    const storeUseTor = !!store.get('use_tor');
-    const finalUseTor = requestUseTor !== undefined ? requestUseTor : storeUseTor;
-    const isTorActive = finalUseTor && isTorReady;
-
-    if (isTorActive) console.log(`[Proxy] Routing Tactical Fetch -> ${url} (via Tor)`);
-    else console.log(`[Proxy] Routing Tactical Fetch -> ${url} (via Clearnet)`);
-
-    const response = await axios({ 
-      url, 
-      method, 
-      data, 
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...headers
-      }, 
-      httpsAgent: isTorActive ? torAgent : undefined, 
-      httpAgent: isTorActive ? torAgent : undefined, 
-      timeout: 30000,
-      maxRedirects: 0 // CRITICAL: Disable auto-redirect to detect Cloudflare challenges
-    });
-    return { data: response.data, status: response.status };
-  } catch (error: any) {
-    if (error.response?.status === 302 || error.response?.status === 301) {
-      return { error: 'CLOUDFLARE_CHALLENGE', detail: 'The API is redirecting to a challenge page. Tor exit node might be blocked.' };
-    }
-    return { error: error.message };
-  }
-});

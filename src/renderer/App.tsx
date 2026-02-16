@@ -19,6 +19,20 @@ function MainApp() {
   // Settings & UI State
   const [showScanlines, setShowScanlines] = useState(true);
   const [uplink, setUplink] = useState<string>('SCANNING...');
+  const [sessionStartTime] = useState(Date.now());
+  const [uptime, setUptime] = useState('00:00:00');
+
+  // Uptime Counter
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const seconds = Math.floor((Date.now() - sessionStartTime) / 1000);
+      const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+      const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      setUptime(`${h}:${m}:${s}`);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sessionStartTime]);
 
   // Load UI specific settings
   useEffect(() => {
@@ -166,16 +180,17 @@ function MainApp() {
       <footer className="shrink-0 h-10 px-6 border-t border-[#004d13]/20 bg-black/40 flex justify-between items-center z-50 text-[8px] font-bold text-[#00661a] font-mono font-black">
         <div className="flex gap-6 uppercase tracking-[0.1em]">
           <span>ID: [ {address.substring(0,8)} ]</span>
+          <span>UPTIME: [ {uptime} ]</span>
           <span className="flex items-center gap-1">
             UPLINK: [ <span className="text-[#00ff41]">{uplink || 'SCANNING...'}</span> ]
           </span>
           <span className="flex items-center gap-1">
             XMR: [ <span className="text-[#ff6600]">${stats?.price.street || '---.--'}</span> ]
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 text-white">
             POOL: [ <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-[#00ff41]"}>{stats?.network.mempool ?? '--'} TXs</span> ]
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 text-white">
             NET_BK: [ <span className="text-[#00ff41]">{stats?.network.height || '-------'}</span> ]
           </span>
           {stats?.resistance.cex_status === 'WARNING' && (
