@@ -77,25 +77,49 @@ export class XmrStealthEngine implements IStealthEngine {
   }
 
   private async startSync(lib: any, onHeightUpdate?: (h: number) => void) {
-    this.logger("📡 Syncing with blockchain...", 'process');
+    this.logger("📡 Initializing blockchain scan...", 'process');
     this.isSyncing = true;
 
+    const self = this;
     const listener = new (class extends lib.MoneroWalletListener {
-      private _parent: XmrStealthEngine;
-      constructor(parent: XmrStealthEngine) { super(); this._parent = parent; }
-      async onSyncProgress(height: number, _start: number, _end: number, percent: number) {
+      private _lastPercent: number = -1;
+      
+      async onSyncProgress(height: number, start: number, end: number, percent: number, message: string) {
         if (onHeightUpdate) onHeightUpdate(height);
-        if (Math.random() < 0.05) this._parent.logSync(`Syncing: ${(percent * 100).toFixed(1)}%`);
+        const pFloat = percent * 100;
+        const pInt = Math.floor(pFloat);
+        
+        // Always log significant changes or periodically
+        if (pInt > this._lastPercent || Math.random() < 0.1) {
+          self.logSync(`Syncing: ${pFloat.toFixed(1)}%`);
+          this._lastPercent = pInt;
+        }
       }
-      async onNewBlock(height: number) { if (onHeightUpdate) onHeightUpdate(height); }
-      async onBalancesChanged() { }
-      async onOutputReceived() { }
-      async onOutputSpent() { }
-    })(this);
 
-    await this.wallet!.sync(listener);
-    this.logger("✅ Wallet Fully Synced", 'success');
-    this.isSyncing = false;
+      async onNewBlock(height: number) {
+        if (onHeightUpdate) onHeightUpdate(height);
+        self.logSync(`New block detected: ${height}`);
+      }
+
+      async onBalancesChanged(newBalance: bigint, newUnlockedBalance: bigint) {
+        self.logSync(`Balance Updated: ${Number(newBalance)/1e12} XMR`);
+      }
+
+      async onOutputReceived(output: any) { self.logSync("Incoming output detected."); }
+      async onOutputSpent(output: any) { self.logSync("Output spent."); }
+    })();
+
+    try {
+      // Small delay to ensure UI is ready
+      this.logSync("Syncing: 0.1%");
+      await this.wallet!.sync(listener);
+      this.logger("✅ Wallet Fully Synced", 'success');
+    } catch (e: any) {
+      this.logger(`❌ Sync Failed: ${e.message}`, 'error');
+      throw e;
+    } finally {
+      this.isSyncing = false;
+    }
   }
 
   public async createNextSubaddress(label: string = "Terminal Receive") {

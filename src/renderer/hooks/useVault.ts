@@ -16,9 +16,11 @@ export function useVault() {
 
   const addLog = useCallback((msg: string) => {
     setLogs(prev => [msg, ...prev].slice(0, 20));
-    if (msg.includes('%')) {
-      const match = msg.match(/(\d+(\.\d+)?)%/);
-      if (match) setSyncPercent(parseFloat(match[1]));
+    // Support "Syncing: 45.2%" or "Bootstrapped 10%"
+    const match = msg.match(/(\d+(\.\d+)?)\s*%/);
+    if (match) {
+      const p = parseFloat(match[1]);
+      if (!isNaN(p)) setSyncPercent(p);
     }
   }, []);
 
@@ -80,6 +82,7 @@ export function useVault() {
           setStatus(StealthStep.AWAITING_FUNDS);
           const b = await engine.getBalance();
           setBalance(b);
+          setSyncPercent(100); // Force completion
           success = true;
         } catch (err: any) {
           retryCount++;

@@ -8,6 +8,7 @@ const api = {
   burnIdentity: () => ipcRenderer.invoke('burn-identity'),
   getConfig: (key: string) => ipcRenderer.invoke('get-config', key),
   setConfig: (key: string, value: any) => ipcRenderer.invoke('set-config', key, value),
+  getUplinkStatus: () => ipcRenderer.invoke('get-uplink-status'),
   proxyRequest: (params: any) => ipcRenderer.invoke('proxy-request', params),
   onTorStatus: (callback: (msg: string) => void) => {
     const subscription = (_event: any, msg: string) => callback(msg);
