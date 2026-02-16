@@ -108,9 +108,34 @@ ipcMain.handle('get-seed', () => store.get('master_seed'));
 ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
 ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
 ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isStagenet: !!store.get('is_stagenet') }));
-ipcMain.handle('proxy-request', async (_, { url, method, data, headers, useTor }) => {
+ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {}, useTor: requestUseTor }) => {
   try {
-    const response = await axios({ url, method, data, headers, httpsAgent: (useTor && isTorReady) ? torAgent : undefined, httpAgent: (useTor && isTorReady) ? torAgent : undefined, timeout: 30000 });
+    // Priority: Explicit request param, but fallback to store if undefined
+    const storeUseTor = !!store.get('use_tor');
+    const finalUseTor = requestUseTor !== undefined ? requestUseTor : storeUseTor;
+    const isTorActive = finalUseTor && isTorReady;
+
+    if (isTorActive) console.log(`[Proxy] Routing Tactical Fetch -> ${url} (via Tor)`);
+    else console.log(`[Proxy] Routing Tactical Fetch -> ${url} (via Clearnet)`);
+
+    const response = await axios({ 
+      url, 
+      method, 
+      data, 
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...headers
+      }, 
+      httpsAgent: isTorActive ? torAgent : undefined, 
+      httpAgent: isTorActive ? torAgent : undefined, 
+      timeout: 30000,
+      maxRedirects: 0 // CRITICAL: Disable auto-redirect to detect Cloudflare challenges
+    });
     return { data: response.data, status: response.status };
-  } catch (error: any) { return { error: error.message }; }
+  } catch (error: any) {
+    if (error.response?.status === 302 || error.response?.status === 301) {
+      return { error: 'CLOUDFLARE_CHALLENGE', detail: 'The API is redirecting to a challenge page. Tor exit node might be blocked.' };
+    }
+    return { error: error.message };
+  }
 });

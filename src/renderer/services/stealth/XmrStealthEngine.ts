@@ -132,6 +132,13 @@ export class XmrStealthEngine implements IStealthEngine {
   public getMnemonic() { return this.cachedMnemonic; }
   public logSync(msg: string) { this.logger(msg, 'info'); }
 
+  public async getHeight() {
+    if (!this.wallet) return 0;
+    try {
+      return await this.wallet.getHeight();
+    } catch (e) { return 0; }
+  }
+
   public async getBalance() {
     if (!this.wallet) return { total: '0.0', unlocked: '0.0' };
     try {

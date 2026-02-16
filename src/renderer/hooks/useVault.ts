@@ -6,6 +6,7 @@ export function useVault() {
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [txs, setTxs] = useState<any[]>([]);
+  const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [status, setStatus] = useState<StealthStep>(StealthStep.IDLE);
   const [logs, setLogs] = useState<string[]>([]);
   const [syncPercent, setSyncPercent] = useState(0);
@@ -105,12 +106,14 @@ export function useVault() {
   const refresh = useCallback(async () => {
     if (!engineRef.current) return;
     try {
-      const [b, h] = await Promise.all([
+      const [b, h, height] = await Promise.all([
         engineRef.current.getBalance(),
-        engineRef.current.getTxs()
+        engineRef.current.getTxs(),
+        engineRef.current.getHeight()
       ]);
       setBalance(b);
       setTxs(h);
+      setCurrentHeight(height);
     } catch (e) {}
   }, []);
 
@@ -143,6 +146,7 @@ export function useVault() {
     status,
     logs,
     txs,
+    currentHeight,
     refresh,
     isInitializing,
     isSending,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Zap, Lock, Ghost, Database, Plus, RefreshCw, Send, Download, Copy, Check, ShieldAlert, Skull, Settings, ArrowUpRight, ArrowDownLeft, Key, EyeOff } from 'lucide-react';
 import { useVault } from './hooks/useVault';
+import { useStats } from './hooks/useStats';
 import { SwapView } from './components/SwapView';
 import { SettingsView } from './components/SettingsView';
 import { HomeView } from './components/HomeView';
@@ -13,6 +14,7 @@ function MainApp() {
   const vault = useVault();
   const { address, logs, status, isInitializing, syncPercent } = vault;
   const { useTor: torEnabled, setUseTor } = useTor();
+  const { stats } = useStats();
   
   // Settings & UI State
   const [showScanlines, setShowScanlines] = useState(true);
@@ -31,7 +33,13 @@ function MainApp() {
       try {
         const s = await (window as any).api.getUplinkStatus();
         if (s && s.target) {
-          const cleanUrl = s.target.replace('http://', '').replace('https://', '');
+          let cleanUrl = s.target.replace('http://', '').replace('https://', '');
+          if (cleanUrl.includes('.onion')) {
+            const parts = cleanUrl.split('.');
+            if (parts[0].length > 12) {
+              cleanUrl = `${parts[0].substring(0, 12)}...onion${parts[1] ? ':' + parts[1].split(':')[1] : ''}`;
+            }
+          }
           setUplink(cleanUrl);
         }
       } catch (e) {
@@ -53,7 +61,7 @@ function MainApp() {
   if (isInitializing) {
     const displayPercent = Math.max(syncPercent, 0);
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050505] text-[#00ff41] font-mono p-10 relative overflow-hidden">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050505] text-[#00ff41] font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
         <style>{`
           @keyframes progress-indeterminate { 0% { transform: translateX(-100%) scaleX(0.2); } 50% { transform: translateX(0%) scaleX(0.5); } 100% { transform: translateX(100%) scaleX(0.2); } }
           .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, 0.1) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; }
@@ -71,7 +79,7 @@ function MainApp() {
         </div>
 
         {view === 'settings' ? (
-          <div className="w-full max-w-4xl z-[60] bg-[#050505] p-4 border border-[#004d13] shadow-[0_0_50px_rgba(0,255,65,0.1)] overflow-y-auto max-h-[80vh]">
+          <div className="w-full max-w-4xl z-[60] bg-[#050505] p-4 border border-[#004d13] shadow-[0_0_50px_rgba(0,255,65,0.1)] overflow-y-auto max-h-[80vh]" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <div className="flex justify-between items-center mb-6 border-b border-[#004d13]/30 pb-4">
                <span className="text-[10px] font-black text-white uppercase">[ EMERGENCY_OVERRIDE_ACTIVE ]</span>
                <button onClick={() => location.reload()} className="text-[9px] font-black text-[#00ff41] hover:underline uppercase tracking-widest cursor-pointer">[ Restart_Uplink ]</button>
@@ -79,7 +87,7 @@ function MainApp() {
             <SettingsView />
           </div>
         ) : (
-          <>
+          <div className="flex flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <Shield size={48} className="animate-pulse mb-6 text-white" />
             <div className="flex flex-col items-center gap-3 w-full max-w-xs">
               <div className="flex justify-between w-full text-[10px] font-black uppercase tracking-widest text-white">
@@ -107,7 +115,7 @@ function MainApp() {
                 Reconnect_Manual_Override
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
     );
@@ -156,11 +164,23 @@ function MainApp() {
       </main>
 
       <footer className="shrink-0 h-10 px-6 border-t border-[#004d13]/20 bg-black/40 flex justify-between items-center z-50 text-[8px] font-bold text-[#00661a] font-mono font-black">
-        <div className="flex gap-4 uppercase tracking-[0.1em]">
+        <div className="flex gap-6 uppercase tracking-[0.1em]">
           <span>ID: [ {address.substring(0,8)} ]</span>
           <span className="flex items-center gap-1">
             UPLINK: [ <span className="text-[#00ff41]">{uplink || 'SCANNING...'}</span> ]
           </span>
+          <span className="flex items-center gap-1">
+            XMR: [ <span className="text-[#ff6600]">${stats?.price.street || '---.--'}</span> ]
+          </span>
+          <span className="flex items-center gap-1">
+            POOL: [ <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-[#00ff41]"}>{stats?.network.mempool ?? '--'} TXs</span> ]
+          </span>
+          <span className="flex items-center gap-1">
+            NET_BK: [ <span className="text-[#00ff41]">{stats?.network.height || '-------'}</span> ]
+          </span>
+          {stats?.resistance.cex_status === 'WARNING' && (
+            <span className="text-red-500 animate-pulse">[ CEX_RISK_DETECTED ]</span>
+          )}
         </div>
         <div className="uppercase tracking-[0.2em] flex items-center gap-2">
           <span className="animate-pulse text-[#00ff41]">●</span>
