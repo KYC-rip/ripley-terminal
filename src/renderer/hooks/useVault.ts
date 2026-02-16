@@ -6,7 +6,7 @@ export function useVault() {
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [txs, setTxs] = useState<any[]>([]);
-  const [status, setStatus] = useState(StealthStep.IDLE);
+  const [status, setStatus] = useState<StealthStep>(StealthStep.IDLE);
   const [logs, setLogs] = useState<string[]>([]);
   const [syncPercent, setSyncPercent] = useState(0);
   const [isInitializing, setIsInitializing] = useState(true);
