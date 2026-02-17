@@ -32,7 +32,7 @@ export function registerFileHandlers() {
         });
       else
         paths.forEach((p, index) => {
-          fs.writeFileSync(p, data[index]);
+          fs.writeFileSync(p, Uint8Array.from(data[index]));
         });
 
       return true;

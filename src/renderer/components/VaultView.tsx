@@ -32,12 +32,12 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
 
   // Load Contacts
   useEffect(() => {
-    (window as any).api.getConfig(`address_book_${activeId}`).then((data: any) => setContacts(data || []));
+    window.api.getConfig(`address_book_${activeId}`).then((data: any) => setContacts(data || []));
   }, [activeId]);
 
   const saveContacts = async (updated: any[]) => {
     setContacts(updated);
-    await (window as any).api.setConfig(`address_book_${activeId}`, updated);
+    await window.api.setConfig(`address_book_${activeId}`, updated);
   };
 
   const handleChurn = async () => {
@@ -94,7 +94,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
               <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-widest font-black">Identity_Status</span>
               <button onClick={async () => { 
                 if(!confirm("⚠️ SECURITY WARNING ⚠️\n\nReveal Master Seed?\nEnsure no cameras or screen recording software is active.")) return;
-                const s = await (window as any).api.getConfig(`master_seed_${activeId}`); 
+                const s = await window.api.getConfig(`master_seed_${activeId}`); 
                 setMnemonic(s); 
                 setModals(prev => ({...prev, seed: true})); 
               }} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer"><Key size={16} /></button>

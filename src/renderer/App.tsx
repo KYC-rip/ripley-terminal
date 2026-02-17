@@ -78,10 +78,10 @@ function MainApp() {
   }, [showConsole]);
 
   useEffect(() => {
-    (window as any).api.getConfig('show_scanlines').then((v: boolean) => {
+    window.api.getConfig('show_scanlines').then((v: boolean) => {
       if (v !== undefined) setShowScanlines(v);
     });
-    (window as any).api.getConfig('auto_lock_minutes').then((v: any) => {
+    window.api.getConfig('auto_lock_minutes').then((v: any) => {
       setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0));
     });
   }, [view]);
@@ -89,7 +89,7 @@ function MainApp() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const s = await (window as any).api.getUplinkStatus();
+        const s = await window.api.getUplinkStatus();
         if (s && s.target) {
           let cleanUrl = s.target.replace('http://', '').replace('https://', '');
           if (cleanUrl.includes('.onion')) {

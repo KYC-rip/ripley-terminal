@@ -59,7 +59,7 @@ export default function SpreadChart() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const result = await (window as any).api.proxyRequest({
+        const result = await window.api.proxyRequest({
           url: `https://api.kyc.rip/v1/history?period=${timeframe}`,
           method: 'GET'
         });

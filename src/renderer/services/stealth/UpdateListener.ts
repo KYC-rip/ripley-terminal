@@ -5,7 +5,7 @@ export class UpdateListener extends MoneroWalletListener {
   constructor(protected engine: XmrStealthEngine) { super(); };
 
   async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
-    this.engine.logger(`[UpdateListener] onSyncProgress: height=${height}, startHeight=${startHeight}, endHeight=${endHeight}, percentDone=${percentDone}, message=${message}`);
+    this.engine.logger(`📡 Syncing: ${(percentDone * 100).toFixed(1)}% [${height}/${endHeight}]`, 'process');
   }
 
   async onNewBlock(height: number) {

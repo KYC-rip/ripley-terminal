@@ -9,23 +9,24 @@ interface TorContextType {
 const TorContext = createContext<TorContextType | undefined>(undefined);
 
 export function TorProvider({ children }: { children: React.ReactNode }) {
-  const [useTor, _setUseTor] = useState(false);
+  const [useTor, _setUseTor] = useState(true); // 🛡️ Privacy-first default
 
   useEffect(() => {
     // Load initial config
-    (window as any).api.getConfig('use_tor').then((v: boolean) => {
-      if (v !== undefined) _setUseTor(v);
+    window.api.getConfig('use_tor').then((v: boolean) => {
+      // If user has explicitly disabled it, honor that. Otherwise (true/undefined) keep true.
+      _setUseTor(v !== false);
     });
   }, []);
 
   const setUseTor = (v: boolean) => {
     _setUseTor(v);
-    (window as any).api.setConfig('use_tor', v);
+    window.api.setConfig('use_tor', v);
   };
 
   const torFetch = async (url: string, options: any = {}) => {
     const { method = 'GET', body, headers = {} } = options;
-    const result = await (window as any).api.proxyRequest({
+    const result = await window.api.proxyRequest({
       url,
       method,
       data: body ? JSON.parse(body) : undefined,

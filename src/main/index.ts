@@ -23,7 +23,7 @@ const state = { isTorReady: false };
 const torReadyRef = { get current() { return state.isTorReady; }, set current(v) { state.isTorReady = v; } };
 
 async function initTor(window?: BrowserWindow) {
-  const useTor = !!store.get('use_tor');
+  const useTor = store.get('use_tor') !== false; // 🛡️ Default to TRUE if undefined
   if (!useTor) return;
   const logToUI = (msg: string) => {
     window?.webContents.send('tor-status', msg);

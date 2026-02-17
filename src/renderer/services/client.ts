@@ -88,7 +88,7 @@ async function client<T>(type: APIType, endpoint: string, { body, ...customConfi
     const id = setTimeout(() => controller.abort(), customConfig.timeout || 15000);
     config.signal = controller.signal;
 
-    const result = await (window as any).api.proxyRequest({url, ...config as RequestInit});
+    const result = await window.api.proxyRequest({url, ...config as RequestInit});
     clearTimeout(id);
 
     if (result.error) {

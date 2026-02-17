@@ -25,13 +25,13 @@ export function SettingsView() {
 
   useEffect(() => {
     const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
-    (window as any).api.getConfig(`custom_daemon_${configPrefix}`).then((v: string) => setDaemonUrl(v || ''));
-    (window as any).api.getConfig(`auto_node_${configPrefix}`).then((v: boolean) => setIsAutoNode(v !== false));
-    (window as any).api.getConfig('is_stagenet').then((v: boolean) => setIsStagenet(!!v));
-    (window as any).api.getConfig('show_scanlines').then((v: boolean) => {
+    window.api.getConfig(`custom_daemon_${configPrefix}`).then((v: string) => setDaemonUrl(v || ''));
+    window.api.getConfig(`auto_node_${configPrefix}`).then((v: boolean) => setIsAutoNode(v !== false));
+    window.api.getConfig('is_stagenet').then((v: boolean) => setIsStagenet(!!v));
+    window.api.getConfig('show_scanlines').then((v: boolean) => {
       if (v !== undefined) setShowScanlines(v);
     });
-    (window as any).api.getConfig('auto_lock_minutes').then((v: any) => setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0)));
+    window.api.getConfig('auto_lock_minutes').then((v: any) => setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0)));
   }, [isStagenet]);
 
   useEffect(() => {
@@ -41,15 +41,15 @@ export function SettingsView() {
   const handleSave = async () => {
     setSaveStatus('saving');
     
-    const oldStagenet = await (window as any).api.getConfig('is_stagenet');
+    const oldStagenet = await window.api.getConfig('is_stagenet');
     const networkChanged = !!oldStagenet !== isStagenet;
     const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
 
-    await (window as any).api.setConfig(`custom_daemon_${configPrefix}`, daemonUrl);
-    await (window as any).api.setConfig(`auto_node_${configPrefix}`, isAutoNode);
-    await (window as any).api.setConfig('is_stagenet', isStagenet);
-    await (window as any).api.setConfig('show_scanlines', showScanlines);
-    await (window as any).api.setConfig('auto_lock_minutes', autoLockMinutes);
+    await window.api.setConfig(`custom_daemon_${configPrefix}`, daemonUrl);
+    await window.api.setConfig(`auto_node_${configPrefix}`, isAutoNode);
+    await window.api.setConfig('is_stagenet', isStagenet);
+    await window.api.setConfig('show_scanlines', showScanlines);
+    await window.api.setConfig('auto_lock_minutes', autoLockMinutes);
     
     setUseTor(torEnabled);
 

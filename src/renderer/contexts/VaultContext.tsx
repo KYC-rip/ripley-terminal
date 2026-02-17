@@ -110,7 +110,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (engineRef.current) return;
 
     // 🛡️ TACTICAL CHECK: Ensure Tor is ready before allowing unlock if enabled
-    const useTor = await window.api.getConfig('use_tor');
+    const useTorConfig = await window.api.getConfig('use_tor');
+    const useTor = useTorConfig !== false; // Default to true if undefined
+    
     if (useTor) {
       addLog("🛡️ Verifying Tor Circuit Integrity...", "process");
 
@@ -169,18 +171,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const onHeightUpdate = (h: number) => {
         if (h > 0) {
           setCurrentHeight(h);
-          // Calculate dynamic percentage
-          if (tH > 0) {
-            const progress = (h / tH) * 100;
+          
+          // Use current totalHeight state
+          const targetH = totalHeight;
+
+          if (targetH > 0) {
+            const progress = Math.min((h / targetH) * 100, 100);
             setSyncPercent(progress);
 
             // Throttle logs: Every 500 blocks or on major milestones
-            if (h - lastLogHeight > 500 || h >= tH - 1) {
+            if (h - lastLogHeight > 500 || h >= targetH - 1) {
               lastLogHeight = h;
-              addLog(`📡 Scanning Ledger: ${progress.toFixed(1)}% [${h}/${tH}]`, 'process');
+              addLog(`📡 Scanning Ledger: ${progress.toFixed(1)}% [${h}/${targetH}]`, 'process');
             }
           } else {
-            // Fallback if tH is 0 (daemon unreachable during init?)
+            // Fallback if targetH is 0
             if (h - lastLogHeight > 1000) {
               lastLogHeight = h;
               addLog(`📡 Scanning Ledger: Block ${h}...`, 'process');
@@ -189,18 +194,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
           window.api.setConfig(`last_sync_height_${targetId}`, h);
         }
-      }
+      };
+
       const listener = new (class extends UpdateListener {
         async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
+          // monero-ts provides percentDone as 0.0 - 1.0
+          const displayPercent = percentDone * 100;
           onHeightUpdate(height);
-          setSyncPercent(percentDone);
+          setSyncPercent(displayPercent);
+        }
+        async onNewBlock(height: number) {
+          onHeightUpdate(height);
         }
       })(engine);
 
       const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, listener, stagenetActive, targetId);
 
-      const tH = await engine.getNetworkHeight();
-      setTotalHeight(tH);
+      // Immediately fetch network height to drive the progress bar
+      const nH = await engine.getNetworkHeight();
+      if (nH > 0) setTotalHeight(nH);
 
       const mnemonic = await engine.getMnemonic();
       if (mnemonic) await window.api.setConfig(`master_seed_${targetId}`, mnemonic);
@@ -212,8 +224,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
       // Start Background Sync
       setStatus('SYNCING');
-
-
       engine.startSyncInBackground();
 
       await refresh();

@@ -33,7 +33,7 @@ export function useStats() {
   const fetchData = async () => {
     try {
       // Direct call to main process proxy which handles Tor internally
-      const result = await (window as any).api.proxyRequest({
+      const result = await window.api.proxyRequest({
         url: 'https://api.kyc.rip/v1/stats',
         method: 'GET'
       });
