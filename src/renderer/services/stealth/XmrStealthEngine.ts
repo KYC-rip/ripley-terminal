@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import moneroTs from 'monero-ts';
+import moneroTs, { MoneroWalletConfig } from 'monero-ts';
 import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
 
 export class XmrStealthEngine implements IStealthEngine {
@@ -50,11 +50,12 @@ export class XmrStealthEngine implements IStealthEngine {
         
         // We do NOT inject fs mock here for the worker, as it runs in its own scope.
         // We rely on the worker build's internal MEMFS.
-        const walletConfig: any = {
+        const walletConfig: Partial<MoneroWalletConfig> = {
           networkType,
           password: password,
           server: { uri: rpcUrl },
-          proxyToWorker: true // 🔥 BACK TO WORKER
+          fs: (window as any).fs,
+          proxyToWorker: true
         };
 
         if (savedKeysData && savedKeysData.length > 0) {

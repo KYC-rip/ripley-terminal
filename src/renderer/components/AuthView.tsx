@@ -216,11 +216,30 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           )}
         </Card>
 
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-xs mx-auto">
             IMPORTANT: Password used to encrypt local keys. <br/>
             If lost, the vault cannot be recovered without seed backup.
           </p>
+          
+          {!isInitialSetup && (
+            <button 
+              onClick={async () => {
+                if (confirm("🚨 WARNING: TOTAL PURGE. This will delete BOTH the local wallet file AND the cached seed. You will need your 25-word mnemonic to recover. Continue?")) {
+                   // 1. Wipe cached seed and height from store
+                   await (window as any).api.setConfig(`master_seed_${activeId}`, null);
+                   await (window as any).api.setConfig(`last_sync_height_${activeId}`, null);
+                   // 2. Overwrite wallet file with empty
+                   await (window as any).api.writeWalletFile({ filename: activeId, buffer: [] }); 
+                   
+                   location.reload();
+                }
+              }}
+              className="text-[8px] text-red-900 hover:text-red-500 uppercase font-black underline decoration-dotted underline-offset-4 transition-colors cursor-pointer"
+            >
+              [ Nuclear_Identity_Purge ]
+            </button>
+          )}
         </div>
       </div>
     </div>

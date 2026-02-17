@@ -116,7 +116,22 @@ ipcMain.handle('read-wallet-file', async (_, filename) => {
 ipcMain.handle('write-wallet-file', async (_, { filename, buffer }) => {
   const dir = join(app.getPath('userData'), 'wallets');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(join(dir, filename), Buffer.from(buffer));
+  
+  // Robust Buffer conversion: handle Uint8Array, Array, or Node Buffer-like objects
+  let dataToWrite;
+  if (Buffer.isBuffer(buffer)) {
+    dataToWrite = buffer;
+  } else if (buffer instanceof Uint8Array || Array.isArray(buffer)) {
+    dataToWrite = Buffer.from(buffer);
+  } else if (buffer && typeof buffer === 'object' && Object.keys(buffer).length > 0) {
+    // Handle {0: x, 1: y...} object case which sometimes happens over IPC
+    dataToWrite = Buffer.from(Object.values(buffer));
+  } else {
+    console.error(`[Main] Invalid buffer format for ${filename}`, buffer);
+    throw new Error("INVALID_BUFFER_FORMAT");
+  }
+
+  fs.writeFileSync(join(dir, filename), dataToWrite);
   return true;
 });
 
