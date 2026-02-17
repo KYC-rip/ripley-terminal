@@ -19,10 +19,8 @@ const nodeManager = new NodeManager();
 let isTorReady = false;
 
 async function initTor(window?: BrowserWindow) {
-  console.log('[System] --- Tor Initialization Probe ---');
   const useTor = !!store.get('use_tor');
   if (!useTor) return;
-
   const logToUI = (msg: string) => {
     window?.webContents.send('tor-status', msg);
     if (msg.includes('Bootstrapped 100%')) {
@@ -30,7 +28,6 @@ async function initTor(window?: BrowserWindow) {
       nodeManager.scout(!!store.get('is_stagenet'), true);
     }
   };
-
   const exists = await torManager.ensureTorExists(logToUI);
   if (exists) torManager.start(logToUI);
 }
@@ -42,7 +39,6 @@ async function startNodeRadar() {
   setInterval(() => nodeManager.scout(!!store.get('is_stagenet'), !!store.get('use_tor')), 10 * 60 * 1000);
 }
 
-// --- Local Proxy Server ---
 const proxy = httpProxy.createProxyServer({ changeOrigin: true, proxyTimeout: 60000 });
 const localProxyServer = http.createServer((req, res) => {
   const useTor = !!store.get('use_tor');
@@ -51,44 +47,26 @@ const localProxyServer = http.createServer((req, res) => {
   const isAutoNode = store.get(`auto_node_${configPrefix}`) !== false;
   const customDaemon = store.get(`custom_daemon_${configPrefix}`);
   const baseTarget = (isAutoNode || !customDaemon) ? nodeManager.getBestNode() : customDaemon;
-
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', '*');
   res.setHeader('Access-Control-Allow-Headers', '*');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-
-  if (useTor && !isTorReady) {
-    res.writeHead(503);
-    res.end(JSON.stringify({ error: 'TOR_BOOTSTRAPPING' }));
-    return;
-  }
-
+  if (useTor && !isTorReady) { res.writeHead(503); res.end(JSON.stringify({ error: 'TOR_BOOTSTRAPPING' })); return; }
   const attemptProxy = (nodeIndex: number) => {
     const currentTarget = nodeIndex === 0 ? baseTarget : nodeManager.getBestNode();
     proxy.web(req, res, { target: currentTarget, agent: useTor ? torAgent : undefined }, async (e: any) => {
-      if (nodeIndex < 2 && isAutoNode) {
-        await nodeManager.scout(isStagenet, useTor);
-        attemptProxy(nodeIndex + 1);
-      } else {
-        res.writeHead(502);
-        res.end(JSON.stringify({ error: 'LINK_EXHAUSTED' }));
-      }
+      if (nodeIndex < 2 && isAutoNode) { await nodeManager.scout(isStagenet, useTor); attemptProxy(nodeIndex + 1); } 
+      else { res.writeHead(502); res.end(JSON.stringify({ error: 'LINK_EXHAUSTED' })); }
     });
   };
   attemptProxy(0);
 });
-
 localProxyServer.listen(18082, '0.0.0.0');
 
 // --- IPC Handlers ---
 ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isTorReady, isStagenet: !!store.get('is_stagenet') }));
 ipcMain.handle('get-config', (_, key) => store.get(key));
 ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true; });
-ipcMain.handle('get-seed', () => store.get('master_seed'));
-ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
-ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
-
-// Identity Management
 ipcMain.handle('get-identities', () => {
   const ids = store.get('identities');
   if (!ids) {
@@ -102,40 +80,31 @@ ipcMain.handle('save-identities', (_, ids) => { store.set('identities', ids); re
 ipcMain.handle('get-active-identity', () => store.get('active_identity_id') || 'primary');
 ipcMain.handle('set-active-identity', (_, id) => { store.set('active_identity_id', id); return true; });
 
-// Wallet Files
-ipcMain.handle('get-wallet-path', () => join(app.getPath('userData'), 'wallets'));
+// --- Secure Binary File Management (Base64 Tunneling) ---
 ipcMain.handle('read-wallet-file', async (_, filename) => {
   try {
     const p = join(app.getPath('userData'), 'wallets', filename);
-    if (fs.existsSync(p)) return fs.readFileSync(p);
-    return null;
+    if (!fs.existsSync(p)) return null;
+    // Return as Base64 string to ensure 100% transfer integrity
+    return fs.readFileSync(p, { encoding: 'base64' });
+  } catch (e) { return null; }
+});
+
+ipcMain.handle('write-wallet-file', async (_, { filename, base64Data }) => {
+  try {
+    const dir = join(app.getPath('userData'), 'wallets');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    
+    // Write from Base64 string back to binary disk file
+    fs.writeFileSync(join(dir, filename), Buffer.from(base64Data, 'base64'));
+    return true;
   } catch (e) {
-    return null;
+    console.error(`[Main] Write failed for ${filename}:`, e);
+    return false;
   }
 });
-ipcMain.handle('write-wallet-file', async (_, { filename, buffer }) => {
-  const dir = join(app.getPath('userData'), 'wallets');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  
-  // Robust Buffer conversion: handle Uint8Array, Array, or Node Buffer-like objects
-  let dataToWrite;
-  if (Buffer.isBuffer(buffer)) {
-    dataToWrite = buffer;
-  } else if (buffer instanceof Uint8Array || Array.isArray(buffer)) {
-    dataToWrite = Buffer.from(buffer);
-  } else if (buffer && typeof buffer === 'object' && Object.keys(buffer).length > 0) {
-    // Handle {0: x, 1: y...} object case which sometimes happens over IPC
-    dataToWrite = Buffer.from(Object.values(buffer));
-  } else {
-    console.error(`[Main] Invalid buffer format for ${filename}`, buffer);
-    throw new Error("INVALID_BUFFER_FORMAT");
-  }
 
-  fs.writeFileSync(join(dir, filename), dataToWrite);
-  return true;
-});
-
-// ULTRALIGHT FETCH PROXY
+// --- Proxy Request ---
 async function tacticalFetch(url: string, options: any, useTor: boolean) {
   if (useTor) {
     if (!isTorReady) throw new Error('TOR_NOT_READY');
@@ -175,9 +144,7 @@ ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {} }) =
     const response: any = await tacticalFetch(url, fetchOptions, useTor);
     const resultData = await response.json();
     return { data: resultData, status: response.status };
-  } catch (error: any) {
-    return { error: error.message };
-  }
+  } catch (error: any) { return { error: error.message }; }
 });
 
 function createWindow(): void {
@@ -196,6 +163,5 @@ app.whenReady().then(() => {
   startNodeRadar().then(() => initTor());
   createWindow();
 });
-
 app.on('will-quit', () => torManager.stop());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

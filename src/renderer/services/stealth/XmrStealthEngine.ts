@@ -3,6 +3,18 @@
 import moneroTs from 'monero-ts';
 import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
 
+// Utility for Base64 conversion in browser/renderer environment
+function uint8ToBase64(arr: Uint8Array): string {
+  return btoa(Array.from(arr).map(b => String.fromCharCode(b)).join(''));
+}
+
+function base64ToUint8(str: string): Uint8Array {
+  const binary = atob(str);
+  const arr = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  return arr;
+}
+
 function applyTacticalPatches(lib: any) {
   try {
     if (lib.MoneroWalletFull) {
@@ -58,7 +70,7 @@ export class XmrStealthEngine implements IStealthEngine {
           throw new Error(`Connection check failed: ${e.message}`);
         }
 
-        const savedKeysData = await (window as any).api.readWalletFile(this.identityId);
+        const base64Data = await (window as any).api.readWalletFile(this.identityId);
         
         const walletConfig: any = {
           networkType,
@@ -66,14 +78,14 @@ export class XmrStealthEngine implements IStealthEngine {
           server: { uri: rpcUrl },
           fs: (window as any).fs, 
           proxyToWorker: true,
-          // 🔥 NEW: Configure lookahead to discover existing subaddresses/accounts during restore
           accountLookahead: 3,
           subaddressLookahead: 50
         };
 
-        if (savedKeysData && savedKeysData.length > 0) {
+        if (base64Data && base64Data.length > 0) {
            this.logger("📂 Loading persistent vault...", 'process');
-           walletConfig.keysData = new Uint8Array(savedKeysData);
+           // Convert back from Base64 string to Uint8Array
+           walletConfig.keysData = base64ToUint8(base64Data);
            this.wallet = await lib.openWalletFull(walletConfig);
         } else {
            this.logger("🆕 Creating/Restoring vault...", 'process');
@@ -85,17 +97,16 @@ export class XmrStealthEngine implements IStealthEngine {
               await tempWallet.close();
            }
            walletConfig.seed = targetSeed;
-           // 🔥 FIX: Correctly handle 0 as a valid restore height
            walletConfig.restoreHeight = (overrideHeight !== undefined && !isNaN(overrideHeight)) 
               ? overrideHeight 
               : Math.max(0, currentHeight - 10);
            
-           this.logger(`📅 Restore Height set to: ${walletConfig.restoreHeight}`, 'info');
            this.wallet = await lib.createWalletFull(walletConfig);
         }
 
         this.cachedMnemonic = await this.wallet!.getSeed();
-        this.cachedAddress = await this.wallet!.getAddress(0, targetIndex || 0);
+        const finalSubaddressIndex = subaddressIndex || 0;
+        this.cachedAddress = await this.wallet!.getAddress(0, finalSubaddressIndex);
 
         this.logger(`🔗 Uplink established. Identity: ${this.identityId}`, 'success');
         await this.saveWalletToDisk();
@@ -123,7 +134,9 @@ export class XmrStealthEngine implements IStealthEngine {
     if (!this.wallet) return;
     try {
       const walletData = await this.wallet.getData();
-      await (window as any).api.writeWalletFile({ filename: this.identityId, buffer: walletData });
+      // Convert binary to Base64 string for secure IPC transfer
+      const base64Data = uint8ToBase64(walletData);
+      await (window as any).api.writeWalletFile({ filename: this.identityId, base64Data });
     } catch (e) {
       console.error("[Vault] Save Failed:", e);
     }
@@ -145,7 +158,6 @@ export class XmrStealthEngine implements IStealthEngine {
         const pInt = Math.floor(pFloat);
         
         if (pInt > this._lastPercent || Math.random() < 0.05) {
-          // 🔥 Show more detail in log for user peace of mind
           self.logSync(`Scanning: ${pFloat.toFixed(1)}% [Block ${height}]`);
           this._lastPercent = pInt;
         }

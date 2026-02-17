@@ -9,6 +9,7 @@ import { HomeView } from './components/HomeView';
 import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { TorProvider, useTor } from './contexts/TorContext';
+import { VaultProvider } from './contexts/VaultContext';
 import { StealthStep } from './services/stealth/types';
 
 function MainApp() {
@@ -19,7 +20,7 @@ function MainApp() {
   const vault = useVault();
   const { 
     address, logs, status, isInitializing, syncPercent, isLocked, unlock, lock, purgeIdentity,
-    hasVaultFile, identities, activeId, switchIdentity, createIdentity 
+    hasVaultFile, identities, activeId, switchIdentity 
   } = vault;
   
   const { useTor: torEnabled, setUseTor } = useTor();
@@ -131,8 +132,8 @@ function MainApp() {
         identities={identities}
         activeId={activeId}
         onSwitchIdentity={switchIdentity}
-        onCreateIdentity={createIdentity}
-        onPurgeIdentity={purgeIdentity} // PASS UNIFIED PURGE
+        onCreateIdentity={(name) => unlock('', undefined, undefined, name)}
+        onPurgeIdentity={purgeIdentity}
         logs={logs}
       />
     );
@@ -279,4 +280,12 @@ function MainApp() {
   );
 }
 
-export default function App() { return (<TorProvider><MainApp /></TorProvider>); }
+export default function App() { 
+  return (
+    <TorProvider>
+      <VaultProvider>
+        <MainApp />
+      </VaultProvider>
+    </TorProvider>
+  ); 
+}
