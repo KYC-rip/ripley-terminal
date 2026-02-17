@@ -14,6 +14,7 @@ const api = {
   saveIdentities: (identities: any[]) => ipcRenderer.invoke('save-identities', identities),
   getActiveIdentity: () => ipcRenderer.invoke('get-active-identity'),
   setActiveIdentity: (id: string) => ipcRenderer.invoke('set-active-identity', id),
+  renameIdentity: (id: string, name: string) => ipcRenderer.invoke('rename-identity', { id, name }),
 
   // File System (Wallet Storage)
   getWalletPath: () => ipcRenderer.invoke('get-wallet-path'),

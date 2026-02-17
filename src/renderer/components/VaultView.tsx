@@ -19,7 +19,7 @@ interface VaultViewProps {
 }
 
 export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
-  const { balance, address, subaddresses, outputs, refresh, status, isSending, sendXmr, createSubaddress, churn, txs, currentHeight, activeId } = vault;
+  const { balance, address, subaddresses, outputs, refresh, status, isSending, sendXmr, createSubaddress, churn, txs, currentHeight, activeId, setSubaddressLabel } = vault;
   const { stats } = useStats();
   const { torFetch } = useTor();
   
@@ -92,7 +92,12 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           <Card className="flex-grow flex flex-col justify-between">
             <div className="flex justify-between items-start font-black">
               <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-widest font-black">Identity_Status</span>
-              <button onClick={async () => { const s = await (window as any).api.getConfig(`master_seed_${activeId}`); setMnemonic(s); setModals(prev => ({...prev, seed: true})); }} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer"><Key size={16} /></button>
+              <button onClick={async () => { 
+                if(!confirm("⚠️ SECURITY WARNING ⚠️\n\nReveal Master Seed?\nEnsure no cameras or screen recording software is active.")) return;
+                const s = await (window as any).api.getConfig(`master_seed_${activeId}`); 
+                setMnemonic(s); 
+                setModals(prev => ({...prev, seed: true})); 
+              }} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer"><Key size={16} /></button>
             </div>
             <div className="p-3 bg-xmr-base border border-xmr-border/30 rounded-sm font-black overflow-hidden">
               <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-xmr-green font-black uppercase">SESSION_ADDRESS</span></div>
@@ -122,7 +127,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       <div className="min-h-[400px]">
         {tab === 'ledger' && <TransactionLedger txs={txs} />}
         {tab === 'coins' && <CoinControl outputs={outputs} />}
-        {tab === 'addresses' && <AddressList subaddresses={subaddresses} handleCopy={handleCopy} />}
+        {tab === 'addresses' && <AddressList subaddresses={subaddresses} handleCopy={handleCopy} onUpdateLabel={setSubaddressLabel} />}
         {tab === 'contacts' && <AddressBook 
           contacts={contacts} 
           onAddContact={(c) => saveContacts([...contacts, c])} 

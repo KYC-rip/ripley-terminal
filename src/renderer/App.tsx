@@ -258,7 +258,15 @@ function MainApp() {
                   {logs.map((log, i) => (
                     <div key={i} className="flex gap-3 group">
                       <span className="text-xmr-dim opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                      <span className={`break-all ${log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' : log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>{'>'} {log.msg}</span>
+                      <span className={`break-all ${
+                        log.type === 'error' ? 'text-red-500 font-bold' : 
+                        log.type === 'success' ? 'text-xmr-green font-bold' : 
+                        log.type === 'process' ? 'text-xmr-accent animate-pulse' : 
+                        log.type === 'warning' ? 'text-orange-500' :
+                        log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' : 
+                        log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' : 
+                        'text-xmr-green/70'
+                      }`}>{'>'} {log.msg}</span>
                     </div>
                   ))}
                </div>

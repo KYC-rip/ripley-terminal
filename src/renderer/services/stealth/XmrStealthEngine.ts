@@ -103,12 +103,33 @@ export class XmrStealthEngine implements IStealthEngine {
         async onSyncProgress(h: number, s: number, e: number, percent: number) {
           if (onHeightUpdate) onHeightUpdate(h);
         }
+        async onNewBlock(h: number) {
+          if (onHeightUpdate) onHeightUpdate(h);
+        }
       })());
+
+      // Polling fallback (Tactical reinforcement for UI responsiveness)
+      const pollInterval = setInterval(async () => {
+        if (!this.isSyncing || !this.wallet) {
+          clearInterval(pollInterval);
+          return;
+        }
+        try {
+          const h = await this.wallet.getHeight();
+          if (onHeightUpdate) onHeightUpdate(h);
+        } catch (e) { /* Squelch */ }
+      }, 2500);
 
       this.wallet.sync().then(() => {
         this.isSyncing = false;
+        clearInterval(pollInterval);
         this.saveWalletToDisk();
-      }).catch(() => { this.isSyncing = false; });
+        this.logger("✅ Ledger synchronized.", 'success');
+      }).catch((e: any) => { 
+        this.isSyncing = false; 
+        clearInterval(pollInterval);
+        this.logger(`❌ Sync interrupted: ${e.message}`, 'error');
+      });
     } catch (e) { this.isSyncing = false; }
   }
 
@@ -138,6 +159,12 @@ export class XmrStealthEngine implements IStealthEngine {
     const sub = await this.wallet.createSubaddress(0, label);
     await this.saveWalletToDisk(); 
     return sub.getAddress();
+  }
+
+  public async setSubaddressLabel(index: number, label: string) {
+    if (!this.wallet) throw new Error("NOT_INIT");
+    await this.wallet.setSubaddressLabel(0, index, label);
+    await this.saveWalletToDisk();
   }
 
   // --- Common Wrappers ---

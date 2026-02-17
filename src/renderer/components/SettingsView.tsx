@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2 } from 'lucide-react';
 import { Card } from './Card';
 import { useTor } from '../contexts/TorContext';
 import { useVault } from '../hooks/useVault';
 
 export function SettingsView() {
   const { useTor: torEnabled, setUseTor } = useTor();
-  const { rescan, currentHeight, purgeIdentity, activeId } = useVault();
+  const { rescan, currentHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
   
   const [daemonUrl, setDaemonUrl] = useState('');
   const [isAutoNode, setIsAutoNode] = useState(true);
@@ -19,6 +19,10 @@ export function SettingsView() {
   const [targetHeight, setTargetHeight] = useState<string>('');
   const [isRescanning, setIsRescaning] = useState(false);
 
+  // Identity Renaming State
+  const currentIdentity = identities.find(i => i.id === activeId);
+  const [identityName, setIdentityName] = useState('');
+
   useEffect(() => {
     const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
     (window as any).api.getConfig(`custom_daemon_${configPrefix}`).then((v: string) => setDaemonUrl(v || ''));
@@ -29,6 +33,10 @@ export function SettingsView() {
     });
     (window as any).api.getConfig('auto_lock_minutes').then((v: any) => setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0)));
   }, [isStagenet]);
+
+  useEffect(() => {
+    if (currentIdentity) setIdentityName(currentIdentity.name);
+  }, [currentIdentity]);
 
   const handleSave = async () => {
     setSaveStatus('saving');
@@ -44,6 +52,11 @@ export function SettingsView() {
     await (window as any).api.setConfig('auto_lock_minutes', autoLockMinutes);
     
     setUseTor(torEnabled);
+
+    // Save Identity Name
+    if (identityName && identityName !== currentIdentity?.name) {
+      await renameIdentity(activeId, identityName);
+    }
 
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 2000);
@@ -85,6 +98,21 @@ export function SettingsView() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 font-black">
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><Edit2 size={14} /> Identity_Management</h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+             <div className="space-y-2">
+                <label className="text-[9px] font-black text-xmr-dim uppercase">Active_Identity_Label</label>
+                <input 
+                  type="text" 
+                  value={identityName}
+                  onChange={(e) => setIdentityName(e.target.value)}
+                  className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+                />
+             </div>
+          </Card>
+        </section>
+
         <section className="space-y-4 font-black">
           <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><Server size={14} /> Uplink_Protocols</h3>
           <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">

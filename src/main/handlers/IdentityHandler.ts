@@ -24,4 +24,11 @@ export function registerIdentityHandlers(store: any) {
     store.set('active_identity_id', id);
     return true;
   });
+
+  ipcMain.handle('rename-identity', (_, { id, name }) => {
+    const ids = store.get('identities') || [];
+    const updated = ids.map((i: any) => i.id === id ? { ...i, name } : i);
+    store.set('identities', updated);
+    return true;
+  });
 }

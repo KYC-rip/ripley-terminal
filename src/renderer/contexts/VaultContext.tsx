@@ -11,7 +11,7 @@ if (moneroTs.MoneroWalletFull) {
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
 export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
-export interface LogEntry { msg: string; timestamp: number; type?: string; }
+export interface LogEntry { msg: string; timestamp: number; type?: 'info' | 'success' | 'warning' | 'process' | 'error'; }
 
 interface VaultContextType {
   balance: { total: string; unlocked: string };
@@ -40,6 +40,8 @@ interface VaultContextType {
   rescan: (height: number) => Promise<void>;
   churn: () => Promise<string>;
   createSubaddress: (label?: string) => Promise<string | undefined>;
+  renameIdentity: (id: string, name: string) => Promise<void>;
+  setSubaddressLabel: (index: number, label: string) => Promise<void>;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -66,7 +68,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const engineRef = useRef<XmrStealthEngine | null>(null);
 
-  const addLog = useCallback((msg: string, type?: string) => {
+  const addLog = useCallback((msg: string, type: any = 'info') => {
     setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
   }, []);
 
@@ -90,6 +92,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const unlock = useCallback(async (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => {
     if (engineRef.current) return;
+
+    // 🛡️ TACTICAL CHECK: Ensure Tor is ready before allowing unlock if enabled
+    const useTor = await (window as any).api.getConfig('use_tor');
+    if (useTor) {
+      const uplink = await (window as any).api.getUplinkStatus();
+      if (!uplink.isTorReady) {
+        throw new Error("TOR_NOT_READY: Wait for bootstrap 100% or disable Tor.");
+      }
+    }
+
     setIsInitializing(true);
     let targetId = activeId;
 
@@ -228,6 +240,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     createSubaddress: useCallback(async (label?: string) => {
       if (!engineRef.current) return;
       try { const newAddr = await engineRef.current.createNextSubaddress(label); await refresh(); return newAddr; } catch (e) {}
+    }, [refresh]),
+    renameIdentity: useCallback(async (id: string, name: string) => {
+      await (window as any).api.renameIdentity(id, name);
+      const ids = await (window as any).api.getIdentities();
+      setIdentities(ids);
+    }, []),
+    setSubaddressLabel: useCallback(async (index: number, label: string) => {
+      if (!engineRef.current) return;
+      try { await engineRef.current.setSubaddressLabel(index, label); await refresh(); } catch (e) {}
     }, [refresh])
   };
 
