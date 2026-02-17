@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck, Download, Sparkles, ArrowLeft, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck, Download, Sparkles, ArrowLeft, Calendar, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { Card } from './Card';
 
 interface Identity { id: string; name: string; created: number; }
@@ -21,7 +21,6 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
   const [step, setStep] = useState<SetupStep>(isInitialSetup ? 'LABEL' : 'AUTH');
   const [showSwitcher, setShowSwitcher] = useState(false);
   
-  // Form States
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [restoreSeed, setRestoreSeed] = useState('');
@@ -61,7 +60,6 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-50 opacity-[0.05]"></div>
       
       <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 py-10">
-        {/* HEADER */}
         <div className="text-center space-y-3">
           <div className="inline-block p-3 rounded-full bg-xmr-green/10 border border-xmr-green/20 mb-1">
             {step === 'AUTH' ? <Shield size={40} className={isProcessing ? 'animate-pulse' : ''} /> : <ShieldCheck size={40} />}
@@ -78,7 +76,6 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
         <Card topGradientAccentColor={step === 'AUTH' ? 'xmr-accent' : 'xmr-green'} className="p-8 shadow-2xl relative">
           <form onSubmit={handleUnlockSubmit} className="space-y-6">
             
-            {/* 1. LABEL STEP */}
             {step === 'LABEL' && (
               <div className="space-y-4 animate-in fade-in duration-300">
                  <div className="space-y-1">
@@ -89,7 +86,6 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
               </div>
             )}
 
-            {/* 2. MODE STEP */}
             {step === 'MODE' && (
               <div className="grid grid-cols-1 gap-3 animate-in fade-in duration-300">
                  <button type="button" onClick={() => setStep('NEW_PASSWORD')} className="p-5 border border-xmr-border bg-xmr-green/5 hover:border-xmr-green hover:bg-xmr-green/10 transition-all text-left group">
@@ -100,11 +96,10 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
                     <div className="flex items-center gap-3 mb-1"><Download className="text-xmr-accent" size={18} /><span className="text-sm font-black uppercase text-xmr-accent">Restore_Existing</span></div>
                     <p className="text-[8px] text-xmr-dim uppercase">Import identity from private backup seed.</p>
                  </button>
-                 <button type="button" onClick={() => setStep('LABEL')} className="mt-2 text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors"><ArrowLeft size={12}/> Back</button>
+                 <button type="button" onClick={() => { if(isInitialSetup) setStep('LABEL'); else setStep('AUTH'); }} className="mt-2 text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors"><ArrowLeft size={12}/> Back</button>
               </div>
             )}
 
-            {/* 3. AUTH / RESTORE / NEW_PASSWORD FORM */}
             {(step === 'AUTH' || step === 'RESTORE' || step === 'NEW_PASSWORD') && (
               <div className="space-y-5 animate-in slide-in-from-bottom-2 duration-300">
                 {step === 'RESTORE' && (
@@ -131,24 +126,38 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
                 {step !== 'AUTH' && (
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Confirm_Password</label>
-                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-3 text-xl font-black text-xmr-green focus:border-xmr-green outline-none" />
+                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-3 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
                   </div>
                 )}
 
                 {error && <div className="p-3 bg-red-900/20 border border-red-600/50 text-red-500 text-[10px] font-black uppercase flex items-center gap-2 animate-shake"><Skull size={14} /> {error}</div>}
 
-                {isProcessing && logs.length > 0 && (
-                  <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">
-                     {logs.slice(0, 3).map((log, i) => (<p key={i} className={`text-[8px] uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>{'>'} {log}</p>))}
-                  </div>
-                )}
+                            {isProcessing && logs.length > 0 && (
+
+                              <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">
+
+                                 {logs.slice(0, 3).map((log, i) => (
+
+                                   <p key={i} className={`text-[8px] uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>
+
+                                     {'>'} {log.msg}
+
+                                   </p>
+
+                                 ))}
+
+                              </div>
+
+                            )}
+
+                
 
                 <button disabled={isProcessing || !password || (step !== 'AUTH' && !confirmPassword)} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.3em] hover:bg-white hover:text-black transition-all flex items-center justify-center gap-3 group disabled:opacity-30 cursor-pointer">
                   {isProcessing ? <><RefreshCw size={18} className="animate-spin" /> Authorizing...</> : <><Key size={18} className="group-hover:scale-110 transition-transform" /> {step === 'RESTORE' ? 'Initiate_Recovery' : step === 'NEW_PASSWORD' ? 'Establish_Vault' : 'Unlock_Identity'}</>}
                 </button>
                 
                 {!isProcessing && step !== 'AUTH' && (
-                   <button type="button" onClick={() => setStep('MODE')} className="w-full text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back_To_Strategy</button>
+                   <button type="button" onClick={() => setStep('MODE')} className="w-full text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
                 )}
               </div>
             )}
@@ -162,19 +171,31 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
                   {showSwitcher ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                </button>
                {showSwitcher && (
-                 <div className="mt-4 max-h-32 overflow-y-auto pr-1 custom-scrollbar grid grid-cols-2 gap-2 animate-in slide-in-from-top-2 duration-200">
+                 <div className="mt-4 max-h-48 overflow-y-auto pr-1 custom-scrollbar space-y-2 animate-in slide-in-from-top-2 duration-200">
                     {identities.map(id => (
-                      <button key={id.id} type="button" onClick={() => { onSwitchIdentity(id.id); setShowSwitcher(false); }} className={`px-2 py-1.5 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}>
-                        <span className="truncate pr-1">{id.name}</span>
-                        {id.id === activeId && <Check size={10} />}
-                      </button>
+                      <div key={id.id} className="flex gap-2">
+                        <button 
+                          type="button" 
+                          onClick={() => { onSwitchIdentity(id.id); setShowSwitcher(false); }} 
+                          className={`flex-grow px-2 py-1.5 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}
+                        >
+                          <span className="truncate pr-1">{id.name}</span>
+                          {id.id === activeId && <Check size={10} />}
+                        </button>
+                        <button 
+                          onClick={() => onPurgeIdentity(id.id)}
+                          className="px-2 border border-red-900/30 text-red-900 hover:border-red-600 hover:text-red-600 transition-all cursor-pointer"
+                          title="Purge Identity"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     ))}
                  </div>
                )}
             </div>
           )}
 
-          {/* CREATE NEW LINK */}
           {!isProcessing && step === 'AUTH' && (
             <div className="mt-4 flex justify-center">
                <button type="button" onClick={() => setStep('LABEL')} className="text-[9px] text-xmr-dim hover:text-xmr-green flex items-center gap-2 uppercase font-black transition-all cursor-pointer">
@@ -184,11 +205,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           )}
         </Card>
 
-        {/* FOOTER ACTIONS */}
         <div className="text-center space-y-4 pt-4">
-          <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-xs mx-auto opacity-60">
-            IMPORTANT: Password used to encrypt local keys. <br/>
-            Zero-knowledge isolation active.
+          <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-xs mx-auto opacity-60 italic">
+            IMPORTANT: Local password is the only key to decrypt your vault file.
           </p>
           {step === 'AUTH' && !isInitialSetup && (
             <button onClick={() => onPurgeIdentity(activeId)} className="text-[8px] text-red-900 hover:text-red-500 uppercase font-black underline decoration-dotted underline-offset-4 transition-colors cursor-pointer flex items-center justify-center gap-2 mx-auto">

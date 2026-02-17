@@ -18,7 +18,7 @@ const api = {
   // File System (Wallet Storage)
   getWalletPath: () => ipcRenderer.invoke('get-wallet-path'),
   readWalletFile: (filename: string) => ipcRenderer.invoke('read-wallet-file', filename),
-  writeWalletFile: (params: { filename: string, buffer: Uint8Array }) => ipcRenderer.invoke('write-wallet-file', params),
+  writeWalletFile: (params: { filename: string, data: string }) => ipcRenderer.invoke('write-wallet-file', params),
 
   // Networking
   getUplinkStatus: () => ipcRenderer.invoke('get-uplink-status'),

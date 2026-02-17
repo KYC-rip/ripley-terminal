@@ -3,31 +3,21 @@
 import moneroTs from 'monero-ts';
 import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
 
-// Utility for Base64 conversion in browser/renderer environment
-function uint8ToBase64(arr: Uint8Array): string {
-  return btoa(Array.from(arr).map(b => String.fromCharCode(b)).join(''));
-}
-
-function base64ToUint8(str: string): Uint8Array {
-  const binary = atob(str);
-  const arr = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
-  return arr;
-}
-
+/**
+ * 🛠️ MINIMAL SURGICAL PATCH
+ * Only injects what is strictly necessary to avoid environment detection crashes.
+ */
 function applyTacticalPatches(lib: any) {
   try {
+    // This is the only patch we keep as it fixes the "promises of null" crash
     if (lib.MoneroWalletFull) {
-      lib.MoneroWalletFull.FS = (window as any).fs.promises;
-    }
-    if (lib.LibraryUtils) {
-      if (!lib.LibraryUtils.getHttpClient()) {
-        lib.LibraryUtils.setHttpClient(new lib.HttpClient());
+      if (!lib.MoneroWalletFull.FS) {
+        lib.MoneroWalletFull.FS = (window as any).fs.promises;
+        console.log("[Engine] MoneroWalletFull.FS shimmed.");
       }
-      try { lib.LibraryUtils.setFs((window as any).fs); } catch(e) {}
     }
   } catch (e: any) {
-    console.warn("[Engine] Patching failed:", e.message);
+    console.warn("[Engine] FS Patch skipped:", e.message);
   }
 }
 
@@ -84,7 +74,7 @@ export class XmrStealthEngine implements IStealthEngine {
 
         if (base64Data && base64Data.length > 0) {
            this.logger("📂 Loading persistent vault...", 'process');
-           // Convert back from Base64 string to Uint8Array
+           const { base64ToUint8 } = await import('./utils');
            walletConfig.keysData = base64ToUint8(base64Data);
            this.wallet = await lib.openWalletFull(walletConfig);
         } else {
@@ -105,8 +95,8 @@ export class XmrStealthEngine implements IStealthEngine {
         }
 
         this.cachedMnemonic = await this.wallet!.getSeed();
-        const finalSubaddressIndex = subaddressIndex || 0;
-        this.cachedAddress = await this.wallet!.getAddress(0, finalSubaddressIndex);
+        const finalIndex = subaddressIndex || 0;
+        this.cachedAddress = await this.wallet!.getAddress(0, finalIndex);
 
         this.logger(`🔗 Uplink established. Identity: ${this.identityId}`, 'success');
         await this.saveWalletToDisk();
@@ -134,9 +124,9 @@ export class XmrStealthEngine implements IStealthEngine {
     if (!this.wallet) return;
     try {
       const walletData = await this.wallet.getData();
-      // Convert binary to Base64 string for secure IPC transfer
-      const base64Data = uint8ToBase64(walletData);
-      await (window as any).api.writeWalletFile({ filename: this.identityId, base64Data });
+      const { uint8ToBase64 } = await import('./utils');
+      const base64Str = uint8ToBase64(walletData);
+      await (window as any).api.writeWalletFile({ filename: this.identityId, data: base64Str });
     } catch (e) {
       console.error("[Vault] Save Failed:", e);
     }

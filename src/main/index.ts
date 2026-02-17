@@ -90,13 +90,15 @@ ipcMain.handle('read-wallet-file', async (_, filename) => {
   } catch (e) { return null; }
 });
 
-ipcMain.handle('write-wallet-file', async (_, { filename, base64Data }) => {
+ipcMain.handle('write-wallet-file', async (_, { filename, data }) => {
   try {
     const dir = join(app.getPath('userData'), 'wallets');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     
+    if (!data) throw new Error("DATA_IS_UNDEFINED");
+    
     // Write from Base64 string back to binary disk file
-    fs.writeFileSync(join(dir, filename), Buffer.from(base64Data, 'base64'));
+    fs.writeFileSync(join(dir, filename), Buffer.from(data, 'base64'));
     return true;
   } catch (e) {
     console.error(`[Main] Write failed for ${filename}:`, e);

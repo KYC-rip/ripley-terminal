@@ -110,13 +110,13 @@ function MainApp() {
     return () => clearInterval(interval);
   }, []);
 
+  // --- 🔒 LOCK / AUTH RENDERING LOGIC ---
+
+  // 1. Splash Screen: Only during initial identity lookup (first few ms)
   if (isInitializing && isLocked && identities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
-        <style>{`
-          @keyframes progress-indeterminate { 0% { transform: translateX(-100%) scaleX(0.2); } 50% { transform: translateX(0%) scaleX(0.5); } 100% { transform: translateX(100%) scaleX(0.2); } }
-          .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; }
-        `}</style>
+        <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; } `}</style>
         <div className="fixed inset-0 scanline-overlay pointer-events-none z-50"></div>
         <Shield size={48} className="animate-pulse mb-6 text-xmr-green" />
         <div className="text-[10px] text-xmr-dim uppercase tracking-[0.4em] animate-pulse">Initializing_Terminal...</div>
@@ -124,6 +124,7 @@ function MainApp() {
     );
   }
 
+  // 2. Auth View: Visible whenever locked, even if initializing (unlocking process)
   if (isLocked) {
     return (
       <AuthView 
@@ -255,8 +256,8 @@ function MainApp() {
                <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
                   {logs.map((log, i) => (
                     <div key={i} className="flex gap-3 group">
-                      <span className="text-xmr-dim opacity-30 shrink-0">[{new Date().toLocaleTimeString()}]</span>
-                      <span className={`break-all ${log.includes('❌') || log.includes('ERROR') ? 'text-red-500' : log.includes('✅') || log.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>{'>'} {log}</span>
+                      <span className="text-xmr-dim opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                      <span className={`break-all ${log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' : log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>{'>'} {log.msg}</span>
                     </div>
                   ))}
                </div>

@@ -5,6 +5,7 @@ import { StealthStep } from '../services/stealth/types';
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
 export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
+export interface LogEntry { msg: string; timestamp: number; type?: string; }
 
 interface VaultContextType {
   balance: { total: string; unlocked: string };
@@ -12,7 +13,7 @@ interface VaultContextType {
   subaddresses: SubaddressInfo[];
   outputs: OutputInfo[];
   status: string;
-  logs: string[];
+  logs: LogEntry[];
   txs: any[];
   currentHeight: number;
   syncPercent: number;
@@ -43,7 +44,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [txs, setTxs] = useState<any[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [status, setStatus] = useState<string>('READY');
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [syncPercent, setSyncPercent] = useState(0);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(true);
@@ -55,8 +56,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const engineRef = useRef<XmrStealthEngine | null>(null);
 
-  const addLog = useCallback((msg: string) => {
-    setLogs(prev => [msg, ...prev].slice(0, 50));
+  const addLog = useCallback((msg: string, type?: string) => {
+    setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
     const match = msg.match(/(\d+(\.\d+)?)\s*%/);
     if (match) {
       const p = parseFloat(match[1]);
@@ -99,7 +100,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const engine = new XmrStealthEngine((msg) => addLog(msg));
+      const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
       engineRef.current = engine;
 
       const seedToUse = restoreSeed || await (window as any).api.getConfig(`master_seed_${targetId}`);
@@ -142,11 +143,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!confirm(`🚨 DELETE IDENTITY "${targetName}"?`)) return;
     await (window as any).api.setConfig(`master_seed_${id}`, null);
     await (window as any).api.setConfig(`last_sync_height_${id}`, null);
-    await (window as any).api.writeWalletFile({ filename: id, buffer: [] });
+    await (window as any).api.writeWalletFile({ filename: id, data: "" });
     const updated = identities.filter(i => i.id !== id);
     await (window as any).api.saveIdentities(updated);
+    if (id === activeId) {
+       const nextId = updated.length > 0 ? updated[0].id : 'primary';
+       await (window as any).api.setActiveIdentity(nextId);
+    }
     location.reload(); 
-  }, [identities]);
+  }, [identities, activeId]);
 
   const rescan = useCallback(async (height: number) => {
     if (!engineRef.current) return;
