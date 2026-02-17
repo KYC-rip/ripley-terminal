@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { XmrStealthEngine } from '../services/stealth/XmrStealthEngine';
-import { StealthStep } from '../services/stealth/types';
 import moneroTs from 'monero-ts';
+import { UpdateListener } from '../services/stealth/UpdateListener';
 
 // 🔥 Tactical Patch
 if (moneroTs.MoneroWalletFull) {
@@ -190,8 +190,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           window.api.setConfig(`last_sync_height_${targetId}`, h);
         }
       }
+      const listener = new (class extends UpdateListener {
+        async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
+          onHeightUpdate(height);
+          setSyncPercent(percentDone);
+        }
+      })(engine);
 
-      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, onHeightUpdate, stagenetActive, targetId);
+      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, listener, stagenetActive, targetId);
 
       const tH = await engine.getNetworkHeight();
       setTotalHeight(tH);

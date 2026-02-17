@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import moneroTs from 'monero-ts';
-import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
+import { type IStealthEngine, StealthStep, type StealthLogger } from './types';
+import { UpdateListener } from './UpdateListener';
 
 function applyTacticalPatches(lib: any) {
   try {
@@ -40,20 +41,20 @@ function applyTacticalPatches(lib: any) {
 
 export class XmrStealthEngine implements IStealthEngine {
   private wallet: moneroTs.MoneroWalletFull | null = null;
-  private logger: StealthLogger;
+  public logger: StealthLogger;
   private step: StealthStep = StealthStep.IDLE;
   private identityId: string = 'primary';
   private isSyncing = false;
-  private onHeightUpdate?: (h: number) => void;
+  private updateListener?: UpdateListener;
 
   constructor(logger: StealthLogger = console.log) {
     this.logger = logger;
   }
 
-  public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false, identityId: string = 'primary') {
+  public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, updateListener?: UpdateListener, isStagenet: boolean = false, identityId: string = 'primary') {
     this.step = StealthStep.INITIALIZING;
     this.identityId = identityId;
-    this.onHeightUpdate = onHeightUpdate;
+    this.updateListener = updateListener;
 
     applyTacticalPatches(moneroTs);
 
@@ -61,7 +62,7 @@ export class XmrStealthEngine implements IStealthEngine {
 
     try {
       // --- 1. Network Probe ---
-      const daemon = await moneroTs.connectToDaemonRpc(rpcUrl);
+      const daemon = await moneroTs.connectToDaemonRpc({ server: { uri: rpcUrl }, proxyToWorker: false });
       const currentHeight = await Promise.race([
         daemon.getHeight(),
         new Promise<number>((_, reject) => setTimeout(() => reject(new Error("Node_Unreachable")), 15000))
@@ -76,12 +77,10 @@ export class XmrStealthEngine implements IStealthEngine {
         networkType: isStagenet ? moneroTs.MoneroNetworkType.STAGENET : moneroTs.MoneroNetworkType.MAINNET,
         password,
         server: { uri: rpcUrl },
-        proxyToWorker: true,
         accountLookahead: 3,
         subaddressLookahead: 50
       };
 
-      debugger
       if (rawData && rawData.length > 0) {
         this.logger(`📂 Accessing encrypted vault file (${rawData.length} bytes)...`, 'process');
         // Ensure strict Uint8Array
@@ -132,29 +131,13 @@ export class XmrStealthEngine implements IStealthEngine {
     if (this.isSyncing || !this.wallet) return;
     this.isSyncing = true;
 
-    const onHeightUpdate = this.onHeightUpdate;
-    const logger = this.logger;
-
+    const listener = this.updateListener;
     this.logger("🔄 Background Sync Service Started", 'process');
 
     try {
       // Define listener properly with explicit class
-      const listener = new class extends moneroTs.MoneroWalletListener {
-        async onSyncProgress(height: number, startHeight: number, endHeight: number, percent: number, message: string) {
-          logger(`🔄 Syncing: ${height} (${percent.toFixed(2)}%) ${message}`, 'process');
-          if (onHeightUpdate) onHeightUpdate(height);
-        }
-        async onNewBlock(height: number) {
-          if (onHeightUpdate) onHeightUpdate(height);
-        }
-      }();
-
-      await this.wallet.addListener(listener);
-
-      // Use built-in startSyncing which handles the loop internally
-      // This is more robust for WASM/Worker contexts
-      await this.wallet.startSyncing(5000); // Sync every 5 seconds
-
+      if (listener) await this.wallet.addListener(listener);
+      await this.wallet.startSyncing(3000);
       this.logger("✅ Sync cycle active.", 'success');
     } catch (e: any) {
       this.isSyncing = false;
