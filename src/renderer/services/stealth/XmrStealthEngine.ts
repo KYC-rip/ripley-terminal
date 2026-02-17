@@ -4,7 +4,7 @@ import moneroTs from 'monero-ts';
 import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
 
 export class XmrStealthEngine implements IStealthEngine {
-  private wallet: moneroTs.MoneroWalletFull | null = null;
+  private wallet: any = null; // Use any to avoid type conflicts with different builds
   private logger: StealthLogger;
   private step: StealthStep = StealthStep.IDLE;
   private stopFlag = false;
@@ -21,6 +21,8 @@ export class XmrStealthEngine implements IStealthEngine {
   public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false, identityId: string = 'primary') {
     this.step = StealthStep.INITIALIZING;
     this.identityId = identityId;
+    
+    // 🔥 FIX: Ensure we use the WASM-compatible library reference
     const lib = moneroTs;
     const networkType = isStagenet ? lib.MoneroNetworkType.STAGENET : lib.MoneroNetworkType.MAINNET;
     
@@ -45,7 +47,8 @@ export class XmrStealthEngine implements IStealthEngine {
 
         if (!targetSeed && !await (window as any).api.readWalletFile(this.identityId)) {
             this.logger("🔐 Generating new Master Identity...", 'process');
-            const tempWallet = await lib.createWalletFull({ networkType });
+            // Use WASM-safe creation
+            const tempWallet = await lib.createWalletFull({ networkType, password: "temp" });
             targetSeed = await tempWallet.getSeed();
             await tempWallet.close();
         }
@@ -53,7 +56,6 @@ export class XmrStealthEngine implements IStealthEngine {
         let restoreHeight = overrideHeight || currentHeight;
         const finalRestoreHeight = Math.max(0, restoreHeight - 10);
 
-        // 1. Try load existing wallet data
         const savedKeysData = await (window as any).api.readWalletFile(this.identityId);
         
         const walletConfig: any = {
@@ -64,7 +66,8 @@ export class XmrStealthEngine implements IStealthEngine {
 
         if (savedKeysData) {
            this.logger("📂 Loading persistent vault...", 'process');
-           walletConfig.keysData = savedKeysData;
+           // Ensure savedKeysData is Uint8Array
+           walletConfig.keysData = new Uint8Array(savedKeysData);
            this.wallet = await lib.openWalletFull(walletConfig);
         } else {
            this.logger("🆕 Creating fresh vault...", 'process');
@@ -78,13 +81,13 @@ export class XmrStealthEngine implements IStealthEngine {
 
         this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
 
-        // 🔥 CRITICAL: Save immediately after creation/opening to ensure disk persistence
         await this.saveWalletToDisk();
 
         this.step = StealthStep.AWAITING_FUNDS;
         return { address: this.cachedAddress, restoreHeight: finalRestoreHeight };
 
     } catch (e: any) {
+        this.logger(`❌ INIT_FATAL: ${e.message}`, 'error');
         this.step = StealthStep.ERROR;
         throw e;
     }
@@ -102,8 +105,6 @@ export class XmrStealthEngine implements IStealthEngine {
   private async saveWalletToDisk() {
     if (!this.wallet) return;
     try {
-      // In WASM, save() requires a path. Since we use getData() for manual persistence,
-      // we skip save() and directly export the wallet state.
       const walletData = await this.wallet.getData();
       await (window as any).api.writeWalletFile({ filename: this.identityId, buffer: walletData });
       console.log(`[Vault] Checkpoint [${this.identityId}] saved to disk.`);
@@ -131,7 +132,6 @@ export class XmrStealthEngine implements IStealthEngine {
           this._lastPercent = pInt;
         }
 
-        // Auto-save every 30 seconds or if significant progress
         const now = Date.now();
         if (now - this._lastSaveTime > 30000) {
           await self.saveWalletToDisk();
@@ -170,7 +170,7 @@ export class XmrStealthEngine implements IStealthEngine {
   public async createNextSubaddress(label: string = "Terminal Receive") {
     if (!this.wallet) throw new Error("Wallet not initialized");
     const sub = await this.wallet.createSubaddress(0, label);
-    await this.saveWalletToDisk(); // Save progress
+    await this.saveWalletToDisk(); 
     return sub.getAddress();
   }
 
@@ -228,9 +228,6 @@ export class XmrStealthEngine implements IStealthEngine {
     return tx.getHash();
   }
 
-  /**
-   * 🌪️ Churn: Send funds back to yourself to break deterministic links
-   */
   public async churn(subaddressIndex: number = 0) {
     if (!this.wallet) throw new Error("Wallet not initialized");
     const address = await this.wallet.getAddress(0, subaddressIndex);
@@ -239,7 +236,6 @@ export class XmrStealthEngine implements IStealthEngine {
 
     this.logger(`🌪️ Initiating Churn: Sending ${Number(balance)/1e12} XMR to self...`, 'process');
     
-    // Sweep the entire account balance back to self
     const txs = await this.wallet.sweepUnlocked({
       address,
       accountIndex: 0,
@@ -259,7 +255,7 @@ export class XmrStealthEngine implements IStealthEngine {
         index: o.getIndex(),
         keyImage: o.getKeyImage()?.getHex(),
         isUnlocked: o.isUnlocked(),
-        isFrozen: o.isLocked(), // Monero uses 'locked' for frozen/unspendable outputs
+        isFrozen: o.isLocked(), 
         subaddressIndex: o.getSubaddressIndex(),
         timestamp: o.getTx().getTimestamp() * 1000
       })).sort((a: any, b: any) => b.timestamp - a.timestamp);
@@ -274,16 +270,9 @@ export class XmrStealthEngine implements IStealthEngine {
     this.logger(`🔄 Rescanning from height ${height}...`, 'process');
     
     try {
-      // 1. Set the new restore height
       await this.wallet.setSyncHeight(height);
-      
-      // 2. Clear local cache for transactions after this height (if any)
-      // monero-ts handling this via rescanSpent
       await this.wallet.rescanSpent();
-      
-      // 3. Trigger full rescan from new height
       await this.wallet.rescanBlockchain();
-      
       this.logger(`✅ Rescan Complete from ${height}`, 'success');
       await this.saveWalletToDisk();
     } catch (e: any) {
