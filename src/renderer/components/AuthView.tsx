@@ -53,6 +53,23 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
     }, 800);
   };
 
+  const renderSwitcher = () => {
+    if (isProcessing || identities.length <= 1) return null;
+    return (
+      <div className="mt-8 pt-6 border-t border-xmr-border/20 space-y-3">
+         <label className="text-[8px] font-black text-xmr-dim uppercase tracking-widest block text-center">Switch_Active_Identity</label>
+         <div className="grid grid-cols-2 gap-2">
+            {identities.map(id => (
+              <button key={id.id} type="button" onClick={() => onSwitchIdentity(id.id)} className={`px-3 py-2 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}>
+                <span className="truncate pr-2">{id.name}</span>
+                {id.id === activeId && <Check size={10} />}
+              </button>
+            ))}
+         </div>
+      </div>
+    );
+  };
+
   if (step === 'LABEL') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-6 relative">
@@ -73,6 +90,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
                     <button type="submit" className="flex-[2] py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all cursor-pointer">Continue</button>
                  </div>
               </form>
+              {renderSwitcher()}
            </Card>
         </div>
       </div>
@@ -158,14 +176,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             </button>
             {step !== 'AUTH' && !isProcessing && <button type="button" onClick={() => setStep('MODE')} className="w-full text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back_To_Strategy</button>}
           </form>
-          {step === 'AUTH' && !isProcessing && identities.length > 1 && (
-            <div className="mt-8 pt-6 border-t border-xmr-border/20 space-y-3">
-               <label className="text-[8px] font-black text-xmr-dim uppercase tracking-widest block text-center">Switch_Current_Identity</label>
-               <div className="grid grid-cols-2 gap-2">
-                  {identities.map(id => (<button key={id.id} type="button" onClick={() => onSwitchIdentity(id.id)} className={`px-3 py-2 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}><span className="truncate pr-2">{id.name}</span>{id.id === activeId && <Check size={10} />}</button>))}
-               </div>
-            </div>
-          )}
+          {renderSwitcher()}
           {step === 'AUTH' && !isProcessing && <div className="mt-4 flex justify-center"><button type="button" onClick={() => setStep('LABEL')} className="text-[9px] text-xmr-dim hover:text-xmr-green flex items-center gap-2 uppercase font-black transition-all cursor-pointer"><PlusCircle size={12} /> Create_New_Identity</button></div>}
         </Card>
         <div className="text-center space-y-4">

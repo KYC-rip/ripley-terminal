@@ -133,21 +133,31 @@ export function useVault() {
   }, [addLog]);
 
   /**
-   * 🚨 Nuclear Purge: Erase everything for a specific identity
+   * 🚨 Nuclear Purge: Erase everything AND remove from list
    */
   const purgeIdentity = useCallback(async (id: string) => {
-    if (!confirm("🚨 WARNING: TOTAL PURGE. This will irreversibly erase the local wallet file AND the cached seed for this identity. Continue?")) return;
+    const targetName = identities.find(i => i.id === id)?.name || id;
+    if (!confirm(`🚨 FINAL WARNING: You are about to permanently DELETE "${targetName}". All data, seeds, and files will be erased. Proceed?`)) return;
     
-    // 1. Wipe from electron-store
+    // 1. Wipe data from store
     await (window as any).api.setConfig(`master_seed_${id}`, null);
     await (window as any).api.setConfig(`last_sync_height_${id}`, null);
     
     // 2. Wipe physical file
     await (window as any).api.writeWalletFile({ filename: id, buffer: [] });
     
-    addLog(`☢️ Identity Purged: ${id}`);
-    location.reload(); // Hard reset
-  }, [addLog]);
+    // 3. Remove from identities list
+    const updated = identities.filter(i => i.id !== id);
+    await (window as any).api.saveIdentities(updated);
+    
+    // 4. Update active ID if we just deleted it
+    if (id === activeId) {
+      const nextId = updated.length > 0 ? updated[0].id : 'primary';
+      await (window as any).api.setActiveIdentity(nextId);
+    }
+    
+    location.reload(); 
+  }, [identities, activeId]);
 
   const switchIdentity = useCallback(async (id: string) => {
     await (window as any).api.setActiveIdentity(id);
