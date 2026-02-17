@@ -7,7 +7,7 @@ export interface SubaddressInfo { index: number; address: string; label: string;
 export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
 
 export function useVault() {
-  // --- 1. STATE HOOKS (Strict order) ---
+  // --- 1. STATE HOOKS ---
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
@@ -60,32 +60,65 @@ export function useVault() {
     } catch (e) {}
   }, []);
 
-  const unlock = useCallback(async (password: string) => {
+  const unlock = useCallback(async (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => {
     if (engineRef.current) return;
+    
     setIsInitializing(true);
-    addLog(`🌀 Establishing Uplink: ${activeId}...`);
+    let targetId = activeId;
+
+    // A. Handle new identity creation if name provided
+    if (newIdentityName) {
+      const newId = `vault_${Date.now()}`;
+      const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
+      const updated = [...identities, newIdentity];
+      await (window as any).api.saveIdentities(updated);
+      await (window as any).api.setActiveIdentity(newId);
+      setIdentities(updated);
+      setActiveId(newId);
+      targetId = newId;
+      addLog(`✨ New identity registered: ${newIdentityName}`);
+    }
+
+    addLog(`🌀 Establishing Uplink: ${targetId}...`);
+
     try {
       const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
       engineRef.current = engine;
-      const [savedSeed, savedHeight, networkSetting] = await Promise.all([
-        (window as any).api.getConfig(`master_seed_${activeId}`),
-        (window as any).api.getConfig(`last_sync_height_${activeId}`),
+
+      const seedToUse = restoreSeed || await (window as any).api.getConfig(`master_seed_${targetId}`);
+      const [savedHeight, networkSetting] = await Promise.all([
+        (window as any).api.getConfig(`last_sync_height_${targetId}`),
         (window as any).api.getConfig('is_stagenet')
       ]);
+      
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
+
       const rpcUrl = "http://127.0.0.1:18082";
+      
       let retryCount = 0;
       let success = false;
       while (retryCount < 3 && !success) {
         try {
-          const result = await engine.init(rpcUrl, password, savedSeed, 0, savedHeight || 0, (h) => saveSyncHeight(h), stagenetActive, activeId);
-          if (!savedSeed) await (window as any).api.setConfig(`master_seed_${activeId}`, engine.getMnemonic());
+          const result = await engine.init(
+            rpcUrl, 
+            password,
+            seedToUse, 
+            0, 
+            restoreHeight || savedHeight || 0,
+            (h) => saveSyncHeight(h),
+            stagenetActive,
+            targetId
+          );
+          
+          await (window as any).api.setConfig(`master_seed_${targetId}`, engine.getMnemonic());
+          
           setAddress(result.address);
           setIsLocked(false);
           setHasVaultFile(true);
           setIsInitializing(false);
           addLog("🔓 Identity active. Uplink established.");
+
           engine.startSyncInBackground((h) => saveSyncHeight(h));
           await refresh();
           success = true;
@@ -106,65 +139,32 @@ export function useVault() {
       setIsInitializing(false);
       throw e;
     }
-  }, [activeId, addLog, saveSyncHeight, refresh]);
-
-  const sendXmr = useCallback(async (toAddress: string, amount: number) => {
-    if (!engineRef.current) return;
-    setIsSending(true);
-    addLog(`💸 Initiating outbound transfer: ${amount} XMR...`);
-    try {
-      const txHash = await engineRef.current.transfer(toAddress, amount);
-      addLog(`✅ SUCCESS: ${txHash.substring(0, 16)}...`);
-      await refresh();
-      return txHash;
-    } catch (e: any) {
-      addLog(`❌ SEND_ERROR: ${e.message}`);
-      throw e;
-    } finally {
-      setIsSending(false);
-    }
-  }, [refresh, addLog]);
-
-  const churn = useCallback(async () => {
-    if (!engineRef.current) return;
-    setIsSending(true);
-    try {
-      const txHash = await engineRef.current.churn();
-      addLog(`🌪️ CHURN_COMPLETE: ${txHash.substring(0, 16)}...`);
-      await refresh();
-      return txHash;
-    } catch (e: any) {
-      addLog(`❌ CHURN_ERROR: ${e.message}`);
-      throw e;
-    } finally {
-      setIsSending(false);
-    }
-  }, [refresh, addLog]);
-
-  const rescan = useCallback(async (height: number) => {
-    if (!engineRef.current) return;
-    addLog(`🔄 Initiating rescan from height: ${height}...`);
-    try {
-      await engineRef.current.rescan(height);
-      await refresh();
-    } catch (e: any) {
-      addLog(`❌ RESCAN_ERROR: ${e.message}`);
-    }
-  }, [addLog, refresh]);
+  }, [activeId, identities, addLog, saveSyncHeight, refresh]);
 
   const createIdentity = useCallback(async (name: string) => {
-    const newId = { id: `vault_${Date.now()}`, name, created: Date.now() };
-    const updated = [...identities, newId];
-    await (window as any).api.saveIdentities(updated);
-    setIdentities(updated);
-    await (window as any).api.setActiveIdentity(newId.id);
-    location.reload();
-  }, [identities]);
+    // Legacy method, no longer triggers reload. 
+    // New logic handled via unlock(p, s, h, name)
+  }, []);
 
   const switchIdentity = useCallback(async (id: string) => {
     await (window as any).api.setActiveIdentity(id);
     location.reload();
   }, []);
+
+  const lock = useCallback(async () => {
+    if (engineRef.current) {
+      engineRef.current.stop();
+      engineRef.current = null;
+    }
+    // Wipe sensitive state
+    setAddress('');
+    setBalance({ total: '0.0000', unlocked: '0.0000' });
+    setSubaddresses([]);
+    setOutputs([]);
+    setTxs([]);
+    setIsLocked(true);
+    addLog("🔒 Tactical Lock Engaged. Identity secured.");
+  }, [addLog]);
 
   // --- 4. EFFECT HOOKS ---
   useEffect(() => {
@@ -205,21 +205,23 @@ export function useVault() {
   }, [isLocked, isInitializing, refresh]);
 
   return {
-    balance, address, subaddresses, outputs, status, logs, txs, currentHeight, refresh, rescan, churn,
+    balance, address, subaddresses, outputs, status: status === StealthStep.IDLE ? 'READY' : status, logs, txs, currentHeight, refresh, rescan: useCallback(async (h: number) => {
+      if (!engineRef.current) return;
+      addLog(`🔄 Initiating rescan from height: ${h}...`);
+      try { await engineRef.current.rescan(h); await refresh(); } catch (e: any) { addLog(`❌ RESCAN_ERROR: ${e.message}`); }
+    }, [addLog, refresh]), churn: useCallback(async () => {
+      if (!engineRef.current) return;
+      setIsSending(true);
+      try { const txHash = await engineRef.current.churn(); addLog(`🌪️ CHURN_COMPLETE: ${txHash.substring(0, 16)}...`); await refresh(); return txHash; } 
+      catch (e: any) { addLog(`❌ CHURN_ERROR: ${e.message}`); throw e; } finally { setIsSending(false); }
+    }, [refresh, addLog]),
     isInitializing, isLocked, unlock, hasVaultFile, isSending,
     identities, activeId, createIdentity, switchIdentity,
     createSubaddress: useCallback(async (label?: string) => {
       if (!engineRef.current) return;
       addLog(`👻 Generating fresh subaddress: ${label || 'Receive'}...`);
-      try {
-        const newAddr = await engineRef.current.createNextSubaddress(label);
-        setAddress(newAddr);
-        addLog("✨ Subaddress ready.");
-        await refresh();
-        return newAddr;
-      } catch (e: any) {
-        addLog(`❌ SUBADDR_ERROR: ${e.message}`);
-      }
+      try { const newAddr = await engineRef.current.createNextSubaddress(label); setAddress(newAddr); addLog("✨ Subaddress ready."); await refresh(); return newAddr; } 
+      catch (e: any) { addLog(`❌ SUBADDR_ERROR: ${e.message}`); }
     }, [addLog, refresh]),
     syncPercent,
     isStagenet

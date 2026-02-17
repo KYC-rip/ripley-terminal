@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Shield, Zap, Ghost, Database, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
@@ -18,7 +18,7 @@ function MainApp() {
 
   const vault = useVault();
   const { 
-    address, logs, status, isInitializing, syncPercent, isLocked, unlock, 
+    address, logs, status, isInitializing, syncPercent, isLocked, unlock, lock,
     hasVaultFile, identities, activeId, switchIdentity, createIdentity 
   } = vault;
   
@@ -30,9 +30,43 @@ function MainApp() {
   
   // Settings & UI State
   const [showScanlines, setShowScanlines] = useState(true);
+  const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [uplink, setUplink] = useState<string>('SCANNING...');
   const [sessionStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState('00:00:00');
+
+  // AUTO-LOCK LOGIC
+  const lastActivityRef = useRef(Date.now());
+  
+  const resetActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  useEffect(() => {
+    if (isLocked) return;
+
+    const checkLock = setInterval(() => {
+      if (autoLockMinutes <= 0) return;
+      
+      const now = Date.now();
+      const elapsedMs = now - lastActivityRef.current;
+      if (elapsedMs > autoLockMinutes * 60 * 1000) {
+        console.log("[Security] Inactivity limit reached. Locking vault.");
+        lock();
+      }
+    }, 10000); // Check every 10s
+
+    window.addEventListener('mousemove', resetActivity);
+    window.addEventListener('keydown', resetActivity);
+    window.addEventListener('mousedown', resetActivity);
+
+    return () => {
+      clearInterval(checkLock);
+      window.removeEventListener('mousemove', resetActivity);
+      window.removeEventListener('keydown', resetActivity);
+      window.removeEventListener('mousedown', resetActivity);
+    };
+  }, [isLocked, autoLockMinutes, lock, resetActivity]);
 
   // Uptime Counter
   useEffect(() => {
@@ -46,17 +80,25 @@ function MainApp() {
     return () => clearInterval(timer);
   }, [sessionStartTime]);
 
-  // Scroll console to bottom
+  // Escape key handler to close console
   useEffect(() => {
-    if (showConsole) {
-      consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs, showConsole]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showConsole) {
+        setShowConsole(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showConsole]);
 
   // Load UI specific settings
   useEffect(() => {
     (window as any).api.getConfig('show_scanlines').then((v: boolean) => {
       if (v !== undefined) setShowScanlines(v);
+    });
+    (window as any).api.getConfig('auto_lock_minutes').then((v: any) => {
+      // Default to 10 minutes if never set
+      setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0));
     });
   }, [view]);
 
@@ -119,13 +161,20 @@ function MainApp() {
     );
   }
 
-  const NavButton = ({ id, label, icon: Icon }: any) => (
+  const NavButton = ({ id, label, icon: Icon, badge }: any) => (
     <button 
       onClick={() => setView(id)}
-      className={`w-full flex items-center gap-3 px-6 py-4 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
+      className={`w-full flex items-center justify-between px-6 py-4 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
     >
-      <Icon size={18} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
-      <span className="text-[11px] font-black uppercase tracking-[0.2em]">{label}</span>
+      <div className="flex items-center gap-3">
+        <Icon size={18} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
+        <span className="text-[11px] font-black uppercase tracking-[0.2em]">{label}</span>
+      </div>
+      {badge && (
+        <span className="text-[8px] font-black bg-xmr-green/10 px-1.5 py-0.5 rounded border border-xmr-green/20 animate-pulse">
+          {badge}
+        </span>
+      )}
     </button>
   );
 
@@ -151,7 +200,12 @@ function MainApp() {
 
         <nav className="flex-grow space-y-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <NavButton id="home" label="Dashboard" icon={Ghost} />
-          <NavButton id="vault" label="Vault_Storage" icon={Shield} />
+          <NavButton 
+            id="vault" 
+            label="Vault_Storage" 
+            icon={Shield} 
+            badge={(status === 'SYNCING' || (syncPercent > 0 && syncPercent < 100)) ? `${syncPercent.toFixed(1)}%` : null}
+          />
           <NavButton id="swap" label="Vanish_Swap" icon={Zap} />
           <NavButton id="settings" label="Config_System" icon={Settings} />
         </nav>
@@ -180,7 +234,10 @@ function MainApp() {
              </div>
              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
                 <span className="text-xmr-dim">UPLINK_STATUS</span>
-                <span className="text-xmr-green flex items-center gap-1"><div className="w-1 h-1 bg-xmr-green rounded-full animate-pulse"></div> {status === 'SYNCING' || syncPercent < 100 ? `${syncPercent.toFixed(1)}%` : status}</span>
+                <span className="text-xmr-green flex items-center gap-1">
+                   <div className="w-1 h-1 bg-xmr-green rounded-full animate-pulse"></div> 
+                   {status === 'SYNCING' || (syncPercent > 0 && syncPercent < 100) ? `SYNCING_${syncPercent.toFixed(1)}%` : status}
+                </span>
              </div>
           </div>
           
@@ -221,25 +278,32 @@ function MainApp() {
 
         {/* TACTICAL CONSOLE OVERLAY */}
         {showConsole && (
-          <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
-             <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
-                <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest">
-                   <TerminalIcon size={12} /> System_Log_Output
-                </div>
-                <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14}/></button>
-             </div>
-             <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
-                {logs.map((log, i) => (
-                  <div key={i} className="flex gap-3 group">
-                    <span className="text-xmr-dim opacity-30 shrink-0">[{new Date().toLocaleTimeString()}]</span>
-                    <span className={`break-all ${log.includes('❌') || log.includes('ERROR') ? 'text-red-500' : log.includes('✅') || log.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>
-                      {'>'} {log}
-                    </span>
+          <>
+            {/* Click-away backdrop */}
+            <div className="fixed inset-0 z-50 bg-black/5" onClick={() => setShowConsole(false)} />
+            
+            <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+               <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
+                  <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest">
+                     <TerminalIcon size={12} /> System_Log_Output
                   </div>
-                ))}
-                <div ref={consoleEndRef} />
-             </div>
-          </div>
+                  <div className="flex items-center gap-4">
+                     <span className="text-[7px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
+                     <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14}/></button>
+                  </div>
+               </div>
+               <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
+                  {logs.map((log, i) => (
+                    <div key={i} className="flex gap-3 group">
+                      <span className="text-xmr-dim opacity-30 shrink-0">[{new Date().toLocaleTimeString()}]</span>
+                      <span className={`break-all ${log.includes('❌') || log.includes('ERROR') ? 'text-red-500' : log.includes('✅') || log.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>
+                        {'>'} {log}
+                      </span>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          </>
         )}
 
         <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
@@ -249,7 +313,7 @@ function MainApp() {
                 className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}
               >
                 <TerminalIcon size={10} />
-                <span className="font-mono font-black">{'>'}_CONSOLE</span>
+                <span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>
                 {showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
               </button>
               <span className="opacity-20">|</span>

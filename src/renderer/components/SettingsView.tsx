@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert } from 'lucide-react';
 import { Card } from './Card';
 import { useTor } from '../contexts/TorContext';
 import { useVault } from '../hooks/useVault';
@@ -11,6 +11,7 @@ export function SettingsView() {
   const [isAutoNode, setIsAutoNode] = useState(true);
   const [isStagenet, setIsStagenet] = useState(false);
   const [showScanlines, setShowScanlines] = useState(true);
+  const [autoLockMinutes, setAutoLockMinutes] = useState<number>(0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   
   // Rescan State
@@ -25,6 +26,7 @@ export function SettingsView() {
     (window as any).api.getConfig('show_scanlines').then((v: boolean) => {
       if (v !== undefined) setShowScanlines(v);
     });
+    (window as any).api.getConfig('auto_lock_minutes').then((v: any) => setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0)));
   }, [isStagenet]);
 
   const handleSave = async () => {
@@ -38,6 +40,7 @@ export function SettingsView() {
     await (window as any).api.setConfig(`auto_node_${configPrefix}`, isAutoNode);
     await (window as any).api.setConfig('is_stagenet', isStagenet);
     await (window as any).api.setConfig('show_scanlines', showScanlines);
+    await (window as any).api.setConfig('auto_lock_minutes', autoLockMinutes);
     
     setUseTor(torEnabled);
 
@@ -151,7 +154,7 @@ export function SettingsView() {
                    <button 
                      disabled={isRescanning || !targetHeight}
                      onClick={handleRescan}
-                     className="px-4 bg-xmr-green text-xmr-base text-[10px] font-black uppercase hover:bg-white transition-all disabled:opacity-50"
+                     className="px-4 bg-xmr-green text-xmr-base text-[10px] font-black uppercase hover:bg-white transition-all disabled:opacity-50 cursor-pointer"
                    >
                      {isRescanning ? 'Scanning...' : 'Trigger_Rescan'}
                    </button>
@@ -163,14 +166,32 @@ export function SettingsView() {
 
         <section className="space-y-4">
           <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><EyeOff size={14} /> Countermeasures</h3>
-          <Card className="p-6 bg-xmr-surface border-xmr-border/40 flex items-center justify-between">
-            <div className="space-y-1"><span className="text-[10px] text-xmr-green font-black uppercase">Visual_Scanlines</span><p className="text-[8px] text-xmr-dim uppercase font-black">CRT_Effect_Overlay</p></div>
-            <button onClick={() => setShowScanlines(!showScanlines)} className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${showScanlines ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${showScanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div></button>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
+            <div className="flex items-center justify-between">
+               <div className="space-y-1"><span className="text-[10px] text-xmr-green font-black uppercase">Visual_Scanlines</span><p className="text-[8px] text-xmr-dim uppercase font-black">CRT_Effect_Overlay</p></div>
+               <button onClick={() => setShowScanlines(!showScanlines)} className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${showScanlines ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${showScanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div></button>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-xmr-border/10 pt-6">
+               <div className="space-y-1">
+                  <span className="text-[10px] text-xmr-green font-black uppercase">Auto_Lock_Timeout</span>
+                  <p className="text-[8px] text-xmr-dim uppercase font-black">Securely lock identity after inactivity (min)</p>
+               </div>
+               <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    value={autoLockMinutes} 
+                    onChange={(e) => setAutoLockMinutes(parseInt(e.target.value) || 0)} 
+                    className="w-20 bg-xmr-base border border-xmr-border p-2 text-right text-[10px] text-xmr-green outline-none font-black" 
+                  />
+                  <span className="text-[8px] text-xmr-dim uppercase font-black">MIN</span>
+               </div>
+            </div>
           </Card>
         </section>
 
         <section className="space-y-4 pt-4">
-          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase font-black">Dangerous_Sector</h3>
+          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase font-black"><ShieldAlert size={14} /> Dangerous_Sector</h3>
           <Card className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
             <div className="space-y-1"><span className="text-[10px] font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-[8px] text-red-500/60 uppercase font-black max-w-[200px]">Irreversibly erase local master seed.</p></div>
             <button onClick={async () => { if(confirm("BURN_IDENTITY? This action cannot be undone.")) { await (window as any).api.burnIdentity(); location.reload(); } }} className="px-4 py-2 border border-red-600 text-red-500 text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase font-black cursor-pointer">Exterminate_ID</button>
