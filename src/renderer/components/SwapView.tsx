@@ -159,7 +159,6 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
                 selected={fromCoin} 
                 onSelect={setFromCoin} 
                 currencies={currencies} 
-                className="w-32 bg-transparent border-none"
               />
               <input 
                 type="number" 

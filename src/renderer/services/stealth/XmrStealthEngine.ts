@@ -170,7 +170,26 @@ export class XmrStealthEngine implements IStealthEngine {
   public async createNextSubaddress(label: string = "Terminal Receive") {
     if (!this.wallet) throw new Error("Wallet not initialized");
     const sub = await this.wallet.createSubaddress(0, label);
+    await this.saveWalletToDisk(); // Save progress
     return sub.getAddress();
+  }
+
+  public async getSubaddresses() {
+    if (!this.wallet) return [];
+    try {
+      const subs = await this.wallet.getSubaddresses(0);
+      return subs.map((s: any) => ({
+        index: s.getIndex(),
+        address: s.getAddress(),
+        label: s.getLabel() || 'NO_LABEL',
+        balance: (Number(s.getBalance()) / 1e12).toFixed(12),
+        unlockedBalance: (Number(s.getUnlockedBalance()) / 1e12).toFixed(12),
+        isUsed: s.getIsUsed()
+      }));
+    } catch (e) {
+      console.error("Failed to fetch subaddresses", e);
+      return [];
+    }
   }
 
   public getAddress() { return this.cachedAddress; }

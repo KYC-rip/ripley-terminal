@@ -8,9 +8,19 @@ export interface Identity {
   created: number;
 }
 
+export interface SubaddressInfo {
+  index: number;
+  address: string;
+  label: string;
+  balance: string;
+  unlockedBalance: string;
+  isUsed: boolean;
+}
+
 export function useVault() {
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
+  const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
   const [txs, setTxs] = useState<any[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [status, setStatus] = useState<StealthStep>(StealthStep.IDLE);
@@ -19,7 +29,6 @@ export function useVault() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(true);
   
-  // Identity Management
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [activeId, setActiveId] = useState<string>('primary');
   const [hasVaultFile, setHasVaultFile] = useState(false);
@@ -41,7 +50,6 @@ export function useVault() {
     if (h > 0) await (window as any).api.setConfig(`last_sync_height_${activeId}`, h);
   }, [activeId]);
 
-  // 1. Initial Identity Loading
   useEffect(() => {
     const loadIdentities = async () => {
       try {
@@ -51,12 +59,9 @@ export function useVault() {
         ]);
         setIdentities(ids || []);
         setActiveId(current || 'primary');
-        
         const fileData = await (window as any).api.readWalletFile(current || 'primary');
-        // Ensure fileData is not empty and is a valid buffer/Uint8Array
         setHasVaultFile(!!fileData && fileData.length > 0);
       } catch (err) {
-        console.error("Identity Load Failed:", err);
         setHasVaultFile(false);
       } finally {
         setIsInitializing(false);
@@ -75,59 +80,53 @@ export function useVault() {
     return () => { if (unsubscribe) unsubscribe(); };
   }, [addLog]);
 
+  const refresh = useCallback(async () => {
+    if (!engineRef.current) return;
+    try {
+      const [b, h, height, subs] = await Promise.all([
+        engineRef.current.getBalance(),
+        engineRef.current.getTxs(),
+        engineRef.current.getHeight(),
+        engineRef.current.getSubaddresses()
+      ]);
+      setBalance(b);
+      setTxs(h);
+      setCurrentHeight(height);
+      setSubaddresses(subs);
+    } catch (e) {}
+  }, []);
+
   const unlock = useCallback(async (password: string) => {
     if (engineRef.current) return;
-
     setIsInitializing(true);
     addLog(`🌀 Establishing Uplink: ${activeId}...`);
-
     try {
       const engine = new XmrStealthEngine((msg) => addLog(msg));
       engineRef.current = engine;
-
       const [savedSeed, savedHeight, networkSetting] = await Promise.all([
         (window as any).api.getConfig(`master_seed_${activeId}`),
         (window as any).api.getConfig(`last_sync_height_${activeId}`),
         (window as any).api.getConfig('is_stagenet')
       ]);
-      
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
-
       const rpcUrl = "http://127.0.0.1:18082";
-      
       let retryCount = 0;
       let success = false;
       while (retryCount < 3 && !success) {
         try {
-          const result = await engine.init(
-            rpcUrl, 
-            password,
-            savedSeed, 
-            0, 
-            savedHeight || 0,
-            (h) => saveSyncHeight(h),
-            stagenetActive,
-            activeId // Pass ID for file routing
-          );
-          
-          if (!savedSeed) {
-            await (window as any).api.setConfig(`master_seed_${activeId}`, engine.getMnemonic());
-            addLog("✨ New identity archived securely.");
-          }
-
+          const result = await engine.init(rpcUrl, password, savedSeed, 0, savedHeight || 0, (h) => saveSyncHeight(h), stagenetActive, activeId);
+          if (!savedSeed) await (window as any).api.setConfig(`master_seed_${activeId}`, engine.getMnemonic());
           setAddress(result.address);
           setIsLocked(false);
-          setHasVaultFile(true); // Update state to reflect file exists on disk
+          setHasVaultFile(true);
           setIsInitializing(false);
           addLog("🔓 Identity active. Uplink established.");
-
           engine.startSyncInBackground((h) => saveSyncHeight(h));
+          await refresh(); // Load initial subs/balance
           success = true;
         } catch (err: any) {
-          if (err.message.includes('password') || err.message.includes('decrypt')) {
-             throw new Error("INVALID_SECRET");
-          }
+          if (err.message.includes('password') || err.message.includes('decrypt')) throw new Error("INVALID_SECRET");
           retryCount++;
           if (retryCount >= 3) throw err;
           addLog(`⚠️ Link unstable. Retrying in 5s... (${retryCount}/3)`);
@@ -135,26 +134,11 @@ export function useVault() {
         }
       }
     } catch (e: any) {
-      console.error("Vault Init Failed:", e);
       engineRef.current = null;
       setIsInitializing(false);
       throw e;
     }
-  }, [activeId, addLog, saveSyncHeight]);
-
-  const refresh = useCallback(async () => {
-    if (!engineRef.current) return;
-    try {
-      const [b, h, height] = await Promise.all([
-        engineRef.current.getBalance(),
-        engineRef.current.getTxs(),
-        engineRef.current.getHeight()
-      ]);
-      setBalance(b);
-      setTxs(h);
-      setCurrentHeight(height);
-    } catch (e) {}
-  }, []);
+  }, [activeId, addLog, saveSyncHeight, refresh]);
 
   const sendXmr = useCallback(async (toAddress: string, amount: number) => {
     if (!engineRef.current) return;
@@ -189,9 +173,8 @@ export function useVault() {
     const updated = [...identities, newId];
     await (window as any).api.saveIdentities(updated);
     setIdentities(updated);
-    // Switch to new identity
     await (window as any).api.setActiveIdentity(newId.id);
-    location.reload(); // Reload to force re-auth
+    location.reload();
   }, [identities]);
 
   const switchIdentity = useCallback(async (id: string) => {
@@ -207,21 +190,22 @@ export function useVault() {
   }, [isLocked, isInitializing, refresh]);
 
   return {
-    balance, address, status, logs, txs, currentHeight, refresh, rescan,
+    balance, address, subaddresses, status, logs, txs, currentHeight, refresh, rescan,
     isInitializing, isLocked, unlock, hasVaultFile, isSending,
     identities, activeId, createIdentity, switchIdentity,
-    createSubaddress: useCallback(async () => {
+    createSubaddress: useCallback(async (label?: string) => {
       if (!engineRef.current) return;
-      addLog("👻 Generating fresh subaddress...");
+      addLog(`👻 Generating fresh subaddress: ${label || 'Receive'}...`);
       try {
-        const newAddr = await engineRef.current.createNextSubaddress();
+        const newAddr = await engineRef.current.createNextSubaddress(label);
         setAddress(newAddr);
         addLog("✨ Subaddress ready.");
+        await refresh();
         return newAddr;
       } catch (e: any) {
         addLog(`❌ SUBADDR_ERROR: ${e.message}`);
       }
-    }, [addLog]),
+    }, [addLog, refresh]),
     syncPercent,
     isStagenet
   };
