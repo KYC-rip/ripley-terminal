@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, ShieldCheck, Users } from 'lucide-react';
+import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck, Download, Sparkles, ArrowLeft, Calendar, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { Card } from './Card';
 import { AuthForm } from './auth/AuthForm';
 import { IdentitySwitcher } from './auth/IdentitySwitcher';
@@ -20,7 +20,17 @@ interface AuthViewProps {
 type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
 export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
-  const [step, setStep] = useState<SetupStep>(isInitialSetup ? 'LABEL' : 'AUTH');
+  // 🔥 FIX: Improved Step Logic
+  // 1. If no identities exist -> LABEL (Create new)
+  // 2. If active identity exists but has no file -> MODE (Setup strategy)
+  // 3. Otherwise -> AUTH (Unlock)
+  const [step, setStep] = useState<SetupStep>(() => {
+    if (identities.length === 0) return 'LABEL';
+    if (isInitialSetup) return 'MODE';
+    return 'AUTH';
+  });
+  
+  const [showSwitcher, setShowSwitcher] = useState(false);
   
   // Form States
   const [password, setPassword] = useState('');
@@ -36,7 +46,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
   const handleUnlockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isProcessing) return;
-    if (step === 'RESTORE' || step === 'NEW_PASSWORD' || isInitialSetup) {
+    if (step === 'RESTORE' || step === 'NEW_PASSWORD' || (step === 'LABEL' && isInitialSetup)) {
       if (password.length < 8) { setError('SECRET_TOO_SHORT: MIN 8 CHARS'); return; }
       if (password !== confirmPassword) { setError('PASSWORDS_DO_NOT_MATCH'); return; }
     }
@@ -45,8 +55,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
     setTimeout(async () => {
       try {
         const height = restoreHeight ? parseInt(restoreHeight) : undefined;
-        const isCreating = step !== 'AUTH';
-        await onUnlock(password, step === 'RESTORE' ? restoreSeed : undefined, height, isCreating ? newName : undefined);
+        // If we are in any step other than AUTH, we are creating/initializing
+        const nameToUse = (step !== 'AUTH' && !isInitialSetup) ? newName : undefined;
+        await onUnlock(password, step === 'RESTORE' ? restoreSeed : undefined, height, nameToUse);
       } catch (err: any) {
         const msg = err.message || '';
         if (msg.includes('INVALID_SECRET')) setError('ACCESS_DENIED: WRONG PASSWORD');
@@ -55,10 +66,6 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
         setIsProcessing(false);
       }
     }, 800);
-  };
-
-  const handleCreateFinalize = () => {
-    // This is for generating new seed, handled by handleUnlockSubmit with mode
   };
 
   return (
@@ -72,7 +79,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             {step === 'AUTH' ? <Shield size={40} className={isProcessing ? 'animate-pulse' : ''} /> : <ShieldCheck size={40} />}
           </div>
           <h1 className="text-2xl font-black italic uppercase text-xmr-green tracking-tighter">
-            {step === 'RESTORE' ? 'Identity_Recovery' : step === 'NEW_PASSWORD' ? 'Initialize_Vault' : isInitialSetup ? 'Welcome_Operative' : 'Vault_Authorization'}
+            {step === 'RESTORE' ? 'Identity_Recovery' : step === 'NEW_PASSWORD' ? 'Initialize_Vault' : (identities.length === 0 || step === 'LABEL') ? 'New_Tactical_ID' : 'Vault_Authorization'}
           </h1>
           <div className="flex items-center justify-center gap-2 text-[9px] text-xmr-dim uppercase tracking-widest">
              <Users size={10} />
@@ -90,7 +97,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             newName={newName} setNewName={setNewName}
             error={error} isProcessing={isProcessing} logs={logs}
             handleUnlockSubmit={handleUnlockSubmit}
-            handleCreateFinalize={handleCreateFinalize}
+            handleCreateFinalize={() => {}}
           />
 
           {!isProcessing && step === 'AUTH' && (
@@ -106,10 +113,11 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
         {/* FOOTER ACTIONS */}
         <div className="text-center space-y-4 pt-4">
-          <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-xs mx-auto opacity-60 italic">
-            IMPORTANT: Local password is the only key to decrypt your vault file.
+          <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-md mx-auto opacity-60 italic">
+            IMPORTANT: Local password is the only key to decrypt your vault file. <br/>
+            Zero-knowledge isolation active.
           </p>
-          {step === 'AUTH' && !isInitialSetup && (
+          {step === 'AUTH' && identities.length > 0 && (
             <button onClick={() => onPurgeIdentity(activeId)} className="text-[8px] text-red-900 hover:text-red-500 uppercase font-black underline decoration-dotted underline-offset-4 transition-colors cursor-pointer flex items-center justify-center gap-2 mx-auto">
                [ Nuclear_Identity_Purge ]
             </button>

@@ -1,6 +1,11 @@
 import React from 'react';
 import { Lock, Skull, RefreshCw, Key, Download, Sparkles, ArrowLeft, Calendar } from 'lucide-react';
 
+interface LogEntry {
+  msg: string;
+  timestamp: number;
+}
+
 interface AuthFormProps {
   step: 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
   setStep: (s: any) => void;
@@ -16,11 +21,11 @@ interface AuthFormProps {
   // State
   error: string;
   isProcessing: boolean;
-  logs: string[];
+  logs: LogEntry[];
   
   // Actions
   handleUnlockSubmit: (e: React.FormEvent) => void;
-  handleCreateFinalize: () => void; // For MODE step buttons
+  handleCreateFinalize: () => void; 
 }
 
 export function AuthForm({ 
@@ -32,7 +37,6 @@ export function AuthForm({
   handleUnlockSubmit
 }: AuthFormProps) {
 
-  // --- 1. LABEL STEP ---
   if (step === 'LABEL') {
     return (
       <form onSubmit={(e) => { e.preventDefault(); if(newName) setStep('MODE'); }} className="space-y-4 animate-in fade-in duration-300">
@@ -45,16 +49,15 @@ export function AuthForm({
     );
   }
 
-  // --- 2. MODE STEP ---
   if (step === 'MODE') {
     return (
       <div className="grid grid-cols-1 gap-3 animate-in fade-in duration-300">
-         <button type="button" onClick={() => setStep('NEW_PASSWORD')} className="p-5 border border-xmr-border bg-xmr-green/5 hover:border-xmr-green hover:bg-xmr-green/10 transition-all text-left group cursor-pointer">
-            <div className="flex items-center gap-3 mb-1"><Sparkles className="text-xmr-green group-hover:animate-pulse" size={18} /><span className="text-sm font-black uppercase text-xmr-green">Generate_New</span></div>
+         <button type="button" onClick={() => setStep('NEW_PASSWORD')} className="p-5 border border-xmr-border bg-xmr-green/5 hover:border-xmr-green hover:bg-xmr-green/10 transition-all text-left group">
+            <div className="flex items-center gap-3 mb-1"><Sparkles className="text-xmr-green" size={18} /><span className="text-sm font-black uppercase text-xmr-green">Generate_New</span></div>
             <p className="text-[8px] text-xmr-dim uppercase">Derive fresh 25-word mnemonic phrase.</p>
          </button>
-         <button type="button" onClick={() => setStep('RESTORE')} className="p-5 border border-xmr-border bg-xmr-accent/5 hover:border-xmr-accent hover:bg-xmr-accent/10 transition-all text-left group cursor-pointer">
-            <div className="flex items-center gap-3 mb-1"><Download className="text-xmr-accent group-hover:animate-bounce" size={18} /><span className="text-sm font-black uppercase text-xmr-accent">Restore_Existing</span></div>
+         <button type="button" onClick={() => setStep('RESTORE')} className="p-5 border border-xmr-border bg-xmr-accent/5 hover:border-xmr-accent hover:bg-xmr-accent/10 transition-all text-left group">
+            <div className="flex items-center gap-3 mb-1"><Download className="text-xmr-accent" size={18} /><span className="text-sm font-black uppercase text-xmr-accent">Restore_Existing</span></div>
             <p className="text-[8px] text-xmr-dim uppercase">Import identity from private backup seed.</p>
          </button>
          <button type="button" onClick={() => { if(isInitialSetup) setStep('LABEL'); else setStep('AUTH'); }} className="mt-2 text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
@@ -62,7 +65,6 @@ export function AuthForm({
     );
   }
 
-  // --- 3. AUTH / RESTORE / NEW_PASSWORD FORM ---
   return (
     <form onSubmit={handleUnlockSubmit} className="space-y-5 animate-in slide-in-from-bottom-2 duration-300">
       {step === 'RESTORE' && (
@@ -97,7 +99,11 @@ export function AuthForm({
 
       {isProcessing && logs.length > 0 && (
         <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">
-           {logs.slice(0, 3).map((log, i) => (<p key={i} className={`text-[8px] uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>{'>'} {log}</p>))}
+           {logs.slice(0, 3).map((log, i) => (
+             <p key={i} className={`text-[8px] uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>
+               {'>'} {log.msg}
+             </p>
+           ))}
         </div>
       )}
 

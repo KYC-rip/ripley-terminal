@@ -7,7 +7,10 @@ export function registerFileHandlers() {
     try {
       const p = join(app.getPath('userData'), 'wallets', filename);
       if (!fs.existsSync(p)) return null;
-      return fs.readFileSync(p, { encoding: 'base64' });
+      
+      // 🔥 FIX: Read raw binary buffer. Electron IPC will clone this 
+      // safely as a Uint8Array to the renderer. No Base64 needed.
+      return fs.readFileSync(p);
     } catch (e) {
       return null;
     }
@@ -18,10 +21,14 @@ export function registerFileHandlers() {
       const dir = join(app.getPath('userData'), 'wallets');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       
-      // Allow empty string for clearing files, only block null/undefined
-      if (data === undefined || data === null) return false;
+      if (!data) return false;
+
+      // 🔥 FIX: Handle both direct Buffer and Uint8Array (which IPC sends)
+      const bufferToWrite = Buffer.isBuffer(data) ? data : Buffer.from(data);
       
-      fs.writeFileSync(join(dir, filename), Buffer.from(data, 'base64'));
+      if (bufferToWrite.length === 0) return false;
+
+      fs.writeFileSync(join(dir, filename), bufferToWrite);
       return true;
     } catch (e) {
       console.error(`[FileHandler] Write failed for ${filename}:`, e);

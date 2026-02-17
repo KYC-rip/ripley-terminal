@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { XmrStealthEngine } from '../services/stealth/XmrStealthEngine';
 import { StealthStep } from '../services/stealth/types';
+import moneroTs from 'monero-ts';
+
+// 🔥 Tactical Patch
+if (moneroTs.MoneroWalletFull) {
+  (moneroTs as any).MoneroWalletFull.FS = (window as any).fs?.promises;
+}
 
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
@@ -16,7 +22,9 @@ interface VaultContextType {
   logs: LogEntry[];
   txs: any[];
   currentHeight: number;
+  totalHeight: number;
   syncPercent: number;
+  isAppLoading: boolean;
   isInitializing: boolean;
   isLocked: boolean;
   isSending: boolean;
@@ -43,10 +51,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [outputs, setOutputs] = useState<OutputInfo[]>([]);
   const [txs, setTxs] = useState<any[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
+  const [totalHeight, setTotalHeight] = useState<number>(0);
   const [status, setStatus] = useState<string>('READY');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [syncPercent, setSyncPercent] = useState(0);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [activeId, setActiveId] = useState<string>('primary');
@@ -58,11 +68,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const addLog = useCallback((msg: string, type?: string) => {
     setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
-    const match = msg.match(/(\d+(\.\d+)?)\s*%/);
-    if (match) {
-      const p = parseFloat(match[1]);
-      if (!isNaN(p)) setSyncPercent(p);
-    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -112,18 +117,34 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
 
-      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, (h) => {
-        if (h > 0) (window as any).api.setConfig(`last_sync_height_${targetId}`, h);
-      }, stagenetActive, targetId);
+      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, undefined, stagenetActive, targetId);
       
-      await (window as any).api.setConfig(`master_seed_${targetId}`, engine.getMnemonic());
+      const tH = await engine.getNetworkHeight();
+      setTotalHeight(tH);
+
+      const mnemonic = await engine.getMnemonic();
+      if (mnemonic) await (window as any).api.setConfig(`master_seed_${targetId}`, mnemonic);
+      
       setAddress(result.address);
       setIsLocked(false);
       setHasVaultFile(true);
       setIsInitializing(false);
+      
+      // Start Background Sync
+      setStatus('SYNCING');
       engine.startSyncInBackground((h) => {
-         if (h > 0) (window as any).api.setConfig(`last_sync_height_${targetId}`, h);
+         if (h > 0) {
+           setCurrentHeight(h);
+           // Calculate dynamic percentage
+           if (tH > 0) {
+             const progress = (h / tH) * 100;
+             setSyncPercent(progress);
+           }
+           (window as any).api.setConfig(`last_sync_height_${targetId}`, h);
+           if (h % 1000 === 0) addLog(`🛰️ Blockchain Pulse: Block ${h} reached.`);
+         }
       });
+      
       await refresh();
     } catch (e: any) {
       engineRef.current = null;
@@ -135,7 +156,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const lock = useCallback(() => {
     if (engineRef.current) { engineRef.current.stop(); engineRef.current = null; }
     setAddress('');
+    setBalance({ total: '0.0000', unlocked: '0.0000' });
     setIsLocked(true);
+    setStatus('READY');
   }, []);
 
   const purgeIdentity = useCallback(async (id: string) => {
@@ -155,12 +178,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const rescan = useCallback(async (height: number) => {
     if (!engineRef.current) return;
+    setStatus('SYNCING');
     addLog(`🔄 Initiating rescan from height: ${height}...`);
     try {
       await engineRef.current.rescan(height);
       await refresh();
     } catch (e: any) {
       addLog(`❌ RESCAN_ERROR: ${e.message}`);
+    } finally {
+      setStatus('READY');
     }
   }, [refresh, addLog]);
 
@@ -175,7 +201,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setActiveId(current || 'primary');
         const fileData = await (window as any).api.readWalletFile(current || 'primary');
         setHasVaultFile(!!fileData && fileData.length > 0);
-      } catch (err) {} finally { setIsInitializing(false); }
+      } catch (err) {} finally { 
+        setIsAppLoading(false);
+      }
     };
     loadIdentities();
   }, []);
@@ -188,8 +216,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [isLocked, isInitializing, refresh]);
 
   const value = {
-    balance, address, subaddresses, outputs, status, logs, txs, currentHeight, syncPercent,
-    isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
+    balance, address, subaddresses, outputs, status, logs, txs, currentHeight, totalHeight, syncPercent,
+    isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
     unlock, lock, purgeIdentity, switchIdentity: useCallback(async (id: string) => { await (window as any).api.setActiveIdentity(id); location.reload(); }, []),
     refresh, rescan, churn: useCallback(async () => {
       if (!engineRef.current) throw new Error("NOT_INIT");

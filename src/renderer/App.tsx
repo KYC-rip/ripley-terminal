@@ -15,11 +15,10 @@ import { StealthStep } from './services/stealth/types';
 function MainApp() {
   const [view, setView] = useState<'home' | 'vault' | 'swap' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
-  const consoleEndRef = useRef<HTMLDivElement>(null);
-
+  
   const vault = useVault();
   const { 
-    address, logs, status, isInitializing, syncPercent, isLocked, unlock, lock, purgeIdentity,
+    address, logs, status, isAppLoading, isInitializing, syncPercent, currentHeight, totalHeight, isLocked, unlock, lock, purgeIdentity,
     hasVaultFile, identities, activeId, switchIdentity 
   } = vault;
   
@@ -112,8 +111,8 @@ function MainApp() {
 
   // --- 🔒 LOCK / AUTH RENDERING LOGIC ---
 
-  // 1. Splash Screen: Only during initial identity lookup (first few ms)
-  if (isInitializing && isLocked && identities.length === 0) {
+  // 1. Splash Screen: Only during initial app data load
+  if (isAppLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
         <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; } `}</style>
@@ -124,7 +123,7 @@ function MainApp() {
     );
   }
 
-  // 2. Auth View: Visible whenever locked, even if initializing (unlocking process)
+  // 2. Auth View: Visible whenever locked
   if (isLocked) {
     return (
       <AuthView 
@@ -139,6 +138,8 @@ function MainApp() {
       />
     );
   }
+
+  const isSyncing = currentHeight < totalHeight - 1 && totalHeight > 0;
 
   const NavButton = ({ id, label, icon: Icon, badge }: any) => (
     <button 
@@ -182,7 +183,7 @@ function MainApp() {
             id="vault" 
             label="Vault_Storage" 
             icon={Shield} 
-            badge={(status === 'SYNCING' || (syncPercent > 0 && syncPercent < 100)) ? `${syncPercent.toFixed(1)}%` : null}
+            badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null}
           />
           <NavButton id="swap" label="Vanish_Swap" icon={Zap} />
           <NavButton id="settings" label="Config_System" icon={Settings} />
@@ -211,9 +212,9 @@ function MainApp() {
              </div>
              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
                 <span className="text-xmr-dim">UPLINK_STATUS</span>
-                <span className="text-xmr-green flex items-center gap-1">
-                   <div className="w-1 h-1 bg-xmr-green rounded-full animate-pulse"></div> 
-                   {status === 'SYNCING' || (syncPercent > 0 && syncPercent < 100) ? `SYNCING_${syncPercent.toFixed(1)}%` : status}
+                <span className="text-xmr-green flex items-center gap-1 font-black">
+                   <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div> 
+                   {isSyncing ? `SCANNING [${currentHeight} / ${totalHeight}]` : 'READY'}
                 </span>
              </div>
           </div>
@@ -272,7 +273,10 @@ function MainApp() {
               <span>ID: {address.substring(0, 12)}...</span>
            </div>
            <div className="flex gap-4">
-              <span className="animate-pulse flex items-center gap-1"><div className="w-1 h-1 bg-xmr-green rounded-full"></div>System_Operational</span>
+              <span className="animate-pulse flex items-center gap-1">
+                 <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
+                 {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
+              </span>
               <span className="opacity-40">© 2026 kyc.rip // tactical_terminal_v1.0</span>
            </div>
         </footer>
