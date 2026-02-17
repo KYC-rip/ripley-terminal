@@ -7,6 +7,7 @@ export interface SubaddressInfo { index: number; address: string; label: string;
 export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
 
 export function useVault() {
+  // --- 1. STATE HOOKS (Strict order) ---
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
@@ -18,15 +19,16 @@ export function useVault() {
   const [syncPercent, setSyncPercent] = useState(0);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLocked, setIsLocked] = useState(true);
-  
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [activeId, setActiveId] = useState<string>('primary');
   const [hasVaultFile, setHasVaultFile] = useState(false);
-
   const [isSending, setIsSending] = useState(false);
   const [isStagenet, setIsStagenet] = useState(false);
+
+  // --- 2. REF HOOKS ---
   const engineRef = useRef<XmrStealthEngine | null>(null);
 
+  // --- 3. CALLBACK HOOKS ---
   const addLog = useCallback((msg: string) => {
     setLogs(prev => [msg, ...prev].slice(0, 20));
     const match = msg.match(/(\d+(\.\d+)?)\s*%/);
@@ -39,36 +41,6 @@ export function useVault() {
   const saveSyncHeight = useCallback(async (h: number) => {
     if (h > 0) await (window as any).api.setConfig(`last_sync_height_${activeId}`, h);
   }, [activeId]);
-
-  useEffect(() => {
-    const loadIdentities = async () => {
-      try {
-        const [ids, current] = await Promise.all([
-          (window as any).api.getIdentities(),
-          (window as any).api.getActiveIdentity()
-        ]);
-        setIdentities(ids || []);
-        setActiveId(current || 'primary');
-        const fileData = await (window as any).api.readWalletFile(current || 'primary');
-        setHasVaultFile(!!fileData && fileData.length > 0);
-      } catch (err) {
-        setHasVaultFile(false);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-    loadIdentities();
-  }, []);
-
-  useEffect(() => {
-    let unsubscribe: any = null;
-    if (typeof (window as any).api?.onTorStatus === 'function') {
-      unsubscribe = (window as any).api.onTorStatus((msg: string) => {
-        addLog(`[TOR] ${msg}`);
-      });
-    }
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, [addLog]);
 
   const refresh = useCallback(async () => {
     if (!engineRef.current) return;
@@ -126,6 +98,7 @@ export function useVault() {
         }
       }
     } catch (e: any) {
+      console.error("Vault Init Failed:", e);
       engineRef.current = null;
       setIsInitializing(false);
       throw e;
@@ -189,6 +162,37 @@ export function useVault() {
     await (window as any).api.setActiveIdentity(id);
     location.reload();
   }, []);
+
+  // --- 4. EFFECT HOOKS ---
+  useEffect(() => {
+    const loadIdentities = async () => {
+      try {
+        const [ids, current] = await Promise.all([
+          (window as any).api.getIdentities(),
+          (window as any).api.getActiveIdentity()
+        ]);
+        setIdentities(ids || []);
+        setActiveId(current || 'primary');
+        const fileData = await (window as any).api.readWalletFile(current || 'primary');
+        setHasVaultFile(!!fileData && fileData.length > 0);
+      } catch (err) {
+        setHasVaultFile(false);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    loadIdentities();
+  }, []);
+
+  useEffect(() => {
+    let unsubscribe: any = null;
+    if (typeof (window as any).api?.onTorStatus === 'function') {
+      unsubscribe = (window as any).api.onTorStatus((msg: string) => {
+        addLog(`[TOR] ${msg}`);
+      });
+    }
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [addLog]);
 
   useEffect(() => {
     if (!isLocked && !isInitializing) {

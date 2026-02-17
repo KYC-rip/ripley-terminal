@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import moneroTs from 'monero-ts';
-import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
+import moneroTs, { MoneroWalletConfig } from 'monero-ts';
+import { StealthStep, type StealthConfig, type StealthOrder, type StealthLogger, type IncomingTxStatus } from './types';
 
-export class XmrStealthEngine implements IStealthEngine {
-  private wallet: any = null; // Use any to avoid type conflicts with different builds
+export class XmrStealthEngine {
+  private wallet: any = null;
   private logger: StealthLogger;
   private step: StealthStep = StealthStep.IDLE;
   private stopFlag = false;
@@ -17,79 +17,86 @@ export class XmrStealthEngine implements IStealthEngine {
   constructor(logger: StealthLogger = console.log) {
     this.logger = logger;
   }
-  
+
   public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false, identityId: string = 'primary') {
     this.step = StealthStep.INITIALIZING;
     this.identityId = identityId;
-    
-    // 🔥 FIX: Ensure we use the WASM-compatible library reference
+
     const lib = moneroTs;
     const networkType = isStagenet ? lib.MoneroNetworkType.STAGENET : lib.MoneroNetworkType.MAINNET;
-    
+
     this.logger(`🌀 Initializing Monero [${isStagenet ? 'STAGENET' : 'MAINNET'}] Engine...`, 'process');
 
     if (rpcUrl.endsWith('/')) rpcUrl = rpcUrl.slice(0, -1);
 
     try {
-        let currentHeight = 0;
-        try {
-          const daemon = await lib.connectToDaemonRpc(rpcUrl);
-          currentHeight = await Promise.race([
-            daemon.getHeight(),
-            new Promise<number>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000))
-          ]);
-        } catch (e: any) {
-          throw new Error(`Connection check failed: ${e.message}`);
+      let currentHeight = 0;
+      try {
+        const daemon = await lib.connectToDaemonRpc(rpcUrl);
+        currentHeight = await Promise.race([
+          daemon.getHeight(),
+          new Promise<number>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000))
+        ]);
+      } catch (e: any) {
+        throw new Error(`Connection check failed: ${e.message}`);
+      }
+
+      let targetSeed = mnemonic;
+      let targetIndex = subaddressIndex || 0;
+
+      const savedKeysData = await (window as any).api.readWalletFile(this.identityId);
+
+      // 🔥 FIX: Provide a robust mock FS to satisfy monero-ts internal checks in Electron renderer.
+      // This prevents 'promises of null' errors during getFs() fallback.
+      const mockFs = {
+        promises: {
+          readFile: async () => { throw new Error("FS_MOCK_READ_DISABLED"); },
+          writeFile: async () => { },
+          mkdir: async () => { },
+          unlink: async () => { },
+          stat: async () => { throw new Error("FS_MOCK_STAT_DISABLED"); }
         }
+      };
 
-        let targetSeed = mnemonic;
-        let targetIndex = subaddressIndex || 0;
+      const walletConfig: Partial<MoneroWalletConfig> = {
+        networkType,
+        password: password,
+        server: { uri: rpcUrl },
+        fs: mockFs, // Injects our mock
+        proxyToWorker: false // Run in main renderer thread to avoid serialization issues with mockFs
+      };
 
-        if (!targetSeed && !await (window as any).api.readWalletFile(this.identityId)) {
-            this.logger("🔐 Generating new Master Identity...", 'process');
-            // Use WASM-safe creation
-            const tempWallet = await lib.createWalletFull({ networkType, password: "temp" });
-            targetSeed = await tempWallet.getSeed();
-            await tempWallet.close();
+      if (savedKeysData) {
+        this.logger("📂 Loading persistent vault...", 'process');
+        walletConfig.keysData = new Uint8Array(savedKeysData);
+        this.wallet = await lib.openWalletFull(walletConfig);
+      } else {
+        this.logger("🆕 Creating fresh vault...", 'process');
+        if (!targetSeed) {
+          this.logger("🔐 Generating new Master Identity...", 'process');
+          const tempWallet = await lib.createWalletFull({ networkType, password: "temp", fs: mockFs, proxyToWorker: false });
+          targetSeed = await tempWallet.getSeed();
+          await tempWallet.close();
         }
+        walletConfig.seed = targetSeed;
+        walletConfig.restoreHeight = Math.max(0, (overrideHeight || currentHeight) - 10);
+        this.wallet = await lib.createWalletFull(walletConfig);
+      }
 
-        let restoreHeight = overrideHeight || currentHeight;
-        const finalRestoreHeight = Math.max(0, restoreHeight - 10);
+      this.cachedMnemonic = await this.wallet!.getSeed();
+      this.cachedAddress = await this.wallet!.getAddress(0, targetIndex);
 
-        const savedKeysData = await (window as any).api.readWalletFile(this.identityId);
-        
-        const walletConfig: any = {
-          networkType,
-          password: password,
-          server: { uri: rpcUrl }
-        };
+      this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
 
-        if (savedKeysData) {
-           this.logger("📂 Loading persistent vault...", 'process');
-           // Ensure savedKeysData is Uint8Array
-           walletConfig.keysData = new Uint8Array(savedKeysData);
-           this.wallet = await lib.openWalletFull(walletConfig);
-        } else {
-           this.logger("🆕 Creating fresh vault...", 'process');
-           walletConfig.seed = targetSeed;
-           walletConfig.restoreHeight = finalRestoreHeight;
-           this.wallet = await lib.createWalletFull(walletConfig);
-        }
+      await this.saveWalletToDisk();
 
-        this.cachedMnemonic = await this.wallet!.getSeed();
-        this.cachedAddress = await this.wallet!.getAddress(0, targetIndex);
-
-        this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
-
-        await this.saveWalletToDisk();
-
-        this.step = StealthStep.AWAITING_FUNDS;
-        return { address: this.cachedAddress, restoreHeight: finalRestoreHeight };
+      this.step = StealthStep.AWAITING_FUNDS;
+      return { address: this.cachedAddress, restoreHeight: walletConfig.restoreHeight };
 
     } catch (e: any) {
-        this.logger(`❌ INIT_FATAL: ${e.message}`, 'error');
-        this.step = StealthStep.ERROR;
-        throw e;
+      this.logger(`❌ INIT_FATAL: ${e.message}`, 'error');
+      this.step = StealthStep.ERROR;
+      throw e;
     }
   }
 
@@ -98,7 +105,7 @@ export class XmrStealthEngine implements IStealthEngine {
     try {
       await this.startSync(moneroTs, onHeightUpdate);
     } catch (e: any) {
-      this.logger(`⚠️ Background Sync Suspended: ${e.message}`, 'warning');
+      this.logger(`⚠️ Background Sync Suspended: ${e.message}`, 'warn');
     }
   }
 
@@ -121,12 +128,12 @@ export class XmrStealthEngine implements IStealthEngine {
     const listener = new (class extends lib.MoneroWalletListener {
       private _lastPercent: number = -1;
       private _lastSaveTime: number = 0;
-      
+
       async onSyncProgress(height: number, start: number, end: number, percent: number, message: string) {
         if (onHeightUpdate) onHeightUpdate(height);
         const pFloat = percent * 100;
         const pInt = Math.floor(pFloat);
-        
+
         if (pInt > this._lastPercent || Math.random() < 0.1) {
           self.logSync(`Syncing: ${pFloat.toFixed(1)}%`);
           this._lastPercent = pInt;
@@ -146,7 +153,7 @@ export class XmrStealthEngine implements IStealthEngine {
       }
 
       async onBalancesChanged(newBalance: bigint, newUnlockedBalance: bigint) {
-        self.logSync(`Balance Updated: ${Number(newBalance)/1e12} XMR`);
+        self.logSync(`Balance Updated: ${Number(newBalance) / 1e12} XMR`);
         await self.saveWalletToDisk();
       }
 
@@ -170,7 +177,7 @@ export class XmrStealthEngine implements IStealthEngine {
   public async createNextSubaddress(label: string = "Terminal Receive") {
     if (!this.wallet) throw new Error("Wallet not initialized");
     const sub = await this.wallet.createSubaddress(0, label);
-    await this.saveWalletToDisk(); 
+    await this.saveWalletToDisk();
     return sub.getAddress();
   }
 
@@ -234,14 +241,14 @@ export class XmrStealthEngine implements IStealthEngine {
     const balance = await this.wallet.getUnlockedBalance(0);
     if (balance <= 0n) throw new Error("NO_UNLOCKED_FUNDS");
 
-    this.logger(`🌪️ Initiating Churn: Sending ${Number(balance)/1e12} XMR to self...`, 'process');
-    
+    this.logger(`🌪️ Initiating Churn: Sending ${Number(balance) / 1e12} XMR to self...`, 'process');
+
     const txs = await this.wallet.sweepUnlocked({
       address,
       accountIndex: 0,
       relay: true
     });
-    
+
     await this.saveWalletToDisk();
     return txs[0].getHash();
   }
@@ -255,7 +262,7 @@ export class XmrStealthEngine implements IStealthEngine {
         index: o.getIndex(),
         keyImage: o.getKeyImage()?.getHex(),
         isUnlocked: o.isUnlocked(),
-        isFrozen: o.isLocked(), 
+        isFrozen: o.isLocked(),
         subaddressIndex: o.getSubaddressIndex(),
         timestamp: o.getTx().getTimestamp() * 1000
       })).sort((a: any, b: any) => b.timestamp - a.timestamp);
@@ -268,7 +275,7 @@ export class XmrStealthEngine implements IStealthEngine {
   public async rescan(height: number) {
     if (!this.wallet) throw new Error("Wallet not initialized");
     this.logger(`🔄 Rescanning from height ${height}...`, 'process');
-    
+
     try {
       await this.wallet.setSyncHeight(height);
       await this.wallet.rescanSpent();

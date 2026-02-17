@@ -41,33 +41,3 @@ export type InitResult = string | {
   address: string; 
   restoreHeight: number; 
 };
-
-/**
- * Common interface for all Stealth Execution Engines
- */
-export interface IStealthEngine {
-  init(
-    rpcUrl: string,
-    secret?: string,
-    subIndex?: number,
-    height?: number
-  ): Promise<InitResult>
-  getAddress(): string;
-  getPrivateKey(): string;
-  getBalance(): Promise<{ total: string, unlocked: string }>;
-  getIncomingTxStatus(): Promise<IncomingTxStatus | null>;
-
-  // Execution
-  start(
-    orders: StealthOrder[],
-    config: StealthConfig,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onOrderCreated?: (idx: number, trade: any) => void
-  ): Promise<void>;
-
-  stop(): void;
-  sweep(toAddress: string): Promise<string>;
-
-  // State helpers
-  getStep(): StealthStep;
-}
