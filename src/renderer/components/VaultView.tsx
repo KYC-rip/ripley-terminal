@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Skull, RefreshCw, Key, Send, Download, Wind } from 'lucide-react';
-import { StealthStep } from '../../services/stealth/types';
-import { useStats } from '../../hooks/useStats';
-import { useTor } from '../../contexts/TorContext';
-import { Card } from '../Card';
+import { StealthStep } from '../services/stealth/types';
+import { useTor } from '../contexts/TorContext';
+import { useStats } from '../hooks/useStats';
+import { Card } from './Card';
+import { AddressBook } from './vault/AddressBook';
+import { AddressList } from './vault/AddressList';
+import { CoinControl } from './vault/CoinControl';
+import { TransactionLedger } from './vault/TransactionLedger';
+import { VaultModals } from './vault/VaultModals';
 
 // Subcomponents
-import { TransactionLedger } from './TransactionLedger';
-import { AddressList } from './AddressList';
-import { CoinControl } from './CoinControl';
-import { AddressBook } from './AddressBook';
-import { VaultModals } from './VaultModals';
 
 interface VaultViewProps {
   setView: (v: any) => void;
@@ -75,7 +75,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
             <div>
               <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-[0.4em] font-black">Available_Liquidity</span>
               <div className="text-7xl font-black mt-4 text-xmr-green drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{parseFloat(balance.total).toFixed(4)} <span className="text-2xl text-xmr-dim uppercase font-black">XMR</span></div>
-              <div className="text-xl font-black text-xmr-green/60 mt-1 uppercase tracking-[0.2em]">≈ ${stats?.price.street ? (parseFloat(balance.total) * stats.price.street).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---.--'} <span className="text-xs opacity-50">USD</span></div>
+              <div className="text-xl font-black text-xmr-green/60 mt-1 uppercase tracking-[0.2em]">≈ ${stats?.price.street ? (parseFloat(balance.total) * +stats.price.street).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---.--'} <span className="text-xs opacity-50">USD</span></div>
             </div>
             <button disabled={isChurning || parseFloat(balance.unlocked) <= 0} onClick={handleChurn} className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer ${isChurning ? 'animate-pulse' : ''}`}>
                <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
