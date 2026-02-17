@@ -164,7 +164,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2>
         </div>
         <div className="flex gap-2 font-black">
-          <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[9px] font-black hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
+          <button onClick={() => vault.purgeIdentity(vault.activeId)} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[9px] font-black hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
           <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[9px] font-black hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><RefreshCw size={10} className={status === StealthStep.SYNCING || isSending ? 'animate-spin' : ''} /> Sync_Ledger</button>
         </div>
       </div>

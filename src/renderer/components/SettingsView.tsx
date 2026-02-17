@@ -194,7 +194,7 @@ export function SettingsView() {
           <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase font-black"><ShieldAlert size={14} /> Dangerous_Sector</h3>
           <Card className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
             <div className="space-y-1"><span className="text-[10px] font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-[8px] text-red-500/60 uppercase font-black max-w-[200px]">Irreversibly erase local master seed.</p></div>
-            <button onClick={async () => { if(confirm("BURN_IDENTITY? This action cannot be undone.")) { await (window as any).api.burnIdentity(); location.reload(); } }} className="px-4 py-2 border border-red-600 text-red-500 text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase font-black cursor-pointer">Exterminate_ID</button>
+            <button onClick={() => useVault().purgeIdentity((window as any).api.getActiveIdentity())} className="px-4 py-2 border border-red-600 text-red-500 text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase font-black cursor-pointer">Exterminate_ID</button>
           </Card>
         </section>
       </div>

@@ -18,7 +18,7 @@ function MainApp() {
 
   const vault = useVault();
   const { 
-    address, logs, status, isInitializing, syncPercent, isLocked, unlock, lock,
+    address, logs, status, isInitializing, syncPercent, isLocked, unlock, lock, purgeIdentity,
     hasVaultFile, identities, activeId, switchIdentity, createIdentity 
   } = vault;
   
@@ -28,38 +28,28 @@ function MainApp() {
 
   const activeIdentity = identities.find(i => i.id === activeId);
   
-  // Settings & UI State
   const [showScanlines, setShowScanlines] = useState(true);
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [uplink, setUplink] = useState<string>('SCANNING...');
   const [sessionStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState('00:00:00');
 
-  // AUTO-LOCK LOGIC
   const lastActivityRef = useRef(Date.now());
-  
-  const resetActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-  }, []);
+  const resetActivity = useCallback(() => { lastActivityRef.current = Date.now(); }, []);
 
   useEffect(() => {
     if (isLocked) return;
-
     const checkLock = setInterval(() => {
       if (autoLockMinutes <= 0) return;
-      
       const now = Date.now();
       const elapsedMs = now - lastActivityRef.current;
       if (elapsedMs > autoLockMinutes * 60 * 1000) {
-        console.log("[Security] Inactivity limit reached. Locking vault.");
         lock();
       }
-    }, 10000); // Check every 10s
-
+    }, 10000);
     window.addEventListener('mousemove', resetActivity);
     window.addEventListener('keydown', resetActivity);
     window.addEventListener('mousedown', resetActivity);
-
     return () => {
       clearInterval(checkLock);
       window.removeEventListener('mousemove', resetActivity);
@@ -68,7 +58,6 @@ function MainApp() {
     };
   }, [isLocked, autoLockMinutes, lock, resetActivity]);
 
-  // Uptime Counter
   useEffect(() => {
     const timer = setInterval(() => {
       const seconds = Math.floor((Date.now() - sessionStartTime) / 1000);
@@ -80,29 +69,23 @@ function MainApp() {
     return () => clearInterval(timer);
   }, [sessionStartTime]);
 
-  // Escape key handler to close console
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showConsole) {
-        setShowConsole(false);
-      }
+      if (e.key === 'Escape' && showConsole) setShowConsole(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showConsole]);
 
-  // Load UI specific settings
   useEffect(() => {
     (window as any).api.getConfig('show_scanlines').then((v: boolean) => {
       if (v !== undefined) setShowScanlines(v);
     });
     (window as any).api.getConfig('auto_lock_minutes').then((v: any) => {
-      // Default to 10 minutes if never set
       setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0));
     });
   }, [view]);
 
-  // Poll Uplink Status
   useEffect(() => {
     const fetchStatus = async () => {
       try {
@@ -125,13 +108,6 @@ function MainApp() {
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleBurn = async () => {
-    if (confirm("🚨 WARNING: This will PERMANENTLY erase your local Master Seed and exit. Are you sure?")) {
-      await (window as any).api.burnIdentity();
-      location.reload();
-    }
-  };
 
   if (isInitializing && isLocked && identities.length === 0) {
     return (
@@ -156,6 +132,7 @@ function MainApp() {
         activeId={activeId}
         onSwitchIdentity={switchIdentity}
         onCreateIdentity={createIdentity}
+        onPurgeIdentity={purgeIdentity} // PASS UNIFIED PURGE
         logs={logs}
       />
     );
@@ -183,7 +160,6 @@ function MainApp() {
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
       
-      {/* SIDEBAR */}
       <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
         <div className="p-8 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
            <div className="relative group cursor-pointer" onClick={() => setView('home')}>
@@ -210,7 +186,6 @@ function MainApp() {
           <NavButton id="settings" label="Config_System" icon={Settings} />
         </nav>
 
-        {/* SIDEBAR BOTTOM STATUS */}
         <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="space-y-2">
              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
@@ -240,7 +215,6 @@ function MainApp() {
                 </span>
              </div>
           </div>
-          
           <div className="pt-2 border-t border-xmr-border/10">
              <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic">
                 Uplink: {uplink || 'Scanning...'}
@@ -249,7 +223,6 @@ function MainApp() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-grow flex flex-col min-w-0 bg-xmr-base relative">
         <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
           <div className="flex gap-6 text-[8px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
@@ -261,32 +234,18 @@ function MainApp() {
 
         <main className="flex-grow overflow-y-auto p-10 custom-scrollbar relative transition-colors duration-300">
           <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-xmr-green/5 to-transparent pointer-events-none`}></div>
-          
-          <div className={view === 'home' ? 'block' : 'hidden'}>
-            <HomeView setView={setView} stats={stats} loading={statsLoading} />
-          </div>
-          <div className={view === 'vault' ? 'block' : 'hidden'}>
-            <VaultView setView={setView} vault={vault} handleBurn={handleBurn} />
-          </div>
-          <div className={view === 'swap' ? 'block' : 'hidden'}>
-            <SwapView localXmrAddress={address} />
-          </div>
-          <div className={view === 'settings' ? 'block' : 'hidden'}>
-            <SettingsView />
-          </div>
+          <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
+          <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
+          <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView localXmrAddress={address} /></div>
+          <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
         </main>
 
-        {/* TACTICAL CONSOLE OVERLAY */}
         {showConsole && (
           <>
-            {/* Click-away backdrop */}
             <div className="fixed inset-0 z-50 bg-black/5" onClick={() => setShowConsole(false)} />
-            
             <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
                <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
-                  <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest">
-                     <TerminalIcon size={12} /> System_Log_Output
-                  </div>
+                  <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
                   <div className="flex items-center gap-4">
                      <span className="text-[7px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
                      <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14}/></button>
@@ -296,9 +255,7 @@ function MainApp() {
                   {logs.map((log, i) => (
                     <div key={i} className="flex gap-3 group">
                       <span className="text-xmr-dim opacity-30 shrink-0">[{new Date().toLocaleTimeString()}]</span>
-                      <span className={`break-all ${log.includes('❌') || log.includes('ERROR') ? 'text-red-500' : log.includes('✅') || log.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>
-                        {'>'} {log}
-                      </span>
+                      <span className={`break-all ${log.includes('❌') || log.includes('ERROR') ? 'text-red-500' : log.includes('✅') || log.includes('SUCCESS') ? 'text-xmr-green' : 'text-xmr-green/70'}`}>{'>'} {log}</span>
                     </div>
                   ))}
                </div>
@@ -308,22 +265,12 @@ function MainApp() {
 
         <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setShowConsole(!showConsole)}
-                className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}
-              >
-                <TerminalIcon size={10} />
-                <span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>
-                {showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
-              </button>
+              <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
               <span className="opacity-20">|</span>
               <span>ID: {address.substring(0, 12)}...</span>
            </div>
            <div className="flex gap-4">
-              <span className="animate-pulse flex items-center gap-1">
-                 <div className="w-1 h-1 bg-xmr-green rounded-full"></div>
-                 System_Operational
-              </span>
+              <span className="animate-pulse flex items-center gap-1"><div className="w-1 h-1 bg-xmr-green rounded-full"></div>System_Operational</span>
               <span className="opacity-40">© 2026 kyc.rip // tactical_terminal_v1.0</span>
            </div>
         </footer>

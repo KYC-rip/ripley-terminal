@@ -5,6 +5,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 ## 🛡️ Security & Privacy (Core)
 - [x] **Mandatory Tor Routing**: All outgoing traffic is forced through SOCKS5 Tor tunnels. No Clearnet fallback allowed.
 - [x] **Vault Lock**: Master Password encryption for local identity files. No keys are stored in plain text.
+- [x] **Auto-Lock Timeout**: Securely close and lock the identity after a period of inactivity (default 10 min).
 - [x] **Persistent Storage**: Physical `.keys` file management with auto-save checkpoints during sync.
 - [x] **Hardware Isolation**: Local environment execution with zero reliance on centralized database servers.
 
