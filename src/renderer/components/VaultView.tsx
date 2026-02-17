@@ -3,7 +3,6 @@ import { Skull, RefreshCw, Copy, Check, Key, ShieldAlert, Send, ArrowDownLeft, A
 import { QRCodeSVG } from 'qrcode.react';
 import { StealthStep } from '../services/stealth/types';
 import { useStats } from '../hooks/useStats';
-
 import { useTor } from '../contexts/TorContext';
 
 interface VaultViewProps {
@@ -13,7 +12,7 @@ interface VaultViewProps {
 }
 
 export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
-  const { balance, address, logs, refresh, status, isSending, sendXmr, createSubaddress, txs, isStagenet, syncPercent, currentHeight } = vault;
+  const { balance, address, logs, refresh, status, isSending, sendXmr, createSubaddress, txs, syncPercent, currentHeight } = vault;
   const { stats } = useStats();
   const { torFetch } = useTor();
   
@@ -72,7 +71,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
     <div className="max-w-6xl mx-auto space-y-6 py-2 animate-in fade-in zoom-in-95 duration-300 font-black relative">
       {/* 1. SEED MODAL */}
       {showSeedModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="w-full max-w-lg bg-white text-black p-8 border-4 border-red-600 relative">
             <button onClick={() => setShowSeedModal(false)} className="absolute top-4 right-4"><X size={24} /></button>
             <div className="space-y-6 font-black">
@@ -86,20 +85,20 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
 
       {/* 2. RECEIVE MODAL */}
       {showReceiveModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-          <div className="w-full max-w-md bg-black border border-[#004d13] p-8 space-y-8 relative font-black">
-            <button onClick={() => setShowReceiveModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-white font-black"><X size={24} /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
+          <div className="w-full max-w-md bg-xmr-surface border border-xmr-border p-8 space-y-8 relative font-black">
+            <button onClick={() => setShowReceiveModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-green font-black"><X size={24} /></button>
             <div className="text-center space-y-2 font-black">
-              <h3 className="text-2xl font-black italic uppercase text-[#00ff41]">Inbound_Uplink</h3>
+              <h3 className="text-2xl font-black italic uppercase text-xmr-green">Inbound_Uplink</h3>
               <p className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Scan to receive funds directly</p>
             </div>
             <div className="flex flex-col items-center gap-6 font-black">
-              <div className="p-3 bg-white rounded-lg border-2 border-[#00ff41]/40"><QRCodeSVG value={address} size={180} bgColor="#ffffff" fgColor="#000000" level="M" /></div>
-              <div className="w-full p-3 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-sm font-black">
-                <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-white uppercase font-black">Current_Address</span><button onClick={handleCopy} className="text-[#00ff41]">{copyFeedback ? <Check size={10}/> : <Copy size={10} />}</button></div>
-                <code className="text-[10px] text-white break-all leading-tight italic font-mono font-black">{address}</code>
+              <div className="p-3 bg-white rounded-lg border-2 border-xmr-green/40"><QRCodeSVG value={address} size={180} bgColor="#ffffff" fgColor="#000000" level="M" /></div>
+              <div className="w-full p-3 bg-xmr-green/5 border border-xmr-green/20 rounded-sm font-black">
+                <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-xmr-green uppercase font-black">Current_Address</span><button onClick={handleCopy} className="text-xmr-green">{copyFeedback ? <Check size={10}/> : <Copy size={10} />}</button></div>
+                <code className="text-[10px] text-xmr-green break-all leading-tight italic font-mono font-black">{address}</code>
               </div>
-              <button onClick={createSubaddress} className="text-[10px] text-[#00ff41] font-black underline uppercase hover:text-white transition-all font-mono tracking-widest flex items-center gap-2 font-black"><PlusCircle size={12}/> Generate_New_Subaddress</button>
+              <button onClick={createSubaddress} className="text-[10px] text-xmr-green font-black underline uppercase hover:text-xmr-accent transition-all font-mono tracking-widest flex items-center gap-2 font-black"><PlusCircle size={12}/> Generate_New_Subaddress</button>
             </div>
           </div>
         </div>
@@ -107,17 +106,17 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
 
       {/* 3. SEND MODAL */}
       {showSendModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-          <div className="w-full max-w-lg bg-black border border-[#ff6600]/50 p-8 space-y-6 relative font-black">
-            <button onClick={() => setShowSendModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-white"><X size={24} /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
+          <div className="w-full max-w-lg bg-xmr-surface border border-xmr-accent/50 p-8 space-y-6 relative font-black">
+            <button onClick={() => setShowSendModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-green"><X size={24} /></button>
             <div className="text-center space-y-2 mb-4 font-black">
-              <h3 className="text-2xl font-black italic uppercase text-[#ff6600]">Dispatch_Sequence</h3>
+              <h3 className="text-2xl font-black italic uppercase text-xmr-accent">Dispatch_Sequence</h3>
               <p className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Constructing outbound transaction</p>
             </div>
             <div className="space-y-4 font-black">
-              <div className="space-y-1 font-black"><div className="flex justify-between items-center font-black"><label className="text-[9px] font-black text-xmr-dim uppercase font-black">Destination_Address</label>{isBanned && <span className="text-[8px] text-red-500 font-black animate-pulse uppercase tracking-tighter">Intercepted</span>}</div><input type="text" placeholder="4... / 8..." value={destAddr} onChange={(e) => setDestAddr(e.target.value)} className={`w-full bg-black border p-3 text-[10px] text-white focus:border-[#ff6600] outline-none font-black transition-colors ${isBanned ? 'border-red-600' : 'border-[#004d13]'}`} /></div>
-              <div className="space-y-1 font-black"><label className="text-[9px] font-black text-xmr-dim uppercase font-black">Amount (XMR)</label><input type="number" placeholder="0.00" value={sendAmount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-black border border-[#004d13] p-3 text-2xl font-black text-[#ff6600] focus:border-[#ff6600] outline-none font-black" /></div>
-              <button disabled={isSending || isBanned} onClick={handleSend} className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-4 font-black ${isBanned ? 'bg-red-950 text-red-500 cursor-not-allowed' : 'bg-[#ff6600] text-black hover:bg-white'}`}><Send size={18} /> {isSending ? 'DISPATCHING...' : isBanned ? 'MISSION_ABORTED' : 'CONFIRM_DISPATCH'}</button>
+              <div className="space-y-1 font-black"><div className="flex justify-between items-center font-black"><label className="text-[9px] font-black text-xmr-dim uppercase font-black">Destination_Address</label>{isBanned && <span className="text-[8px] text-red-500 font-black animate-pulse uppercase tracking-tighter">Intercepted</span>}</div><input type="text" placeholder="4... / 8..." value={destAddr} onChange={(e) => setDestAddr(e.target.value)} className={`w-full bg-xmr-base border p-3 text-[10px] text-xmr-green focus:border-xmr-accent outline-none font-black transition-colors ${isBanned ? 'border-red-600' : 'border-xmr-border'}`} /></div>
+              <div className="space-y-1 font-black"><label className="text-[9px] font-black text-xmr-dim uppercase font-black">Amount (XMR)</label><input type="number" placeholder="0.00" value={sendAmount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none font-black" /></div>
+              <button disabled={isSending || isBanned} onClick={handleSend} className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-4 font-black ${isBanned ? 'bg-red-950 text-red-500 cursor-not-allowed' : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base'}`}><Send size={18} /> {isSending ? 'DISPATCHING...' : isBanned ? 'MISSION_ABORTED' : 'CONFIRM_DISPATCH'}</button>
             </div>
           </div>
         </div>
@@ -128,62 +127,62 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       </div>
 
       {/* 4. MAIN INTERFACE */}
-      <div className="flex justify-between items-end border-b border-[#004d13]/30 pb-4 relative z-10 font-black">
-        <div><button onClick={() => setView('home')} className="text-[10px] text-xmr-dim hover:text-[#00ff41] mb-1 flex items-center gap-1 cursor-pointer font-black">[ DASHBOARD ]</button><h2 className="text-3xl font-black italic uppercase tracking-tighter text-white font-mono leading-none">Vault_Storage</h2></div>
+      <div className="flex justify-between items-end border-b border-xmr-border/30 pb-4 relative z-10 font-black">
+        <div><button onClick={() => setView('home')} className="text-[10px] text-xmr-dim hover:text-xmr-green mb-1 flex items-center gap-1 cursor-pointer font-black">[ DASHBOARD ]</button><h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2></div>
         <div className="flex gap-2 font-black">
           <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[9px] font-black hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
-          <button onClick={refresh} className="px-3 py-1.5 border border-[#004d13] text-[9px] font-black hover:bg-[#00ff41]/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><RefreshCw size={10} className={status === StealthStep.SYNCING ? 'animate-spin' : ''} /> Sync_Ledger</button>
+          <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[9px] font-black hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><RefreshCw size={10} className={status === StealthStep.SYNCING ? 'animate-spin' : ''} /> Sync_Ledger</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 font-black font-mono">
         {/* BIG BALANCE CARD */}
-        <div className="lg:col-span-2 p-8 border border-[#004d13] bg-[#00ff41]/5 rounded-sm flex flex-col justify-between h-fit shadow-[0_0_30px_rgba(0,255,65,0.05)]">
+        <div className="lg:col-span-2 p-8 border border-xmr-border bg-xmr-green/5 rounded-sm flex flex-col justify-between h-fit shadow-[0_0_30px_rgba(0,255,65,0.05)]">
           <div>
             <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-[0.4em] font-black">Available_Liquidity</span>
-            <div className="text-7xl font-black mt-4 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{xmrDisplay} <span className="text-2xl text-xmr-dim uppercase font-black">XMR</span></div>
-            <div className="text-xl font-black text-[#00ff41]/60 mt-1 uppercase tracking-[0.2em]">≈ ${fiatValue} <span className="text-xs opacity-50">USD</span></div>
+            <div className="text-7xl font-black mt-4 text-xmr-green drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{xmrDisplay} <span className="text-2xl text-xmr-dim uppercase font-black">XMR</span></div>
+            <div className="text-xl font-black text-xmr-green/60 mt-1 uppercase tracking-[0.2em]">≈ ${fiatValue} <span className="text-xs opacity-50">USD</span></div>
           </div>
-          <div className="flex gap-12 border-t border-[#004d13]/20 pt-6 uppercase font-black">
-            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Unlocked_Assets</span><div className="text-2xl font-black text-white">{unlockedDisplay}</div></div>
-            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Pending_Lock</span><div className="text-2xl font-black opacity-20 text-white">{pendingDisplay}</div></div>
+          <div className="flex gap-12 border-t border-xmr-border/20 pt-6 uppercase font-black">
+            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Unlocked_Assets</span><div className="text-2xl font-black text-xmr-green">{unlockedDisplay}</div></div>
+            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Pending_Lock</span><div className="text-2xl font-black opacity-20 text-xmr-green">{pendingDisplay}</div></div>
           </div>
         </div>
 
         <div className="flex flex-col gap-6 font-black">
-          <div className="p-6 border border-[#004d13] bg-black/40 space-y-6 flex-grow flex flex-col justify-between font-black">
+          <div className="p-6 border border-xmr-border bg-xmr-surface space-y-6 flex-grow flex flex-col justify-between font-black">
             <div className="flex justify-between items-start font-black">
               <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-widest font-black">Tactical_Identity</span>
-              <button onClick={handleOpenBackup} className="text-[#00ff41] hover:text-white transition-all cursor-pointer"><Key size={16} /></button>
+              <button onClick={handleOpenBackup} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer"><Key size={16} /></button>
             </div>
-            <div className="p-3 bg-black border border-[#004d13]/30 rounded-sm font-black">
-              <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-white font-black uppercase">PRIMARY_ADDRESS</span><button onClick={handleCopy} className="text-[#00ff41] cursor-pointer">{copyFeedback ? <Check size={10}/> : <Copy size={10} />}</button></div>
-              <code className="text-[9px] text-white break-all leading-tight block h-12 overflow-hidden italic font-black font-mono">{address}</code>
+            <div className="p-3 bg-xmr-base border border-xmr-border/30 rounded-sm font-black">
+              <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-xmr-green font-black uppercase">PRIMARY_ADDRESS</span><button onClick={handleCopy} className="text-xmr-green cursor-pointer">{copyFeedback ? <Check size={10}/> : <Copy size={10} />}</button></div>
+              <code className="text-[9px] text-xmr-green break-all leading-tight block h-12 overflow-hidden italic font-black font-mono">{address}</code>
             </div>
             
-            <div className="space-y-1.5 border-t border-[#004d13]/20 pt-4 font-black">
-              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-white">CEX_Status:</span><span className={stats?.resistance.cex_status === 'WARNING' ? 'text-orange-500 animate-pulse' : 'text-[#00ff41]'}>{stats?.resistance.cex_status || '---'}</span></div>
-              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-white">Privacy_Nodes:</span><span className="text-white">{stats?.resistance.privacy_nodes || '---'} <span className="opacity-30 text-[7px]">({stats?.resistance.privacy_percentage || '--'}%)</span></span></div>
-              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-white">Sync_Height:</span><span className="text-[#00ff41] font-black">{currentHeight || '...'}</span></div>
+            <div className="space-y-1.5 border-t border-xmr-border/20 pt-4 font-black">
+              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-xmr-green">CEX_Status:</span><span className={stats?.resistance.cex_status === 'WARNING' ? 'text-xmr-accent animate-pulse' : 'text-xmr-green'}>{stats?.resistance.cex_status || '---'}</span></div>
+              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-xmr-green">Privacy_Nodes:</span><span className="text-xmr-green">{stats?.resistance.privacy_nodes || '---'} <span className="opacity-30 text-[7px]">({stats?.resistance.privacy_percentage || '--'}%)</span></span></div>
+              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-xmr-green">Sync_Height:</span><span className="text-xmr-green font-black">{currentHeight || '...'}</span></div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 font-black">
-            <button onClick={() => setShowReceiveModal(true)} className="py-4 border border-[#00ff41] text-[#00ff41] font-black uppercase text-xs tracking-widest hover:bg-[#00ff41] hover:text-black transition-all flex items-center justify-center gap-2 cursor-pointer font-black font-black"><Download size={16}/> Receive</button>
-            <button onClick={() => setShowSendModal(true)} className="py-4 border border-[#ff6600] text-[#ff6600] font-black uppercase text-xs tracking-widest hover:bg-[#ff6600] hover:text-black transition-all flex items-center justify-center gap-2 cursor-pointer font-black font-black"><Send size={16}/> Dispatch</button>
+            <button onClick={() => setShowReceiveModal(true)} className="py-4 border border-xmr-green text-xmr-green font-black uppercase text-xs tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer font-black"><Download size={16}/> Receive</button>
+            <button onClick={() => setShowSendModal(true)} className="py-4 border border-xmr-accent text-xmr-accent font-black uppercase text-xs tracking-widest hover:bg-xmr-accent hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer font-black"><Send size={16}/> Dispatch</button>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 font-black font-mono">
-        <div className="flex flex-col border border-[#004d13] bg-black/20 rounded-sm h-[300px] font-black">
-          <div className="px-4 py-3 border-b border-[#004d13]/20 bg-black/40 text-[10px] font-black uppercase tracking-widest flex justify-between items-center shrink-0 font-black"><span>Identity_Ledger</span><span className="text-[8px] opacity-40 uppercase font-black">{txs?.length || 0} Records</span></div>
-          <div className="flex-grow overflow-y-auto font-black">
-            {txs?.length > 0 ? (<div className="divide-y divide-[#004d13]/10 font-black">{txs.map((tx: any, i: number) => (<div key={i} className="p-3 hover:bg-[#00ff41]/5 transition-colors group font-black"><div className="flex justify-between mb-1 font-black"><div className="flex items-center gap-2 font-black">{tx.isIncoming ? (<ArrowDownLeft size={14} className="text-[#00ff41]" />) : (<ArrowUpRight size={14} className="text-[#ff6600]" />)}<span className={`text-sm ${tx.isIncoming ? 'text-[#00ff41]' : 'text-[#ff6600]'} font-black`}>{tx.isIncoming ? '+' : '-'}{tx.amount} XMR</span></div><span className="opacity-30 text-[9px] font-black">{new Date(tx.timestamp).toLocaleString()}</span></div></div>))}</div>) : (<div className="h-full flex items-center justify-center italic opacity-20 uppercase text-[10px] font-black">No_Ledger_Data</div>)}
+        <div className="flex flex-col border border-xmr-border bg-xmr-surface rounded-sm h-[300px] font-black">
+          <div className="px-4 py-3 border-b border-xmr-border/20 bg-black/5 text-[10px] font-black uppercase tracking-widest flex justify-between items-center shrink-0 font-black"><span>Identity_Ledger</span><span className="text-[8px] opacity-40 uppercase font-black">{txs?.length || 0} Records</span></div>
+          <div className="flex-grow overflow-y-auto font-black custom-scrollbar">
+            {txs?.length > 0 ? (<div className="divide-y divide-xmr-border/10 font-black">{txs.map((tx: any, i: number) => (<div key={i} className="p-3 hover:bg-xmr-green/5 transition-colors group font-black"><div className="flex justify-between mb-1 font-black"><div className="flex items-center gap-2 font-black">{tx.isIncoming ? (<ArrowDownLeft size={14} className="text-xmr-green" />) : (<ArrowUpRight size={14} className="text-xmr-accent" />)}<span className={`text-sm ${tx.isIncoming ? 'text-xmr-green' : 'text-xmr-accent'} font-black`}>{tx.isIncoming ? '+' : '-'}{tx.amount} XMR</span></div><span className="opacity-30 text-[9px] font-black">{new Date(tx.timestamp).toLocaleString()}</span></div></div>))}</div>) : (<div className="h-full flex items-center justify-center italic opacity-20 uppercase text-[10px] font-black">No_Ledger_Data</div>)}
           </div>
         </div>
-        <div className="flex flex-col border border-[#004d13] bg-black/20 rounded-sm h-[300px] font-black">
-          <div className="px-4 py-3 border-b border-[#004d13]/20 bg-black/40 text-[9px] font-black uppercase tracking-widest flex justify-between items-center shrink-0 font-black"><span>System_Daemon</span><span className="text-[8px] animate-pulse font-black">● LIVE</span></div>
-          <div className="p-4 font-mono text-[9px] text-xmr-dim space-y-1 overflow-y-auto font-black">{logs.map((log: string, i: number) => (<p key={i} className={i === 0 ? 'text-[#00ff41]' : 'opacity-60 font-black'}>{'>'} {log}</p>))}</div>
+        <div className="flex flex-col border border-xmr-border bg-xmr-surface rounded-sm h-[300px] font-black">
+          <div className="px-4 py-3 border-b border-xmr-border/20 bg-black/5 text-[9px] font-black uppercase tracking-widest flex justify-between items-center shrink-0 font-black"><span>System_Daemon</span><span className="text-[8px] animate-pulse font-black text-xmr-green">● LIVE</span></div>
+          <div className="p-4 font-mono text-[9px] text-xmr-dim space-y-1 overflow-y-auto font-black custom-scrollbar">{logs.map((log: string, i: number) => (<p key={i} className={i === 0 ? 'text-xmr-green' : 'opacity-60 font-black'}>{'>'} {log}</p>))}</div>
         </div>
       </div>
     </div>

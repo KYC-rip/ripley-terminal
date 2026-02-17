@@ -65,14 +65,21 @@ export class XmrStealthEngine implements IStealthEngine {
 
         this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
 
-        await this.startSync(lib, onHeightUpdate);
-
         this.step = StealthStep.AWAITING_FUNDS;
         return { address: this.cachedAddress, restoreHeight: finalRestoreHeight };
 
     } catch (e: any) {
         this.step = StealthStep.ERROR;
         throw e;
+    }
+  }
+
+  public async startSyncInBackground(onHeightUpdate?: (h: number) => void) {
+    if (this.isSyncing) return;
+    try {
+      await this.startSync(moneroTs, onHeightUpdate);
+    } catch (e: any) {
+      this.logger(`⚠️ Background Sync Suspended: ${e.message}`, 'warning');
     }
   }
 

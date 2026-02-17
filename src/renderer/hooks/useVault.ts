@@ -65,6 +65,7 @@ export function useVault() {
       let success = false;
       while (retryCount < 3 && !success) {
         try {
+          // 1. Open/Create the wallet (Quick)
           const result = await engine.init(
             rpcUrl, 
             savedSeed, 
@@ -80,10 +81,14 @@ export function useVault() {
           }
 
           setAddress(result.address);
-          setStatus(StealthStep.AWAITING_FUNDS);
-          const b = await engine.getBalance();
-          setBalance(b);
-          setSyncPercent(100); // Force completion
+          
+          // 2. We have the identity! Release the UI lock now.
+          setIsInitializing(false);
+          addLog("🔓 Identity active. Uplink established.");
+
+          // 3. Start background sync (Non-blocking)
+          engine.startSyncInBackground((h) => saveSyncHeight(h));
+          
           success = true;
         } catch (err: any) {
           retryCount++;
@@ -98,8 +103,7 @@ export function useVault() {
       if (errMsg.includes('502')) errMsg = "GATEWAY_FAILURE: Check Tor status.";
       addLog(`❌ INIT_ERROR: ${errMsg}`);
       setStatus(StealthStep.ERROR);
-    } finally {
-      setIsInitializing(false);
+      setIsInitializing(false); // Still release to allow rescue/settings
     }
   }, [addLog, saveSyncHeight]);
 

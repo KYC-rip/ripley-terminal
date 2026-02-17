@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Zap, Lock, Ghost, Database, Plus, RefreshCw, Send, Download, Copy, Check, ShieldAlert, Skull, Settings, ArrowUpRight, ArrowDownLeft, Key, EyeOff } from 'lucide-react';
+import { Shield, Zap, Ghost, Database, Settings, Skull, Sun, Moon, Monitor } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
+import { useTheme } from './hooks/useTheme';
 import { SwapView } from './components/SwapView';
 import { SettingsView } from './components/SettingsView';
 import { HomeView } from './components/HomeView';
@@ -15,6 +16,7 @@ function MainApp() {
   const { address, logs, status, isInitializing, syncPercent } = vault;
   const { useTor: torEnabled, setUseTor } = useTor();
   const { stats } = useStats();
+  const { mode, cycleTheme, resolvedTheme } = useTheme();
   
   // Settings & UI State
   const [showScanlines, setShowScanlines] = useState(true);
@@ -75,128 +77,131 @@ function MainApp() {
   if (isInitializing) {
     const displayPercent = Math.max(syncPercent, 0);
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#050505] text-[#00ff41] font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
         <style>{`
           @keyframes progress-indeterminate { 0% { transform: translateX(-100%) scaleX(0.2); } 50% { transform: translateX(0%) scaleX(0.5); } 100% { transform: translateX(100%) scaleX(0.2); } }
-          .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, 0.1) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; }
+          .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; }
         `}</style>
         <div className="fixed inset-0 scanline-overlay pointer-events-none z-50"></div>
         
-        {/* Rescue Settings Entry */}
-        <div className="absolute top-6 right-6 z-[60]" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <button 
-            onClick={() => setView(view === 'settings' ? 'home' : 'settings')}
-            className="flex items-center gap-2 px-3 py-1.5 border border-[#004d13] text-[9px] font-black text-xmr-dim hover:text-[#00ff41] hover:border-[#00ff41] transition-all cursor-pointer uppercase"
-          >
-            <Settings size={12} /> {view === 'settings' ? 'Close_Config' : 'Rescue_Config'}
-          </button>
+        <div className="flex flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <Shield size={48} className="animate-pulse mb-6 text-xmr-green" />
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+            <div className="flex justify-between w-full text-[10px] font-black uppercase tracking-widest opacity-80">
+              <span>Tor_Uplink_Sequence</span>
+              <span>ACTIVE</span>
+            </div>
+            <div className="w-full h-1 bg-xmr-border rounded-full overflow-hidden relative border border-xmr-green/20">
+              <div className="absolute inset-0 bg-xmr-green animate-[progress-indeterminate_2s_infinite_linear]"></div>
+            </div>
+          </div>
+          <div className="mt-12 w-full max-w-sm border-l border-xmr-green/20 pl-4">
+              <div className="text-[8px] text-xmr-dim space-y-1 font-bold uppercase tracking-tighter">
+                {logs.slice(0, 6).map((l, i) => (<p key={i} className={`truncate ${i === 0 ? 'text-xmr-green' : 'opacity-60'}`}>{'>'} {l}</p>))}
+              </div>
+          </div>
         </div>
-
-        {view === 'settings' ? (
-          <div className="w-full max-w-4xl z-[60] bg-[#050505] p-4 border border-[#004d13] shadow-[0_0_50px_rgba(0,255,65,0.1)] overflow-y-auto max-h-[80vh]" style={{ WebkitAppRegion: 'no-drag' } as any}>
-            <div className="flex justify-between items-center mb-6 border-b border-[#004d13]/30 pb-4">
-               <span className="text-[10px] font-black text-white uppercase">[ EMERGENCY_OVERRIDE_ACTIVE ]</span>
-               <button onClick={() => location.reload()} className="text-[9px] font-black text-[#00ff41] hover:underline uppercase tracking-widest cursor-pointer">[ Restart_Uplink ]</button>
-            </div>
-            <SettingsView />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
-            <Shield size={48} className="animate-pulse mb-6 text-white" />
-            <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-              <div className="flex justify-between w-full text-[10px] font-black uppercase tracking-widest text-white">
-                <span>Uplink_Sequence</span>
-                <span>{displayPercent > 0 ? `${displayPercent.toFixed(1)}%` : 'Active'}</span>
-              </div>
-              <div className="w-full h-1 bg-[#004d13] rounded-full overflow-hidden relative border border-[#00ff41]/20">
-                {displayPercent > 0 ? (
-                  <div className="h-full bg-[#00ff41] transition-all duration-500" style={{ width: `${displayPercent}%` }}></div>
-                ) : (
-                  <div className="absolute inset-0 bg-[#00ff41] animate-[progress-indeterminate_2s_infinite_linear]"></div>
-                )}
-              </div>
-            </div>
-            <div className="mt-12 w-full max-w-sm border-l border-[#00ff41]/20 pl-4">
-               <div className="text-[8px] text-[#00661a] space-y-1 font-bold uppercase tracking-tighter">
-                  {logs.slice(0, 6).map((l, i) => (<p key={i} className={`truncate ${i === 0 ? 'text-[#00ff41]' : 'opacity-60'}`}>{'>'} {l}</p>))}
-               </div>
-            </div>
-            {status === StealthStep.ERROR && (
-              <button 
-                onClick={() => location.reload()} 
-                className="mt-8 px-6 py-2 border border-[#00ff41] text-[#00ff41] text-[10px] font-black hover:bg-[#00ff41] hover:text-black transition-all cursor-pointer uppercase"
-              >
-                Reconnect_Manual_Override
-              </button>
-            )}
-          </div>
-        )}
       </div>
     );
   }
 
+  const NavButton = ({ id, label, icon: Icon }: any) => (
+    <button 
+      onClick={() => setView(id)}
+      className={`w-full flex items-center gap-3 px-6 py-4 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
+    >
+      <Icon size={18} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
+      <span className="text-[11px] font-black uppercase tracking-[0.2em]">{label}</span>
+    </button>
+  );
+
   return (
-    <div className="flex flex-col h-screen bg-[#050505] text-[#00ff41] font-mono relative overflow-hidden select-none">
-      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, 0.1) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
-      <div className="fixed inset-0 scanline-overlay pointer-events-none z-50"></div>
+    <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
+      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
+      <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
       
-      <header className="shrink-0 h-14 flex items-center pl-20 pr-6 border-b border-[#004d13]/40 bg-black/60 backdrop-blur-md justify-between z-50" style={{ WebkitAppRegion: 'drag' } as any}>
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')} style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <div className="relative group">
-            <img src="/favicon.svg" className="w-6 h-6 drop-shadow-[0_0_8px_rgba(0,255,65,0.4)] group-hover:scale-110 transition-transform" alt="Logo" />
-            <div className="absolute inset-0 bg-[#00ff41]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-black tracking-[0.4em]">GHOST_TERMINAL</span>
-            <span className="text-[8px] opacity-40 font-bold tracking-widest uppercase tracking-[0.2em]">Secure_Uplink</span>
-          </div>
+      {/* SIDEBAR */}
+      <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
+        <div className="p-8 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
+           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
+             <img src="/favicon.svg" className={`w-10 h-10 ${resolvedTheme === 'light' ? 'invert' : ''} drop-shadow-[0_0_12px_rgba(0,255,65,0.4)]`} alt="Logo" />
+             <div className="absolute inset-0 bg-xmr-green/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+           </div>
+           <div className="text-center">
+             <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
+             <div className="text-[7px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">v1.0.0_Tactical_Uplink</div>
+           </div>
         </div>
-        <div className="flex items-center gap-6 text-[9px] font-bold" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <button 
-            onClick={() => setView('settings')} 
-            className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-all cursor-pointer hover:bg-white/10 ${view === 'settings' ? 'border-white text-white' : 'border-[#004d13] text-xmr-dim'}`}
-          >
-            <Settings size={10} /> CONFIG
-          </button>
-          <button 
-            onClick={() => setUseTor(!torEnabled)} 
-            className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-all cursor-pointer ${torEnabled ? 'bg-[#00ff41]/10 border-[#00ff41] text-[#00ff41]' : 'bg-black/40 border-[#004d13] text-xmr-dim opacity-50'}`}
-          >
-            <Zap size={10} className={torEnabled ? 'animate-pulse' : ''} />{torEnabled ? 'TOR_ACTIVE' : 'CLEARNET'}
-          </button>
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#00ff41]/5 border border-[#00ff41]/20 opacity-50 font-mono italic tracking-tighter uppercase font-black">
-            <Database size={10} /> {status}
-          </div>
-        </div>
-      </header>
 
-      <main className="flex-grow overflow-y-auto p-8 relative z-10 custom-scrollbar">
-        {view === 'home' && <HomeView setView={setView} />}
-        {view === 'vault' && <VaultView setView={setView} vault={vault} handleBurn={handleBurn} />}
-        {view === 'swap' && <SwapView localXmrAddress={address} />}
-        {view === 'settings' && <SettingsView />}
-      </main>
+        <nav className="flex-grow space-y-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <NavButton id="home" label="Dashboard" icon={Ghost} />
+          <NavButton id="vault" label="Vault_Storage" icon={Shield} />
+          <NavButton id="swap" label="Vanish_Swap" icon={Zap} />
+          <NavButton id="settings" label="Config_System" icon={Settings} />
+        </nav>
 
-      <footer className="shrink-0 h-10 px-6 border-t border-[#004d13]/20 bg-black/40 flex justify-between items-center z-50 text-[8px] font-bold text-[#00661a] font-mono font-black">
-        <div className="flex gap-6 uppercase tracking-[0.1em]">
-          <span>ID: [ {address.substring(0,8)} ]</span>
-          <span>UPTIME: [ {uptime} ]</span>
-          <span className="flex items-center gap-1">
-            UPLINK: [ <span className="text-[#00ff41]">{uplink || 'SCANNING...'}</span> ]
-          </span>
-          <span className="flex items-center gap-1">
-            XMR: [ <span className="text-[#ff6600]">${stats?.price.street || '---.--'}</span> ]
-          </span>
-          <span className="flex items-center gap-1 text-white">
-            POOL: [ <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-[#00ff41]"}>{stats?.network.mempool ?? '--'} TXs</span> ]
-          </span>
-         
+        {/* SIDEBAR BOTTOM STATUS */}
+        <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <div className="space-y-2">
+             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xmr-dim">THEME_MODE</span>
+                <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
+                  {mode === 'dark' && <Moon size={10} />}
+                  {mode === 'light' && <Sun size={10} />}
+                  {mode === 'system' && <Monitor size={10} />}
+                  {mode.toUpperCase()}
+                </button>
+             </div>
+             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xmr-dim">NETWORK_MODE</span>
+                <button onClick={() => setUseTor(!torEnabled)} className={`px-1.5 py-0.5 rounded border ${torEnabled ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}>
+                  {torEnabled ? 'TOR_ONLY' : 'CLEARNET'}
+                </button>
+             </div>
+             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xmr-dim">SESSION_TIME</span>
+                <span className="text-xmr-green opacity-80">{uptime}</span>
+             </div>
+             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xmr-dim">UPLINK_STATUS</span>
+                <span className="text-xmr-green flex items-center gap-1"><div className="w-1 h-1 bg-xmr-green rounded-full animate-pulse"></div> {status === 'SYNCING' || syncPercent < 100 ? `${syncPercent.toFixed(1)}%` : status}</span>
+             </div>
+          </div>
+          
+          <div className="pt-2 border-t border-xmr-border/10">
+             <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic">
+                Uplink: {uplink || 'Scanning...'}
+             </div>
+          </div>
         </div>
-        <div className="uppercase tracking-[0.2em] flex items-center gap-2">
-          <span className="animate-pulse text-[#00ff41]">●</span>
-          <span>© 2026 kyc.rip // secure_terminal</span>
-        </div>
-      </footer>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-grow flex flex-col min-w-0 bg-xmr-base">
+        <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
+          <div className="flex gap-6 text-[8px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
+             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
+             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
+             <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-xmr-accent" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
+          </div>
+        </header>
+
+        <main className="flex-grow overflow-y-auto p-10 custom-scrollbar relative">
+          <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-xmr-green/5 to-transparent pointer-events-none`}></div>
+          {view === 'home' && <HomeView setView={setView} />}
+          {view === 'vault' && <VaultView setView={setView} vault={vault} handleBurn={handleBurn} />}
+          {view === 'swap' && <SwapView localXmrAddress={address} />}
+          {view === 'settings' && <SettingsView />}
+        </main>
+
+        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0">
+           <span>© 2026 kyc.rip // tactical_terminal_v1.0</span>
+           <div className="flex gap-4">
+              <span>ID: {address.substring(0, 12)}...</span>
+              <span className="animate-pulse">● System_Operational</span>
+           </div>
+        </footer>
+      </div>
     </div>
   );
 }
