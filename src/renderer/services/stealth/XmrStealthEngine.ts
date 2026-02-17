@@ -78,6 +78,9 @@ export class XmrStealthEngine implements IStealthEngine {
 
         this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
 
+        // 🔥 CRITICAL: Save immediately after creation/opening to ensure disk persistence
+        await this.saveWalletToDisk();
+
         this.step = StealthStep.AWAITING_FUNDS;
         return { address: this.cachedAddress, restoreHeight: finalRestoreHeight };
 
@@ -99,9 +102,10 @@ export class XmrStealthEngine implements IStealthEngine {
   private async saveWalletToDisk() {
     if (!this.wallet) return;
     try {
-      await this.wallet.save();
-      const keysData = await this.wallet.getKeysData(); // Get buffer
-      await (window as any).api.writeWalletFile({ filename: this.identityId, buffer: keysData });
+      // In WASM, save() requires a path. Since we use getData() for manual persistence,
+      // we skip save() and directly export the wallet state.
+      const walletData = await this.wallet.getData();
+      await (window as any).api.writeWalletFile({ filename: this.identityId, buffer: walletData });
       console.log(`[Vault] Checkpoint [${this.identityId}] saved to disk.`);
     } catch (e) {
       console.error("[Vault] Save Failed:", e);

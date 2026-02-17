@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react';
 import { Activity, BarChart3, Shield, Zap, Globe, Lock, Ghost, TrendingUp, AlertTriangle } from 'lucide-react';
-import { useStats } from '../hooks/useStats';
 import { useTheme } from '../hooks/useTheme';
 import { Card } from './Card';
 
@@ -8,10 +7,11 @@ const SpreadChart = React.lazy(() => import('./SpreadChart'));
 
 interface HomeViewProps {
   setView: (v: 'home' | 'vault' | 'swap' | 'settings') => void;
+  stats: any;
+  loading: boolean;
 }
 
-export function HomeView({ setView }: HomeViewProps) {
-  const { stats, loading } = useStats();
+export function HomeView({ setView, stats, loading }: HomeViewProps) {
   const { resolvedTheme } = useTheme();
 
   const Row = ({ label, value, highlight = false, alert = false }: any) => (
@@ -40,15 +40,15 @@ export function HomeView({ setView }: HomeViewProps) {
               <h1 className="text-8xl font-black text-xmr-accent tracking-tighter italic">
                 ${loading ? '---.--' : stats?.price.street}
               </h1>
-              {!loading && (
+              {!loading && stats?.price.premium && (
                 <div className="absolute -top-2 -right-12 px-2 py-0.5 border border-xmr-accent text-xmr-accent text-[9px] font-black rotate-12 bg-xmr-base">
                   +{stats?.price.premium}% PREMIUM
                 </div>
               )}
            </div>
            <div className="text-[10px] text-xmr-dim font-black uppercase tracking-widest flex items-center gap-4">
-              <span>Paper_Price: <span className="line-through opacity-50">${stats?.price.paper}</span></span>
-              <span>Source: <span className="text-xmr-green">[{stats?.price.source}]</span></span>
+              <span>Paper_Price: <span className="line-through opacity-50">${stats?.price.paper || '---.--'}</span></span>
+              <span>Source: <span className="text-xmr-green">[{stats?.price.source || 'SCANNING'}]</span></span>
            </div>
         </div>
 
@@ -58,22 +58,21 @@ export function HomeView({ setView }: HomeViewProps) {
            </div>
            <div className="flex justify-between text-[10px] font-black">
               <span className="text-xmr-dim uppercase">24H_Pulse</span>
-              <span className="text-xmr-green">{stats?.network.tx_count_24h.toLocaleString()} TXs</span>
+              <span className="text-xmr-green">{stats?.network.tx_count_24h?.toLocaleString() || '---'} TXs</span>
            </div>
            <div className="flex justify-between text-[10px] font-black">
               <span className="text-xmr-dim uppercase">Privacy_Score</span>
-              <span className="text-xmr-green">{stats?.resistance.privacy_percentage}%</span>
+              <span className="text-xmr-green">{stats?.resistance.privacy_percentage || '--'}%</span>
            </div>
            <div className="flex justify-between text-[10px] font-black">
               <span className="text-xmr-dim uppercase">CEX_Status</span>
-              <span className="text-xmr-accent animate-pulse">{stats?.resistance.cex_status}</span>
+              <span className="text-xmr-accent animate-pulse">{stats?.resistance.cex_status || 'OK'}</span>
            </div>
         </div>
       </Card>
 
       {/* 2. DATA GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Network Intel */}
         <Card topGradientAccentColor="xmr-green" className="relative transition-all">
           <h3 className="text-sm font-black text-xmr-green uppercase mb-6 flex items-center gap-2 border-b border-xmr-border/20 pb-4 italic tracking-widest">
             <Activity size={16} /> Network_Uplink_Intel
@@ -84,11 +83,10 @@ export function HomeView({ setView }: HomeViewProps) {
              <Row label="Network_Difficulty" value={stats?.network.difficulty} />
              <Row label="Tx_Fees_Est" value={stats?.network.fees} highlight />
              <Row label="Block_Reward" value={stats?.network.reward} />
-             <Row label="Mempool_Congestion" value={`${stats?.network.mempool} TXs`} alert={(stats?.network.mempool || 0) > 50} />
+             <Row label="Mempool_Congestion" value={`${stats?.network.mempool || 0} TXs`} alert={(stats?.network.mempool || 0) > 50} />
           </div>
         </Card>
 
-        {/* Market Resistance */}
         <Card topGradientAccentColor="xmr-accent" className="relative transition-all">
           <h3 className="text-sm font-black text-xmr-accent uppercase mb-6 flex items-center gap-2 border-b border-xmr-border/20 pb-4 italic tracking-widest">
             <BarChart3 size={16} /> Market_Resistance_Analysis

@@ -44,16 +44,23 @@ export function useVault() {
   // 1. Initial Identity Loading
   useEffect(() => {
     const loadIdentities = async () => {
-      const [ids, current] = await Promise.all([
-        (window as any).api.getIdentities(),
-        (window as any).api.getActiveIdentity()
-      ]);
-      setIdentities(ids);
-      setActiveId(current);
-      
-      const fileData = await (window as any).api.readWalletFile(current);
-      setHasVaultFile(!!fileData);
-      setIsInitializing(false);
+      try {
+        const [ids, current] = await Promise.all([
+          (window as any).api.getIdentities(),
+          (window as any).api.getActiveIdentity()
+        ]);
+        setIdentities(ids || []);
+        setActiveId(current || 'primary');
+        
+        const fileData = await (window as any).api.readWalletFile(current || 'primary');
+        // Ensure fileData is not empty and is a valid buffer/Uint8Array
+        setHasVaultFile(!!fileData && fileData.length > 0);
+      } catch (err) {
+        console.error("Identity Load Failed:", err);
+        setHasVaultFile(false);
+      } finally {
+        setIsInitializing(false);
+      }
     };
     loadIdentities();
   }, []);
@@ -111,6 +118,7 @@ export function useVault() {
 
           setAddress(result.address);
           setIsLocked(false);
+          setHasVaultFile(true); // Update state to reflect file exists on disk
           setIsInitializing(false);
           addLog("🔓 Identity active. Uplink established.");
 

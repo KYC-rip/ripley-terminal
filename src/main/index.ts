@@ -105,9 +105,13 @@ ipcMain.handle('set-active-identity', (_, id) => { store.set('active_identity_id
 // Wallet Files
 ipcMain.handle('get-wallet-path', () => join(app.getPath('userData'), 'wallets'));
 ipcMain.handle('read-wallet-file', async (_, filename) => {
-  const p = join(app.getPath('userData'), 'wallets', filename);
-  if (fs.existsSync(p)) return fs.readFileSync(p);
-  return null;
+  try {
+    const p = join(app.getPath('userData'), 'wallets', filename);
+    if (fs.existsSync(p)) return fs.readFileSync(p);
+    return null;
+  } catch (e) {
+    return null;
+  }
 });
 ipcMain.handle('write-wallet-file', async (_, { filename, buffer }) => {
   const dir = join(app.getPath('userData'), 'wallets');

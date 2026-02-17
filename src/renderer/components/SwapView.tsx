@@ -155,6 +155,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
             <label className="text-[9px] font-bold text-xmr-dim uppercase ml-1">You_Send</label>
             <div className="flex gap-2 bg-xmr-base border border-xmr-border/30 p-2 rounded-sm transition-colors focus-within:border-xmr-accent/50">
               <CurrencySelector 
+                label=''
                 selected={fromCoin} 
                 onSelect={setFromCoin} 
                 currencies={currencies} 

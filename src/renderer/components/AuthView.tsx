@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Lock, Shield, ArrowRight, Skull, RefreshCw, Key, Users, PlusCircle, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck } from 'lucide-react';
 import { Card } from './Card';
 
 interface Identity {
@@ -38,7 +38,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
         return;
       }
       if (password !== confirmPassword) {
-        setError('SECRET_MISMATCH');
+        setError('PASSWORDS_DO_NOT_MATCH');
         return;
       }
     }
@@ -46,12 +46,11 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
     setIsProcessing(true);
     setError('');
     
-    // Auth attempt
     setTimeout(async () => {
       try {
         await onUnlock(password);
       } catch (err: any) {
-        setError(err.message === 'INVALID_SECRET' ? 'DECRYPTION_FAILED: WRONG SECRET' : err.message);
+        setError(err.message === 'INVALID_SECRET' ? 'ACCESS_DENIED: WRONG PASSWORD' : err.message);
         setIsProcessing(false);
       }
     }, 800);
@@ -69,20 +68,20 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
         <div className="w-full max-w-md space-y-8 relative z-10 animate-in fade-in zoom-in-95 duration-300">
            <div className="text-center space-y-4">
               <div className="inline-block p-4 rounded-full bg-xmr-green/10 border border-xmr-green/20 mb-2">
-                <PlusCircle size={48} />
+                <PlusCircle size={48} className="text-xmr-green" />
               </div>
-              <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">New_Identity</h1>
-              <p className="text-[10px] text-xmr-dim uppercase tracking-[0.2em]">Generate a fresh isolated cryptographic vault.</p>
+              <h1 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-black">Register_Identity</h1>
+              <p className="text-[10px] text-xmr-dim uppercase tracking-[0.2em]">Define a label for your new isolated cryptographic vault.</p>
            </div>
            <Card className="p-8">
               <form onSubmit={handleCreate} className="space-y-6">
                  <div className="space-y-2">
                     <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Identity_Label</label>
-                    <input autoFocus type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. WORK_VAULT" className="w-full bg-xmr-base border border-xmr-border p-4 text-xl font-black text-xmr-green focus:border-xmr-green outline-none" />
+                    <input autoFocus type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. PRIMARY_VAULT" className="w-full bg-xmr-base border border-xmr-border p-4 text-xl font-black text-xmr-green focus:border-xmr-green outline-none" />
                  </div>
                  <div className="flex gap-4">
-                    <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-4 border border-xmr-border text-xmr-dim font-black uppercase text-[10px] hover:text-white transition-all">Cancel</button>
-                    <button type="submit" className="flex-[2] py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white transition-all">Initialize</button>
+                    <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-4 border border-xmr-border text-xmr-dim font-black uppercase text-[10px] hover:text-xmr-green transition-all cursor-pointer">Cancel</button>
+                    <button type="submit" className="flex-[2] py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all cursor-pointer">Next_Step</button>
                  </div>
               </form>
            </Card>
@@ -98,10 +97,14 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
       <div className="w-full max-w-md space-y-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
         <div className="text-center space-y-4">
           <div className="inline-block p-4 rounded-full bg-xmr-green/10 border border-xmr-green/20 mb-2">
-            <Shield size={48} className={isProcessing ? 'animate-pulse' : ''} />
+            {isInitialSetup ? (
+              <ShieldCheck size={48} className="text-xmr-green" />
+            ) : (
+              <Shield size={48} className={`text-xmr-green ${isProcessing ? 'animate-pulse' : ''}`} />
+            )}
           </div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">
-            {isInitialSetup ? 'Initialize_Vault' : 'Authorized_Access'}
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-black">
+            {isInitialSetup ? 'Initialize_Security' : 'Vault_Authorization'}
           </h1>
           <div className="flex items-center justify-center gap-2 text-[10px] text-xmr-dim uppercase tracking-[0.2em]">
              <Users size={12} />
@@ -113,7 +116,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">
-                {isInitialSetup ? 'Set_Master_Secret' : 'Vault_Access_Secret'}
+                {isInitialSetup ? 'Create_Master_Password' : 'Enter_Vault_Password'}
               </label>
               <div className="relative">
                 <input 
@@ -130,7 +133,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
             {isInitialSetup && (
               <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Confirm_Secret</label>
+                <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Confirm_Master_Password</label>
                 <input 
                   type="password"
                   value={confirmPassword}
@@ -148,18 +151,18 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             )}
 
             <button 
-              disabled={isProcessing || !password}
-              className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.3em] hover:bg-white transition-all flex items-center justify-center gap-3 group disabled:opacity-50"
+              disabled={isProcessing || !password || (isInitialSetup && !confirmPassword)}
+              className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.3em] hover:bg-white hover:text-black transition-all flex items-center justify-center gap-3 group disabled:opacity-50 cursor-pointer"
             >
               {isProcessing ? (
                 <>
                   <RefreshCw size={18} className="animate-spin" />
-                  Decrypting_Payload...
+                  Authorizing...
                 </>
               ) : (
                 <>
                   <Key size={18} className="group-hover:scale-110 transition-transform" />
-                  {isInitialSetup ? 'Archive_Identity' : 'Request_Uplink'}
+                  {isInitialSetup ? 'Establish_Vault' : 'Unlock_Identity'}
                 </>
               )}
             </button>
@@ -168,15 +171,16 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           {/* Identity Switcher */}
           {!isProcessing && identities.length > 1 && (
             <div className="mt-8 pt-6 border-t border-xmr-border/20 space-y-3">
-               <label className="text-[8px] font-black text-xmr-dim uppercase tracking-widest block text-center">Switch_Identity</label>
+               <label className="text-[8px] font-black text-xmr-dim uppercase tracking-widest block text-center">Switch_Current_Identity</label>
                <div className="grid grid-cols-2 gap-2">
                   {identities.map(id => (
                     <button 
                       key={id.id}
+                      type="button"
                       onClick={() => onSwitchIdentity(id.id)}
-                      className={`px-3 py-2 text-[9px] font-black border uppercase transition-all flex items-center justify-between ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}
+                      className={`px-3 py-2 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer ${id.id === activeId ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-green/50'}`}
                     >
-                      {id.name}
+                      <span className="truncate pr-2">{id.name}</span>
                       {id.id === activeId && <Check size={10} />}
                     </button>
                   ))}
@@ -187,8 +191,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           {!isProcessing && (
             <div className="mt-4 flex justify-center">
                <button 
+                 type="button"
                  onClick={() => setShowCreate(true)}
-                 className="text-[9px] text-xmr-dim hover:text-xmr-green flex items-center gap-2 uppercase font-black transition-all"
+                 className="text-[9px] text-xmr-dim hover:text-xmr-green flex items-center gap-2 uppercase font-black transition-all cursor-pointer"
                >
                  <PlusCircle size={12} /> Create_New_Identity
                </button>
@@ -198,8 +203,8 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
         <div className="text-center">
           <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-xs mx-auto">
-            WARNING: KYC.RIP DOES NOT STORE YOUR SECRET. <br/>
-            IF LOST, LOCAL DATA IS IRREVERSIBLE.
+            IMPORTANT: Password used to encrypt local keys. <br/>
+            If lost, the vault cannot be recovered without seed backup.
           </p>
         </div>
       </div>

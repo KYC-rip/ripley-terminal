@@ -19,7 +19,7 @@ function MainApp() {
     hasVaultFile, identities, activeId, switchIdentity, createIdentity 
   } = vault;
   const { useTor: torEnabled, setUseTor } = useTor();
-  const { stats } = useStats();
+  const { stats, loading: statsLoading } = useStats();
   const { mode, cycleTheme, resolvedTheme } = useTheme();
 
   const activeIdentity = identities.find(i => i.id === activeId);
@@ -192,10 +192,20 @@ function MainApp() {
 
         <main className="flex-grow overflow-y-auto p-10 custom-scrollbar relative transition-colors duration-300">
           <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-xmr-green/5 to-transparent pointer-events-none`}></div>
-          {view === 'home' && <HomeView setView={setView} />}
-          {view === 'vault' && <VaultView setView={setView} vault={vault} handleBurn={handleBurn} />}
-          {view === 'swap' && <SwapView localXmrAddress={address} />}
-          {view === 'settings' && <SettingsView />}
+          
+          {/* KEEP-ALIVE RENDERING */}
+          <div className={view === 'home' ? 'block' : 'hidden'}>
+            <HomeView setView={setView} stats={stats} loading={statsLoading} />
+          </div>
+          <div className={view === 'vault' ? 'block' : 'hidden'}>
+            <VaultView setView={setView} vault={vault} handleBurn={handleBurn} />
+          </div>
+          <div className={view === 'swap' ? 'block' : 'hidden'}>
+            <SwapView localXmrAddress={address} />
+          </div>
+          <div className={view === 'settings' ? 'block' : 'hidden'}>
+            <SettingsView />
+          </div>
         </main>
 
         <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0">
