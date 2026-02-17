@@ -224,7 +224,49 @@ export class XmrStealthEngine implements IStealthEngine {
       priority: moneroTs.MoneroTxPriority.DEFAULT,
       relay: true
     });
+    await this.saveWalletToDisk();
     return tx.getHash();
+  }
+
+  /**
+   * 🌪️ Churn: Send funds back to yourself to break deterministic links
+   */
+  public async churn(subaddressIndex: number = 0) {
+    if (!this.wallet) throw new Error("Wallet not initialized");
+    const address = await this.wallet.getAddress(0, subaddressIndex);
+    const balance = await this.wallet.getUnlockedBalance(0);
+    if (balance <= 0n) throw new Error("NO_UNLOCKED_FUNDS");
+
+    this.logger(`🌪️ Initiating Churn: Sending ${Number(balance)/1e12} XMR to self...`, 'process');
+    
+    // Sweep the entire account balance back to self
+    const txs = await this.wallet.sweepUnlocked({
+      address,
+      accountIndex: 0,
+      relay: true
+    });
+    
+    await this.saveWalletToDisk();
+    return txs[0].getHash();
+  }
+
+  public async getOutputs() {
+    if (!this.wallet) return [];
+    try {
+      const outputs = await this.wallet.getOutputs({ isSpent: false });
+      return outputs.map((o: any) => ({
+        amount: (Number(o.getAmount()) / 1e12).toFixed(12),
+        index: o.getIndex(),
+        keyImage: o.getKeyImage()?.getHex(),
+        isUnlocked: o.isUnlocked(),
+        isFrozen: o.isLocked(), // Monero uses 'locked' for frozen/unspendable outputs
+        subaddressIndex: o.getSubaddressIndex(),
+        timestamp: o.getTx().getTimestamp() * 1000
+      })).sort((a: any, b: any) => b.timestamp - a.timestamp);
+    } catch (e) {
+      console.error("Failed to fetch outputs", e);
+      return [];
+    }
   }
 
   public async rescan(height: number) {

@@ -2,25 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { XmrStealthEngine } from '../services/stealth/XmrStealthEngine';
 import { StealthStep } from '../services/stealth/types';
 
-export interface Identity {
-  id: string;
-  name: string;
-  created: number;
-}
-
-export interface SubaddressInfo {
-  index: number;
-  address: string;
-  label: string;
-  balance: string;
-  unlockedBalance: string;
-  isUsed: boolean;
-}
+export interface Identity { id: string; name: string; created: number; }
+export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
+export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
 
 export function useVault() {
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
+  const [outputs, setOutputs] = useState<OutputInfo[]>([]);
   const [txs, setTxs] = useState<any[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [status, setStatus] = useState<StealthStep>(StealthStep.IDLE);
@@ -83,16 +73,18 @@ export function useVault() {
   const refresh = useCallback(async () => {
     if (!engineRef.current) return;
     try {
-      const [b, h, height, subs] = await Promise.all([
+      const [b, h, height, subs, outs] = await Promise.all([
         engineRef.current.getBalance(),
         engineRef.current.getTxs(),
         engineRef.current.getHeight(),
-        engineRef.current.getSubaddresses()
+        engineRef.current.getSubaddresses(),
+        engineRef.current.getOutputs()
       ]);
       setBalance(b);
       setTxs(h);
       setCurrentHeight(height);
       setSubaddresses(subs);
+      setOutputs(outs);
     } catch (e) {}
   }, []);
 
@@ -123,7 +115,7 @@ export function useVault() {
           setIsInitializing(false);
           addLog("🔓 Identity active. Uplink established.");
           engine.startSyncInBackground((h) => saveSyncHeight(h));
-          await refresh(); // Load initial subs/balance
+          await refresh();
           success = true;
         } catch (err: any) {
           if (err.message.includes('password') || err.message.includes('decrypt')) throw new Error("INVALID_SECRET");
@@ -151,6 +143,22 @@ export function useVault() {
       return txHash;
     } catch (e: any) {
       addLog(`❌ SEND_ERROR: ${e.message}`);
+      throw e;
+    } finally {
+      setIsSending(false);
+    }
+  }, [refresh, addLog]);
+
+  const churn = useCallback(async () => {
+    if (!engineRef.current) return;
+    setIsSending(true);
+    try {
+      const txHash = await engineRef.current.churn();
+      addLog(`🌪️ CHURN_COMPLETE: ${txHash.substring(0, 16)}...`);
+      await refresh();
+      return txHash;
+    } catch (e: any) {
+      addLog(`❌ CHURN_ERROR: ${e.message}`);
       throw e;
     } finally {
       setIsSending(false);
@@ -190,7 +198,7 @@ export function useVault() {
   }, [isLocked, isInitializing, refresh]);
 
   return {
-    balance, address, subaddresses, status, logs, txs, currentHeight, refresh, rescan,
+    balance, address, subaddresses, outputs, status, logs, txs, currentHeight, refresh, rescan, churn,
     isInitializing, isLocked, unlock, hasVaultFile, isSending,
     identities, activeId, createIdentity, switchIdentity,
     createSubaddress: useCallback(async (label?: string) => {
