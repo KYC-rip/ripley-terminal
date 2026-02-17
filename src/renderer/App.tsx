@@ -80,7 +80,9 @@ function MainApp() {
     }
   };
 
-  if (isInitializing) {
+  // 1. Initial State: Determining if we have a wallet or need setup
+  // Only show this during the very first few ms of booting
+  if (isInitializing && isLocked && identities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
         <style>{`
@@ -94,6 +96,8 @@ function MainApp() {
     );
   }
 
+  // 2. Auth State: User must unlock or create
+  // We keep this visible even if isInitializing is true, as long as it's still locked.
   if (isLocked) {
     return (
       <AuthView 
@@ -103,6 +107,7 @@ function MainApp() {
         activeId={activeId}
         onSwitchIdentity={switchIdentity}
         onCreateIdentity={createIdentity}
+        logs={logs}
       />
     );
   }

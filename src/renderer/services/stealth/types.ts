@@ -17,6 +17,11 @@ export const StealthStep = {
 
 export type StealthStep = typeof StealthStep[keyof typeof StealthStep];
 
+
+export interface IStealthEngine {
+ 
+}
+
 export interface StealthConfig {
   minDelay: number;
   maxDelay: number;
@@ -28,7 +33,7 @@ export interface StealthOrder {
   destAddress: string;
 }
 
-export type StealthLogger = (msg: string, type?: 'info' | 'success' | 'warn' | 'process' | 'error') => void;
+export type StealthLogger = (msg: string, type?: 'info' | 'success' | 'warning' | 'process' | 'error') => void;
 
 export interface IncomingTxStatus {
   hash: string;              // Tx Hash

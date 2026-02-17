@@ -29,7 +29,7 @@ export function useVault() {
   const engineRef = useRef<XmrStealthEngine | null>(null);
 
   // --- 3. CALLBACK HOOKS ---
-  const addLog = useCallback((msg: string) => {
+  const addLog = useCallback((msg: string, type?: 'info' | 'success' | 'warning' | 'process' | 'error') => {
     setLogs(prev => [msg, ...prev].slice(0, 20));
     const match = msg.match(/(\d+(\.\d+)?)\s*%/);
     if (match) {
@@ -65,7 +65,7 @@ export function useVault() {
     setIsInitializing(true);
     addLog(`🌀 Establishing Uplink: ${activeId}...`);
     try {
-      const engine = new XmrStealthEngine((msg) => addLog(msg));
+      const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
       engineRef.current = engine;
       const [savedSeed, savedHeight, networkSetting] = await Promise.all([
         (window as any).api.getConfig(`master_seed_${activeId}`),
@@ -90,7 +90,10 @@ export function useVault() {
           await refresh();
           success = true;
         } catch (err: any) {
-          if (err.message.includes('password') || err.message.includes('decrypt')) throw new Error("INVALID_SECRET");
+          const msg = err.message.toLowerCase();
+          if (msg.includes('password') || msg.includes('decrypt') || msg.includes('deserialize')) {
+             throw new Error("INVALID_SECRET");
+          }
           retryCount++;
           if (retryCount >= 3) throw err;
           addLog(`⚠️ Link unstable. Retrying in 5s... (${retryCount}/3)`);

@@ -15,9 +15,10 @@ interface AuthViewProps {
   activeId: string;
   onSwitchIdentity: (id: string) => void;
   onCreateIdentity: (name: string) => void;
+  logs?: string[];
 }
 
-export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity }: AuthViewProps) {
+export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, logs = [] }: AuthViewProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -50,7 +51,10 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
       try {
         await onUnlock(password);
       } catch (err: any) {
-        setError(err.message === 'INVALID_SECRET' ? 'ACCESS_DENIED: WRONG PASSWORD' : err.message);
+        const msg = err.message || '';
+        if (msg.includes('INVALID_SECRET')) setError('ACCESS_DENIED: WRONG PASSWORD');
+        else if (msg.includes('Timeout')) setError('UPLINK_TIMEOUT: CHECK TOR STATUS');
+        else setError(`ENGINE_ERROR: ${msg.toUpperCase()}`);
         setIsProcessing(false);
       }
     }, 800);
@@ -147,6 +151,17 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             {error && (
               <div className="p-3 bg-red-900/20 border border-red-600/50 text-red-500 text-[10px] font-black uppercase flex items-center gap-2">
                 <Skull size={14} /> {error}
+              </div>
+            )}
+
+            {/* Tactical Feed during processing */}
+            {isProcessing && logs.length > 0 && (
+              <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">
+                 {logs.slice(0, 3).map((log, i) => (
+                   <p key={i} className={`text-[8px] uppercase truncate font-bold ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>
+                     {'>'} {log}
+                   </p>
+                 ))}
               </div>
             )}
 
