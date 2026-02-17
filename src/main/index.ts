@@ -101,6 +101,24 @@ ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true
 ipcMain.handle('get-seed', () => store.get('master_seed'));
 ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
 ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
+import fs from 'fs';
+
+// ... (existing imports)
+
+// ...
+
+ipcMain.handle('get-wallet-path', () => join(app.getPath('userData'), 'wallets'));
+ipcMain.handle('read-wallet-file', async (_, filename) => {
+  const p = join(app.getPath('userData'), 'wallets', filename);
+  if (fs.existsSync(p)) return fs.readFileSync(p);
+  return null;
+});
+ipcMain.handle('write-wallet-file', async (_, { filename, buffer }) => {
+  const dir = join(app.getPath('userData'), 'wallets');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(join(dir, filename), Buffer.from(buffer));
+  return true;
+});
 
 // ULTRALIGHT FETCH PROXY (Tactical fallback for SOCKS compatibility)
 async function tacticalFetch(url: string, options: any, useTor: boolean) {

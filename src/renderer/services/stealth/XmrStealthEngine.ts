@@ -51,17 +51,29 @@ export class XmrStealthEngine implements IStealthEngine {
         let restoreHeight = overrideHeight || currentHeight;
         const finalRestoreHeight = Math.max(0, restoreHeight - 10);
 
+        // 1. Try load existing wallet data
+        const savedKeysData = await (window as any).api.readWalletFile('primary');
+        
         const walletConfig: any = {
           networkType,
           password: "stealth_session",
-          server: { uri: rpcUrl },
-          seed: targetSeed,
-          restoreHeight: finalRestoreHeight
+          server: { uri: rpcUrl }
         };
 
-        this.wallet = await lib.createWalletFull(walletConfig);
-        this.cachedMnemonic = targetSeed!;
-        this.cachedAddress = await this.wallet.getAddress(0, targetIndex);
+        if (savedKeysData) {
+           this.logger("📂 Loading persistent vault...", 'process');
+           walletConfig.keysData = savedKeysData;
+           // If loading from disk, we don't strictly need seed/height unless refreshing
+           this.wallet = await lib.openWalletFull(walletConfig);
+        } else {
+           this.logger("🆕 Creating fresh vault...", 'process');
+           walletConfig.seed = targetSeed;
+           walletConfig.restoreHeight = finalRestoreHeight;
+           this.wallet = await lib.createWalletFull(walletConfig);
+        }
+
+        this.cachedMnemonic = await this.wallet!.getSeed();
+        this.cachedAddress = await this.wallet!.getAddress(0, targetIndex);
 
         this.logger(`🔗 Uplink established. Network: ${isStagenet ? 'STAGENET' : 'MAINNET'}`, 'success');
 
@@ -83,6 +95,18 @@ export class XmrStealthEngine implements IStealthEngine {
     }
   }
 
+  private async saveWalletToDisk() {
+    if (!this.wallet) return;
+    try {
+      await this.wallet.save();
+      const keysData = await this.wallet.getKeysData(); // Get buffer
+      await (window as any).api.writeWalletFile({ filename: 'primary', buffer: keysData });
+      console.log("[Vault] Checkpoint saved to disk.");
+    } catch (e) {
+      console.error("[Vault] Save Failed:", e);
+    }
+  }
+
   private async startSync(lib: any, onHeightUpdate?: (h: number) => void) {
     this.logger("📡 Initializing blockchain scan...", 'process');
     this.isSyncing = true;
@@ -90,37 +114,46 @@ export class XmrStealthEngine implements IStealthEngine {
     const self = this;
     const listener = new (class extends lib.MoneroWalletListener {
       private _lastPercent: number = -1;
+      private _lastSaveTime: number = 0;
       
       async onSyncProgress(height: number, start: number, end: number, percent: number, message: string) {
         if (onHeightUpdate) onHeightUpdate(height);
         const pFloat = percent * 100;
         const pInt = Math.floor(pFloat);
         
-        // Always log significant changes or periodically
         if (pInt > this._lastPercent || Math.random() < 0.1) {
           self.logSync(`Syncing: ${pFloat.toFixed(1)}%`);
           this._lastPercent = pInt;
+        }
+
+        // Auto-save every 30 seconds or if significant progress
+        const now = Date.now();
+        if (now - this._lastSaveTime > 30000) {
+          await self.saveWalletToDisk();
+          this._lastSaveTime = now;
         }
       }
 
       async onNewBlock(height: number) {
         if (onHeightUpdate) onHeightUpdate(height);
         self.logSync(`New block detected: ${height}`);
+        await self.saveWalletToDisk();
       }
 
       async onBalancesChanged(newBalance: bigint, newUnlockedBalance: bigint) {
         self.logSync(`Balance Updated: ${Number(newBalance)/1e12} XMR`);
+        await self.saveWalletToDisk();
       }
 
-      async onOutputReceived(output: any) { self.logSync("Incoming output detected."); }
-      async onOutputSpent(output: any) { self.logSync("Output spent."); }
+      async onOutputReceived(output: any) { self.logSync("Incoming output detected."); await self.saveWalletToDisk(); }
+      async onOutputSpent(output: any) { self.logSync("Output spent."); await self.saveWalletToDisk(); }
     })();
 
     try {
-      // Small delay to ensure UI is ready
       this.logSync("Syncing: 0.1%");
       await this.wallet!.sync(listener);
       this.logger("✅ Wallet Fully Synced", 'success');
+      await this.saveWalletToDisk();
     } catch (e: any) {
       this.logger(`❌ Sync Failed: ${e.message}`, 'error');
       throw e;
