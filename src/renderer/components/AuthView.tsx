@@ -3,6 +3,7 @@ import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCh
 import { Card } from './Card';
 import { AuthForm } from './auth/AuthForm';
 import { IdentitySwitcher } from './auth/IdentitySwitcher';
+import { LogEntry } from '../contexts/VaultContext';
 
 interface Identity { id: string; name: string; created: number; }
 
@@ -14,7 +15,7 @@ interface AuthViewProps {
   onSwitchIdentity: (id: string) => void;
   onCreateIdentity: (name: string) => void;
   onPurgeIdentity: (id: string) => void;
-  logs?: string[];
+  logs?: LogEntry[];
 }
 
 type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';

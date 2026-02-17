@@ -133,6 +133,13 @@ export class XmrStealthEngine implements IStealthEngine {
     } catch (e) { return 0; }
   }
 
+  public async createNextSubaddress(label: string = "Terminal Receive") {
+    if (!this.wallet) throw new Error("Wallet not initialized");
+    const sub = await this.wallet.createSubaddress(0, label);
+    await this.saveWalletToDisk(); 
+    return sub.getAddress();
+  }
+
   // --- Common Wrappers ---
   public async getSubaddresses() {
     if (!this.wallet) return [];

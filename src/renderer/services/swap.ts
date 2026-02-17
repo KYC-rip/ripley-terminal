@@ -6,7 +6,7 @@ import {
   type BatchQuoteResult,
   type BatchOrderResult,
   type ExchangeStatus as TradeStatusCentral
-} from '../types';
+} from "./types";
 
 export type TradeStatus = TradeStatusCentral;
 export type { BatchQuoteRequest, BatchQuoteResult, BatchOrderResult };
