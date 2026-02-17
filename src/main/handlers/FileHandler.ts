@@ -5,12 +5,13 @@ import fs from 'fs';
 export function registerFileHandlers() {
   ipcMain.handle('read-wallet-file', async (_, filename) => {
     try {
-      const p = join(app.getPath('userData'), 'wallets', filename);
-      if (!fs.existsSync(p)) return null;
-      
-      // 🔥 FIX: Read raw binary buffer. Electron IPC will clone this 
-      // safely as a Uint8Array to the renderer. No Base64 needed.
-      return fs.readFileSync(p);
+      const dir = join(app.getPath('userData'), 'wallets');
+      if (!fs.existsSync(dir)) return null;
+
+      const paths = [join(dir, filename + ".keys"), join(dir, filename + ".cache")];
+      const fileData = paths.map(p => fs.readFileSync(p));
+
+      return fileData;
     } catch (e) {
       return null;
     }
@@ -20,15 +21,20 @@ export function registerFileHandlers() {
     try {
       const dir = join(app.getPath('userData'), 'wallets');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      
+
       if (!data) return false;
 
-      // 🔥 FIX: Handle both direct Buffer and Uint8Array (which IPC sends)
-      const bufferToWrite = Buffer.isBuffer(data) ? data : Buffer.from(data);
-      
-      if (bufferToWrite.length === 0) return false;
+      const paths = [join(dir, filename + ".keys"), join(dir, filename + ".cache")];
 
-      fs.writeFileSync(join(dir, filename), bufferToWrite);
+      if (data.length === 0)
+        paths.forEach((p) => {
+          fs.unlinkSync(p);
+        });
+      else
+        paths.forEach((p, index) => {
+          fs.writeFileSync(p, data[index]);
+        });
+
       return true;
     } catch (e) {
       console.error(`[FileHandler] Write failed for ${filename}:`, e);

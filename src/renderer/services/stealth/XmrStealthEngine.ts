@@ -5,142 +5,171 @@ import { type IStealthEngine, StealthStep, type StealthConfig, type StealthOrder
 
 function applyTacticalPatches(lib: any) {
   try {
+    // 1. FS Patch for Main Thread
     if (lib.MoneroWalletFull && !lib.MoneroWalletFull.FS) {
       lib.MoneroWalletFull.FS = (window as any).fs?.promises;
     }
-    if (lib.LibraryUtils) {
-      try {
-        if (typeof lib.LibraryUtils.getHttpClient === 'function' && !lib.LibraryUtils.getHttpClient()) {
-          lib.LibraryUtils.setHttpClient(new lib.HttpClient());
+
+    // 2. HTTP Client Patch (Critical for proxyToWorker: false)
+    // The Wasm C++ bridge (EM_JS) calls 'this.HttpClient.request(...)'.
+    // We must ensure 'lib.HttpClient' is an instance with a 'request' method.
+    if (lib.HttpClient) {
+      // If it's a constructor (function) and doesn't have a static 'request' method...
+      if (typeof lib.HttpClient === 'function' && typeof lib.HttpClient.request !== 'function') {
+        console.log("[StealthEngine] 🔧 Instantiating HttpClient for Wasm glue...");
+        try {
+          // Replace the class on the module with an instance
+          lib.HttpClient = new lib.HttpClient();
+        } catch (e) {
+          console.warn("[StealthEngine] HttpClient init warning:", e);
         }
-      } catch (e) {}
+      }
     }
-  } catch (e) {}
+
+    // 3. Legacy LibraryUtils support (Only call if exists)
+    if (lib.LibraryUtils && typeof lib.LibraryUtils.setHttpClient === 'function') {
+      try {
+        const client = lib.HttpClient?.request ? lib.HttpClient : new (lib.HttpClient || Object)();
+        lib.LibraryUtils.setHttpClient(client);
+      } catch (e) { /* Squelch */ }
+    }
+  } catch (e) {
+    console.error("[StealthEngine] Patch failed:", e);
+  }
 }
 
 export class XmrStealthEngine implements IStealthEngine {
-  private wallet: any = null; 
+  private wallet: moneroTs.MoneroWalletFull | null = null;
   private logger: StealthLogger;
   private step: StealthStep = StealthStep.IDLE;
   private identityId: string = 'primary';
   private isSyncing = false;
+  private onHeightUpdate?: (h: number) => void;
 
   constructor(logger: StealthLogger = console.log) {
     this.logger = logger;
   }
-  
+
   public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false, identityId: string = 'primary') {
     this.step = StealthStep.INITIALIZING;
     this.identityId = identityId;
-    
+    this.onHeightUpdate = onHeightUpdate;
+
     applyTacticalPatches(moneroTs);
-    
+
     this.logger(`🌀 Initializing Identity: ${this.identityId}`, 'process');
 
     try {
-        // --- 1. Network Probe ---
-        const daemon = await moneroTs.connectToDaemonRpc(rpcUrl);
-        const currentHeight = await Promise.race([
-          daemon.getHeight(),
-          new Promise<number>((_, reject) => setTimeout(() => reject(new Error("Node_Unreachable")), 15000))
-        ]);
-        this.logger(`🟢 Uplink stable at height ${currentHeight}`, 'success');
+      // --- 1. Network Probe ---
+      const daemon = await moneroTs.connectToDaemonRpc(rpcUrl);
+      const currentHeight = await Promise.race([
+        daemon.getHeight(),
+        new Promise<number>((_, reject) => setTimeout(() => reject(new Error("Node_Unreachable")), 15000))
+      ]);
+      this.logger(`🟢 Uplink stable at height ${currentHeight}`, 'success');
 
-        // --- 2. Raw Binary Retrieval ---
-        // 'rawData' is now a pure Uint8Array from Electron's structure clone
-        const rawData = await (window as any).api.readWalletFile(this.identityId);
-        
-        const walletConfig: any = {
-          networkType: isStagenet ? moneroTs.MoneroNetworkType.STAGENET : moneroTs.MoneroNetworkType.MAINNET,
-          password,
-          server: { uri: rpcUrl },
-          proxyToWorker: true, // Worker is safe now as we aren't passing functions
-          accountLookahead: 3,
-          subaddressLookahead: 50
-        };
+      // --- 2. Raw Binary Retrieval ---
+      // 'rawData' is now a pure Uint8Array from Electron's structure clone
+      const rawData = await window.api.readWalletFile(this.identityId);
 
-        if (rawData && rawData.length > 0) {
-           this.logger("📂 Accessing encrypted vault file...", 'process');
-           // Directly pass the Uint8Array. No conversion, no corruption.
-           walletConfig.keysData = rawData;
-           this.wallet = await moneroTs.openWalletFull(walletConfig);
-        } else {
-           this.logger("🆕 Constructing fresh cryptographic keys...", 'process');
-           let targetSeed = mnemonic;
-           if (!targetSeed) {
-              const tempWallet = await moneroTs.createWalletFull({ ...walletConfig, proxyToWorker: false, password: "temp" });
-              targetSeed = await tempWallet.getSeed();
-              await tempWallet.close();
-           }
-           walletConfig.seed = targetSeed;
-           walletConfig.restoreHeight = (overrideHeight !== undefined && !isNaN(overrideHeight)) 
-              ? overrideHeight 
-              : Math.max(0, currentHeight - 10);
-           
-           this.wallet = await moneroTs.createWalletFull(walletConfig);
+      const walletConfig: Partial<moneroTs.MoneroWalletConfig> = {
+        networkType: isStagenet ? moneroTs.MoneroNetworkType.STAGENET : moneroTs.MoneroNetworkType.MAINNET,
+        password,
+        server: { uri: rpcUrl },
+        proxyToWorker: true,
+        accountLookahead: 3,
+        subaddressLookahead: 50
+      };
+
+      debugger
+      if (rawData && rawData.length > 0) {
+        this.logger(`📂 Accessing encrypted vault file (${rawData.length} bytes)...`, 'process');
+        // Ensure strict Uint8Array
+        walletConfig.keysData = rawData[0] as Uint8Array;
+        walletConfig.cacheData = rawData[1] as Uint8Array;
+
+        // Add race condition to detect hangs
+        this.wallet = await Promise.race([
+          moneroTs.openWalletFull(walletConfig),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("VAULT_OPEN_TIMEOUT: Decryption engine stalled.")), 20000))
+        ]) as any;
+      } else {
+        this.logger("🆕 Constructing fresh cryptographic keys...", 'process');
+        let targetSeed = mnemonic;
+        if (!targetSeed) {
+          const tempWallet = await moneroTs.createWalletFull({ ...walletConfig, proxyToWorker: false, password: "temp" });
+          targetSeed = await tempWallet.getSeed();
+          await tempWallet.close();
         }
+        walletConfig.seed = targetSeed;
+        walletConfig.restoreHeight = (overrideHeight !== undefined && !isNaN(overrideHeight))
+          ? overrideHeight
+          : Math.max(0, currentHeight - 10);
 
-        const address = await this.wallet.getAddress(0, subaddressIndex || 0);
-        this.logger(`🔗 Identity online: ${address.substring(0, 12)}...`, 'success');
-        
-        await this.saveWalletToDisk();
-        this.step = StealthStep.AWAITING_FUNDS;
-        
-        return { address, restoreHeight: walletConfig.restoreHeight };
+        this.wallet = await moneroTs.createWalletFull(walletConfig);
+      }
+
+      if (!this.wallet) {
+        throw new Error("Wallet initialization failed");
+      }
+
+      const address = await this.wallet.getAddress(0, subaddressIndex || 0);
+      this.logger(`🔗 Identity online: ${address.substring(0, 12)}...`, 'success');
+
+      await this.saveWalletToDisk();
+      this.step = StealthStep.AWAITING_FUNDS;
+
+      return { address, restoreHeight: walletConfig.restoreHeight };
 
     } catch (e: any) {
-        this.logger(`❌ FATAL: ${e.message}`, 'error');
-        this.step = StealthStep.ERROR;
-        throw e;
+      this.logger(`❌ FATAL: ${e.message}`, 'error');
+      this.step = StealthStep.ERROR;
+      throw e;
     }
   }
 
-  public async startSyncInBackground(onHeightUpdate?: (h: number) => void) {
+  public async startSyncInBackground() {
     if (this.isSyncing || !this.wallet) return;
     this.isSyncing = true;
+
+    const onHeightUpdate = this.onHeightUpdate;
+    const logger = this.logger;
+
+    this.logger("🔄 Background Sync Service Started", 'process');
+
     try {
-      await this.wallet.addListener(new (class extends moneroTs.MoneroWalletListener {
-        async onSyncProgress(h: number, s: number, e: number, percent: number) {
-          if (onHeightUpdate) onHeightUpdate(h);
+      // Define listener properly with explicit class
+      const listener = new class extends moneroTs.MoneroWalletListener {
+        async onSyncProgress(height: number, startHeight: number, endHeight: number, percent: number, message: string) {
+          logger(`🔄 Syncing: ${height} (${percent.toFixed(2)}%) ${message}`, 'process');
+          if (onHeightUpdate) onHeightUpdate(height);
         }
-        async onNewBlock(h: number) {
-          if (onHeightUpdate) onHeightUpdate(h);
+        async onNewBlock(height: number) {
+          if (onHeightUpdate) onHeightUpdate(height);
         }
-      })());
+      }();
 
-      // Polling fallback (Tactical reinforcement for UI responsiveness)
-      const pollInterval = setInterval(async () => {
-        if (!this.isSyncing || !this.wallet) {
-          clearInterval(pollInterval);
-          return;
-        }
-        try {
-          const h = await this.wallet.getHeight();
-          if (onHeightUpdate) onHeightUpdate(h);
-        } catch (e) { /* Squelch */ }
-      }, 2500);
+      await this.wallet.addListener(listener);
 
-      this.wallet.sync().then(() => {
-        this.isSyncing = false;
-        clearInterval(pollInterval);
-        this.saveWalletToDisk();
-        this.logger("✅ Ledger synchronized.", 'success');
-      }).catch((e: any) => { 
-        this.isSyncing = false; 
-        clearInterval(pollInterval);
-        this.logger(`❌ Sync interrupted: ${e.message}`, 'error');
-      });
-    } catch (e) { this.isSyncing = false; }
+      // Use built-in startSyncing which handles the loop internally
+      // This is more robust for WASM/Worker contexts
+      await this.wallet.startSyncing(5000); // Sync every 5 seconds
+
+      this.logger("✅ Sync cycle active.", 'success');
+    } catch (e: any) {
+      this.isSyncing = false;
+      this.logger(`❌ Sync start failed: ${e.message}`, 'error');
+    }
   }
-
   private async saveWalletToDisk() {
     if (!this.wallet) return;
     try {
       // getData() returns a pure Uint8Array
       const walletData = await this.wallet.getData();
       if (walletData && walletData.length > 0) {
-        // Send pure binary to Main process via IPC
-        await (window as any).api.writeWalletFile({ filename: this.identityId, data: walletData });
+        // Convert to standard Array to ensure safe IPC transport (avoids Buffer/View corruption)
+        const safePayload = Array.from(walletData as unknown as Uint8Array[]);
+        await window.api.writeWalletFile({ filename: this.identityId, data: safePayload });
       }
     } catch (e) {
       console.error("[Vault] Binary save failed:", e);
@@ -148,21 +177,21 @@ export class XmrStealthEngine implements IStealthEngine {
   }
 
   public async getNetworkHeight() {
+    if (!this.wallet) throw new Error("Wallet not initialized");
     try {
-      const daemon = await moneroTs.connectToDaemonRpc(this.wallet.getDaemonUri());
-      return await daemon.getHeight();
+      return await this.wallet.getDaemonHeight();
     } catch (e) { return 0; }
   }
 
   public async createNextSubaddress(label: string = "Terminal Receive") {
     if (!this.wallet) throw new Error("Wallet not initialized");
     const sub = await this.wallet.createSubaddress(0, label);
-    await this.saveWalletToDisk(); 
+    await this.saveWalletToDisk();
     return sub.getAddress();
   }
 
   public async setSubaddressLabel(index: number, label: string) {
-    if (!this.wallet) throw new Error("NOT_INIT");
+    if (!this.wallet) throw new Error("Wallet not initialized");
     await this.wallet.setSubaddressLabel(0, index, label);
     await this.saveWalletToDisk();
   }
@@ -222,8 +251,8 @@ export class XmrStealthEngine implements IStealthEngine {
   }
 
   public async rescan(height: number) {
-    if (!this.wallet) throw new Error("NOT_INIT");
-    await this.wallet.setSyncHeight(height);
+    if (!this.wallet) throw new Error("Wallet not initialized");
+    await this.wallet.setRestoreHeight(height);
     await this.wallet.rescanSpent();
     await this.wallet.rescanBlockchain();
     await this.saveWalletToDisk();
@@ -246,5 +275,5 @@ export class XmrStealthEngine implements IStealthEngine {
 
   public async getMnemonic() { return this.wallet ? await this.wallet.getSeed() : ''; }
   public async getHeight() { return this.wallet ? await this.wallet.getHeight() : 0; }
-  public stop() { if(this.wallet) this.wallet.stopSyncing(); }
+  public stop() { if (this.wallet) this.wallet.stopSyncing(); }
 }

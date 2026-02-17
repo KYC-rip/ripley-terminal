@@ -6,9 +6,19 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   main: {
+    build: {
+      lib: {
+        entry: 'src/main/index.ts'
+      },
+    },
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
+    build: {
+      lib: {
+        entry: 'src/preload/index.ts'
+      },
+    },
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
@@ -23,7 +33,7 @@ export default defineConfig({
         // Whether to polyfill `node:` protocol imports.
         protocolImports: true,
       }),
-      react(), 
+      react(),
       tailwindcss()
     ]
   }

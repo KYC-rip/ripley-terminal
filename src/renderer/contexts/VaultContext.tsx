@@ -75,30 +75,65 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!engineRef.current) return;
     try {
-      const [b, h, height, subs, outs] = await Promise.all([
+      const [b, h, height, networkHeight, subs, outs] = await Promise.all([
         engineRef.current.getBalance(),
         engineRef.current.getTxs(),
         engineRef.current.getHeight(),
+        engineRef.current.getNetworkHeight(),
         engineRef.current.getSubaddresses(),
         engineRef.current.getOutputs()
       ]);
       setBalance(b);
       setTxs(h);
       setCurrentHeight(height);
+      if (networkHeight > 0) setTotalHeight(networkHeight); // Only update if valid
+
+      // Auto-calc sync percent if not provided by listener
+      if (networkHeight > 0 && height > 0) {
+        setSyncPercent((height / networkHeight) * 100);
+      }
+
       setSubaddresses(subs);
       setOutputs(outs);
-    } catch (e) {}
+    } catch (e) { }
   }, []);
+
+  // 🔄 High-frequency polling during sync to ensure UI updates
+  useEffect(() => {
+    if (status === 'SYNCING') {
+      const interval = setInterval(refresh, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [status, refresh]);
 
   const unlock = useCallback(async (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => {
     if (engineRef.current) return;
 
     // 🛡️ TACTICAL CHECK: Ensure Tor is ready before allowing unlock if enabled
-    const useTor = await (window as any).api.getConfig('use_tor');
+    const useTor = await window.api.getConfig('use_tor');
     if (useTor) {
-      const uplink = await (window as any).api.getUplinkStatus();
-      if (!uplink.isTorReady) {
-        throw new Error("TOR_NOT_READY: Wait for bootstrap 100% or disable Tor.");
+      addLog("🛡️ Verifying Tor Circuit Integrity...", "process");
+
+      let attempts = 0;
+      const MAX_ATTEMPTS = 40; // ~2 minutes
+
+      while (true) {
+        const uplink = await window.api.getUplinkStatus();
+        if (uplink.isTorReady) {
+          addLog("✅ Tor Circuit Secured.", "success");
+          break;
+        }
+
+        attempts++;
+        if (attempts > MAX_ATTEMPTS) {
+          throw new Error("TOR_TIMEOUT: Uplink failed to bootstrap. Check network.");
+        }
+
+        if (attempts % 4 === 0) {
+          addLog(`⏳ Establishing Tor Uplink... [${attempts}/${MAX_ATTEMPTS}]`, "warning");
+        }
+
+        await new Promise(r => setTimeout(r, 3000));
       }
     }
 
@@ -109,8 +144,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const newId = `vault_${Date.now()}`;
       const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
       const updated = [...identities, newIdentity];
-      await (window as any).api.saveIdentities(updated);
-      await (window as any).api.setActiveIdentity(newId);
+      await window.api.saveIdentities(updated);
+      await window.api.setActiveIdentity(newId);
       setIdentities(updated);
       setActiveId(newId);
       targetId = newId;
@@ -120,43 +155,61 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
       engineRef.current = engine;
 
-      const seedToUse = restoreSeed || await (window as any).api.getConfig(`master_seed_${targetId}`);
+      const seedToUse = restoreSeed || await window.api.getConfig(`master_seed_${targetId}`);
       const [savedHeight, networkSetting] = await Promise.all([
-        (window as any).api.getConfig(`last_sync_height_${targetId}`),
-        (window as any).api.getConfig('is_stagenet')
+        window.api.getConfig(`last_sync_height_${targetId}`),
+        window.api.getConfig('is_stagenet')
       ]);
-      
+
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
 
-      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, undefined, stagenetActive, targetId);
-      
+      let lastLogHeight = 0;
+
+      const onHeightUpdate = (h: number) => {
+        if (h > 0) {
+          setCurrentHeight(h);
+          // Calculate dynamic percentage
+          if (tH > 0) {
+            const progress = (h / tH) * 100;
+            setSyncPercent(progress);
+
+            // Throttle logs: Every 500 blocks or on major milestones
+            if (h - lastLogHeight > 500 || h >= tH - 1) {
+              lastLogHeight = h;
+              addLog(`📡 Scanning Ledger: ${progress.toFixed(1)}% [${h}/${tH}]`, 'process');
+            }
+          } else {
+            // Fallback if tH is 0 (daemon unreachable during init?)
+            if (h - lastLogHeight > 1000) {
+              lastLogHeight = h;
+              addLog(`📡 Scanning Ledger: Block ${h}...`, 'process');
+            }
+          }
+
+          window.api.setConfig(`last_sync_height_${targetId}`, h);
+        }
+      }
+
+      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, onHeightUpdate, stagenetActive, targetId);
+
       const tH = await engine.getNetworkHeight();
       setTotalHeight(tH);
 
       const mnemonic = await engine.getMnemonic();
-      if (mnemonic) await (window as any).api.setConfig(`master_seed_${targetId}`, mnemonic);
-      
+      if (mnemonic) await window.api.setConfig(`master_seed_${targetId}`, mnemonic);
+
       setAddress(result.address);
       setIsLocked(false);
       setHasVaultFile(true);
       setIsInitializing(false);
-      
+
       // Start Background Sync
       setStatus('SYNCING');
-      engine.startSyncInBackground((h) => {
-         if (h > 0) {
-           setCurrentHeight(h);
-           // Calculate dynamic percentage
-           if (tH > 0) {
-             const progress = (h / tH) * 100;
-             setSyncPercent(progress);
-           }
-           (window as any).api.setConfig(`last_sync_height_${targetId}`, h);
-           if (h % 1000 === 0) addLog(`🛰️ Blockchain Pulse: Block ${h} reached.`);
-         }
-      });
-      
+
+
+      engine.startSyncInBackground();
+
       await refresh();
     } catch (e: any) {
       engineRef.current = null;
@@ -176,16 +229,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const purgeIdentity = useCallback(async (id: string) => {
     const targetName = identities.find(i => i.id === id)?.name || id;
     if (!confirm(`🚨 DELETE IDENTITY "${targetName}"?`)) return;
-    await (window as any).api.setConfig(`master_seed_${id}`, null);
-    await (window as any).api.setConfig(`last_sync_height_${id}`, null);
-    await (window as any).api.writeWalletFile({ filename: id, data: "" });
+    await window.api.setConfig(`master_seed_${id}`, null);
+    await window.api.setConfig(`last_sync_height_${id}`, null);
+    await window.api.writeWalletFile({ filename: id, data: [] });
     const updated = identities.filter(i => i.id !== id);
-    await (window as any).api.saveIdentities(updated);
+    await window.api.saveIdentities(updated);
     if (id === activeId) {
-       const nextId = updated.length > 0 ? updated[0].id : 'primary';
-       await (window as any).api.setActiveIdentity(nextId);
+      const nextId = updated.length > 0 ? updated[0].id : 'primary';
+      await window.api.setActiveIdentity(nextId);
     }
-    location.reload(); 
+    location.reload();
   }, [identities, activeId]);
 
   const rescan = useCallback(async (height: number) => {
@@ -206,14 +259,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const loadIdentities = async () => {
       try {
         const [ids, current] = await Promise.all([
-          (window as any).api.getIdentities(),
-          (window as any).api.getActiveIdentity()
+          window.api.getIdentities(),
+          window.api.getActiveIdentity()
         ]);
         setIdentities(ids || []);
         setActiveId(current || 'primary');
-        const fileData = await (window as any).api.readWalletFile(current || 'primary');
+        const fileData = await window.api.readWalletFile(current || 'primary');
         setHasVaultFile(!!fileData && fileData.length > 0);
-      } catch (err) {} finally { 
+      } catch (err) { } finally {
         setIsAppLoading(false);
       }
     };
@@ -230,25 +283,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const value = {
     balance, address, subaddresses, outputs, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
-    unlock, lock, purgeIdentity, switchIdentity: useCallback(async (id: string) => { await (window as any).api.setActiveIdentity(id); location.reload(); }, []),
+    unlock, lock, purgeIdentity, switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
     refresh, rescan, churn: useCallback(async () => {
       if (!engineRef.current) throw new Error("NOT_INIT");
       setIsSending(true);
-      try { const txHash = await engineRef.current.churn(); await refresh(); return txHash; } 
+      try { const txHash = await engineRef.current.churn(); await refresh(); return txHash; }
       finally { setIsSending(false); }
     }, [refresh]),
     createSubaddress: useCallback(async (label?: string) => {
       if (!engineRef.current) return;
-      try { const newAddr = await engineRef.current.createNextSubaddress(label); await refresh(); return newAddr; } catch (e) {}
+      try { const newAddr = await engineRef.current.createNextSubaddress(label); await refresh(); return newAddr; } catch (e) { }
     }, [refresh]),
     renameIdentity: useCallback(async (id: string, name: string) => {
-      await (window as any).api.renameIdentity(id, name);
-      const ids = await (window as any).api.getIdentities();
+      await window.api.renameIdentity(id, name);
+      const ids = await window.api.getIdentities();
       setIdentities(ids);
     }, []),
     setSubaddressLabel: useCallback(async (index: number, label: string) => {
       if (!engineRef.current) return;
-      try { await engineRef.current.setSubaddressLabel(index, label); await refresh(); } catch (e) {}
+      try { await engineRef.current.setSubaddressLabel(index, label); await refresh(); } catch (e) { }
     }, [refresh])
   };
 
