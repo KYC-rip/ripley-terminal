@@ -12,13 +12,15 @@ export class XmrStealthEngine implements IStealthEngine {
   private cachedMnemonic: string = '';
   private isSyncing = false;
   private lastLoggedBalance: string = '0.0';
+  private identityId: string = 'primary';
 
   constructor(logger: StealthLogger = console.log) {
     this.logger = logger;
   }
   
-  public async init(rpcUrl: string, mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false) {
+  public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, onHeightUpdate?: (h: number) => void, isStagenet: boolean = false, identityId: string = 'primary') {
     this.step = StealthStep.INITIALIZING;
+    this.identityId = identityId;
     const lib = moneroTs;
     const networkType = isStagenet ? lib.MoneroNetworkType.STAGENET : lib.MoneroNetworkType.MAINNET;
     
@@ -41,7 +43,7 @@ export class XmrStealthEngine implements IStealthEngine {
         let targetSeed = mnemonic;
         let targetIndex = subaddressIndex || 0;
 
-        if (!targetSeed) {
+        if (!targetSeed && !await (window as any).api.readWalletFile(this.identityId)) {
             this.logger("🔐 Generating new Master Identity...", 'process');
             const tempWallet = await lib.createWalletFull({ networkType });
             targetSeed = await tempWallet.getSeed();
@@ -52,18 +54,17 @@ export class XmrStealthEngine implements IStealthEngine {
         const finalRestoreHeight = Math.max(0, restoreHeight - 10);
 
         // 1. Try load existing wallet data
-        const savedKeysData = await (window as any).api.readWalletFile('primary');
+        const savedKeysData = await (window as any).api.readWalletFile(this.identityId);
         
         const walletConfig: any = {
           networkType,
-          password: "stealth_session",
+          password: password,
           server: { uri: rpcUrl }
         };
 
         if (savedKeysData) {
            this.logger("📂 Loading persistent vault...", 'process');
            walletConfig.keysData = savedKeysData;
-           // If loading from disk, we don't strictly need seed/height unless refreshing
            this.wallet = await lib.openWalletFull(walletConfig);
         } else {
            this.logger("🆕 Creating fresh vault...", 'process');
@@ -100,8 +101,8 @@ export class XmrStealthEngine implements IStealthEngine {
     try {
       await this.wallet.save();
       const keysData = await this.wallet.getKeysData(); // Get buffer
-      await (window as any).api.writeWalletFile({ filename: 'primary', buffer: keysData });
-      console.log("[Vault] Checkpoint saved to disk.");
+      await (window as any).api.writeWalletFile({ filename: this.identityId, buffer: keysData });
+      console.log(`[Vault] Checkpoint [${this.identityId}] saved to disk.`);
     } catch (e) {
       console.error("[Vault] Save Failed:", e);
     }
@@ -201,6 +202,29 @@ export class XmrStealthEngine implements IStealthEngine {
       relay: true
     });
     return tx.getHash();
+  }
+
+  public async rescan(height: number) {
+    if (!this.wallet) throw new Error("Wallet not initialized");
+    this.logger(`🔄 Rescanning from height ${height}...`, 'process');
+    
+    try {
+      // 1. Set the new restore height
+      await this.wallet.setSyncHeight(height);
+      
+      // 2. Clear local cache for transactions after this height (if any)
+      // monero-ts handling this via rescanSpent
+      await this.wallet.rescanSpent();
+      
+      // 3. Trigger full rescan from new height
+      await this.wallet.rescanBlockchain();
+      
+      this.logger(`✅ Rescan Complete from ${height}`, 'success');
+      await this.saveWalletToDisk();
+    } catch (e: any) {
+      this.logger(`❌ Rescan Failed: ${e.message}`, 'error');
+      throw e;
+    }
   }
 
   public async getTxs() {
