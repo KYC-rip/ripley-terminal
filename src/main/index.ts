@@ -95,35 +95,80 @@ const localProxyServer = http.createServer((req, res) => {
 localProxyServer.listen(18082, '0.0.0.0');
 
 // --- IPC Handlers ---
-ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isStagenet: !!store.get('is_stagenet') }));
+ipcMain.handle('get-uplink-status', () => ({ target: nodeManager.getBestNode(), useTor: !!store.get('use_tor'), isTorReady, isStagenet: !!store.get('is_stagenet') }));
 ipcMain.handle('get-config', (_, key) => store.get(key));
 ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true; });
 ipcMain.handle('get-seed', () => store.get('master_seed'));
 ipcMain.handle('save-seed', (_, s) => { store.set('master_seed', s); return true; });
 ipcMain.handle('burn-identity', () => { store.delete('master_seed'); store.delete('last_sync_height'); return true; });
 
-// ULTRALIGHT FETCH PROXY (Native fetch based)
+// ULTRALIGHT FETCH PROXY (Tactical fallback for SOCKS compatibility)
+async function tacticalFetch(url: string, options: any, useTor: boolean) {
+  if (useTor) {
+    if (!isTorReady) throw new Error('TOR_NOT_READY');
+    
+    // For SOCKS5 compatibility with Node's native fetch, we use a legacy HTTPS request approach
+    // as undici (fetch engine) requires a specialized dispatcher for SOCKS.
+    const https = require('https');
+    const { URL } = require('url');
+    const parsedUrl = new URL(url);
+    
+    return new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: options.method || 'GET',
+        headers: options.headers,
+        agent: torAgent
+      }, (res: any) => {
+        let body = '';
+        res.on('data', (chunk: any) => body += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ 
+              status: res.statusCode, 
+              json: async () => JSON.parse(body) 
+            });
+          } catch (e) {
+            reject(new Error('INVALID_JSON_RESPONSE'));
+          }
+        });
+      });
+      
+      req.on('error', reject);
+      if (options.body) req.write(options.body);
+      req.end();
+    });
+  }
+
+  // Clearnet can use native fetch safely
+  return fetch(url, options);
+}
+
 ipcMain.handle('proxy-request', async (_, { url, method, data, headers = {} }) => {
   try {
     const useTor = !!store.get('use_tor');
-    const isTorActive = useTor && isTorReady;
+    
+    if (useTor && !isTorReady) {
+      console.warn(`[Proxy] Blocked Clearnet Leak: ${url} (Tor requested but not ready)`);
+      return { error: 'TOR_BOOTSTRAPPING' };
+    }
 
-    console.log(`[Proxy] Tactical Fetch: ${url} (${isTorActive ? 'TOR' : 'CLEARNET'})`);
+    console.log(`[Proxy] Tactical Fetch: ${url} (${useTor ? 'TOR' : 'CLEARNET'})`);
 
     const fetchOptions: any = {
       method,
       headers: {
-        'User-Agent': 'curl/7.64.1', // Simulate curl!
+        'User-Agent': 'curl/7.64.1', 
         'Accept': 'application/json',
         ...headers
-      },
-      // Only attach dispatcher/agent if Tor is requested
-      ...(isTorActive ? { dispatcher: torAgent } : {})
+      }
     };
 
     if (data) fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
 
-    const response = await fetch(url, fetchOptions);
+    const response: any = await tacticalFetch(url, fetchOptions, useTor);
     const resultData = await response.json();
     console.log(`[Proxy] Response: ${response.status}`, resultData);
     return { data: resultData, status: response.status };

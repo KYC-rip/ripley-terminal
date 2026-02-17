@@ -88,24 +88,21 @@ async function client<T>(type: APIType, endpoint: string, { body, ...customConfi
     const id = setTimeout(() => controller.abort(), customConfig.timeout || 15000);
     config.signal = controller.signal;
 
-    const response = await (window as any).api.proxyRequest({url, ...config as RequestInit});
+    const result = await (window as any).api.proxyRequest({url, ...config as RequestInit});
     clearTimeout(id);
 
-    if (customResponseHandler) {
-      return customResponseHandler(response);
+    if (result.error) {
+       throw new APIError(result.error, result.status || 0);
     }
 
-    if (response.status === 204) return {} as T;
-    if (!response.headers.get('Content-Type')?.includes('application/json')) {
-      const text = await response.text();
-      throw new APIError(text || `HTTP Error ${response.status}`, response.status, text);
-    }
-    const data = await response.json().catch(() => ({}));
+    const { data, status } = result;
 
-    if (response.ok) {
-      return data;
+    if (status === 204) return {} as T;
+
+    if (status >= 200 && status < 300) {
+      return data as T;
     } else {
-      throw new APIError(data.error || data.message || `HTTP Error ${response.status}`, response.status, data);
+      throw new APIError(data?.error || data?.message || `HTTP Error ${status}`, status, data);
     }
   } catch (error: any) {
     if (error instanceof APIError) throw error;

@@ -4,6 +4,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { StealthStep } from '../services/stealth/types';
 import { useStats } from '../hooks/useStats';
 
+import { useTor } from '../contexts/TorContext';
+
 interface VaultViewProps {
   setView: (v: any) => void;
   vault: any; 
@@ -13,6 +15,7 @@ interface VaultViewProps {
 export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
   const { balance, address, logs, refresh, status, isSending, sendXmr, createSubaddress, txs, isStagenet, syncPercent, currentHeight } = vault;
   const { stats } = useStats();
+  const { torFetch } = useTor();
   
   // Modals
   const [showSeedModal, setShowSeedModal] = useState(false);
@@ -59,12 +62,11 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
   // Sentinel check logic
   useEffect(() => {
     if (destAddr.length > 30) {
-      fetch(`https://api.kyc.rip/v1/tools/ban-list?address=${destAddr}`)
-        .then(res => res.json())
+      torFetch(`https://api.kyc.rip/v1/tools/ban-list?address=${destAddr}`)
         .then(data => setIsBanned(data.results && data.results.length > 0))
         .catch(() => setIsBanned(false));
     } else setIsBanned(false);
-  }, [destAddr]);
+  }, [destAddr, torFetch]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 py-2 animate-in fade-in zoom-in-95 duration-300 font-black relative">

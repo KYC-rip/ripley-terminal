@@ -75,16 +75,46 @@ export class NodeManager {
     const results = await Promise.all(seeds.slice(0, 15).map(async (url: string) => {
       const start = Date.now();
       try {
-        const res = await fetch(`${url}/json_rpc`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_height' }),
-          signal: AbortSignal.timeout(useTor ? 15000 : 8000),
-          // @ts-ignore
-          dispatcher: useTor ? this.torAgent : undefined
-        });
+        const body = JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_height' });
+        let data: any;
+
+        if (useTor) {
+          // Tactical fallback for SOCKS compatibility
+          data = await new Promise((resolve, reject) => {
+            const http = require('http');
+            const { URL } = require('url');
+            const parsedUrl = new URL(`${url}/json_rpc`);
+            const req = http.request({
+              hostname: parsedUrl.hostname,
+              port: parsedUrl.port || 80,
+              path: parsedUrl.pathname,
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              agent: this.torAgent,
+              timeout: 15000
+            }, (res: any) => {
+              let b = '';
+              res.on('data', (d: any) => b += d);
+              res.on('end', () => {
+                try { resolve(JSON.parse(b)); } 
+                catch (e) { reject(e); }
+              });
+            });
+            req.on('error', reject);
+            req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+            req.write(body);
+            req.end();
+          });
+        } else {
+          const res = await fetch(`${url}/json_rpc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+            signal: AbortSignal.timeout(8000)
+          });
+          data = await res.json();
+        }
         
-        const data = await res.json() as any;
         return { url, latency: Date.now() - start, height: data.result.height, isActive: true };
       } catch (e) {
         return { url, latency: 9999, height: 0, isActive: false };

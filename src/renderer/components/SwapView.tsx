@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowDown, Zap, Shield, Ghost, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowDown, Zap, Shield, Ghost, RefreshCw, AlertCircle, Copy, Check, X, ArrowRight } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { Card } from './Card';
 import { useCurrencies, type Currency } from '../hooks/useCurrencies';
-import { fetchBridgeEstimate, type BridgeEstimate } from '../services/swap';
+import { fetchBridgeEstimate, createBridgeTrade, type BridgeEstimate, type BridgeTrade } from '../services/swap';
 
 interface SwapViewProps {
   localXmrAddress: string;
@@ -16,6 +15,9 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
   const [amount, setAmount] = useState('100');
   const [quote, setQuote] = useState<BridgeEstimate | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [activeTrade, setActiveTrade] = useState<BridgeTrade | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
 
   // Initialize coins
   useEffect(() => {
@@ -52,6 +54,88 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
     const timer = setTimeout(fetchQuote, 500);
     return () => clearTimeout(timer);
   }, [fromCoin, toCoin, amount]);
+
+  const handleSwap = async () => {
+    if (!quote || !localXmrAddress || isCreating) return;
+    
+    setIsCreating(true);
+    try {
+      const trades = await createBridgeTrade({
+        from_currency: fromCoin.ticker,
+        from_network: fromCoin.network,
+        to_currency: toCoin!.ticker,
+        to_network: toCoin!.network,
+        amount_from: parseFloat(amount),
+        address_to: localXmrAddress,
+        refund_address: '' // Optional for now
+      });
+      
+      if (trades && trades.length > 0) {
+        setActiveTrade(trades[0]);
+      }
+    } catch (e: any) {
+      alert(`SWAP_FAILED: ${e.message}`);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
+  };
+
+  if (activeTrade) {
+    return (
+      <div className="max-w-xl mx-auto py-10 space-y-6 animate-in zoom-in-95 duration-300">
+        <Card className="p-8 border-[#ff6600] bg-black/60 relative overflow-hidden">
+           <button onClick={() => setActiveTrade(null)} className="absolute top-4 right-4 text-xmr-dim hover:text-white"><X size={20}/></button>
+           <div className="text-center space-y-4 mb-8">
+              <div className="flex justify-center"><div className="p-4 bg-[#ff6600]/20 rounded-full text-[#ff6600] animate-pulse"><Zap size={32} /></div></div>
+              <h3 className="text-2xl font-black italic uppercase text-white">Awaiting_Deposit</h3>
+              <p className="text-[10px] text-xmr-dim uppercase tracking-widest">Send funds to the tactical relay address below</p>
+           </div>
+
+           <div className="space-y-6">
+              <div className="p-4 bg-black border border-[#ff6600]/30 rounded-sm space-y-3">
+                 <div className="flex justify-between items-center text-[9px] font-bold text-xmr-dim uppercase">
+                    <span>Deposit_Amount</span>
+                    <span className="text-[#ff6600]">{activeTrade.amount_from} {activeTrade.ticker_from}</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                    <code className="text-xs text-white font-black break-all pr-4">{activeTrade.address_provider}</code>
+                    <button onClick={() => handleCopy(activeTrade.address_provider || '')} className="text-[#ff6600] shrink-0">
+                       {copyFeedback ? <Check size={16}/> : <Copy size={16}/>}
+                    </button>
+                 </div>
+              </div>
+
+              <div className="flex items-center gap-4 justify-between text-[10px] font-bold uppercase tracking-tighter">
+                 <div className="flex flex-col gap-1">
+                    <span className="text-xmr-dim">YOU_SEND</span>
+                    <span className="text-white">{activeTrade.amount_from} {activeTrade.ticker_from}</span>
+                 </div>
+                 <ArrowRight size={20} className="text-xmr-dim" />
+                 <div className="flex flex-col gap-1 text-right">
+                    <span className="text-xmr-dim">YOU_RECEIVE</span>
+                    <span className="text-[#00ff41]">{activeTrade.amount_to} XMR</span>
+                 </div>
+              </div>
+
+              <div className="pt-6 border-t border-[#004d13]/20 flex flex-col items-center gap-4">
+                 <div className="flex items-center gap-2 text-[9px] text-[#00ff41] animate-pulse font-black uppercase tracking-widest">
+                    <RefreshCw size={12} className="animate-spin" /> Monitoring_Blockchain_For_Deposit...
+                 </div>
+                 <p className="text-[8px] text-xmr-dim text-center uppercase leading-relaxed">
+                    Once detected, the kyc.rip aggregator will route your assets through an anonymous dark pool and deliver XMR to your local vault.
+                 </p>
+              </div>
+           </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto py-10 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -116,9 +200,13 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
             </div>
           </div>
 
-          <button className="w-full py-4 bg-[#ff6600] text-black font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all flex items-center justify-center gap-3 mt-4 group">
-            <Ghost size={18} className="group-hover:animate-pulse" />
-            Initiate_Vanish_Sequence
+          <button 
+            disabled={!quote || !localXmrAddress || isCreating}
+            onClick={handleSwap}
+            className="w-full py-4 bg-[#ff6600] text-black font-black uppercase tracking-[0.2em] hover:opacity-90 transition-all flex items-center justify-center gap-3 mt-4 group disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Ghost size={18} className={isCreating ? 'animate-spin' : 'group-hover:animate-pulse'} />
+            {isCreating ? 'ENGINE_BOOTING...' : 'Initiate_Vanish_Sequence'}
           </button>
         </div>
       </Card>
