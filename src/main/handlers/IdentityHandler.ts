@@ -4,7 +4,18 @@ import { join } from 'path';
 
 export function registerIdentityHandlers(store: any) {
   ipcMain.handle('get-identities', () => {
-    const ids = store.get('identities') || [];
+    let ids = store.get('identities') || [];
+    if (ids?.length === 0) {
+      const dir = join(app.getPath('userData'), 'wallets');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+      ids = fs.readdirSync(dir).filter(f => f.endsWith('.keys')).map(f => ({ id: f.replace('.keys', ''), name: f.replace('.keys', ''), created: fs.statSync(join(dir, f)).birthtimeMs }));
+    }
+    if (ids?.length === 0) {
+      const defaultId = [{ id: 'primary', name: 'DEFAULT_VAULT', created: Date.now() }];
+      store.set('identities', defaultId);
+      return defaultId;
+    }
     return ids;
   });
 

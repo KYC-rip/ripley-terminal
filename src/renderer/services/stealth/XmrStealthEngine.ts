@@ -75,12 +75,11 @@ export class XmrStealthEngine implements IStealthEngine {
       const keysData = (rawData && rawData.length >= 1) ? new Uint8Array(rawData[0] as any) : null;
       const cacheData = (rawData && rawData.length >= 2 && !isRestore) ? new Uint8Array(rawData[1] as any) : null;
 
-      // --- 2. Daemon Connection (Blocking for New/Restore to ensure height accuracy) ---
+      // --- 2. Daemon Connection (Try to get height, but don't block restoration on failure) ---
       try {
         this.daemon = await moneroTs.connectToDaemonRpc({ server: { uri: rpcUrl }, proxyToWorker: false });
       } catch (e) {
-        if (isRestore) throw new Error("DAEMON_UNREACHABLE: Cannot restore identity without node connection.");
-        console.warn("[StealthEngine] Daemon unreachable, proceeding in offline mode.");
+        console.warn("[StealthEngine] Daemon unreachable during init/restore. Proceeding in offline mode.");
       }
 
       const walletConfig: Partial<moneroTs.MoneroWalletConfig> = {
@@ -100,7 +99,15 @@ export class XmrStealthEngine implements IStealthEngine {
       } else {
         this.logger(isRestore ? "🌅 Restoring cryptographic identity..." : "🆕 Constructing fresh keys...", 'process');
         
-        const currentHeight = this.daemon ? await this.daemon.getHeight() : 0;
+        let currentHeight = 0;
+        if (this.daemon) {
+          try {
+            currentHeight = await this.daemon.getHeight();
+          } catch (e) {
+            console.warn("[StealthEngine] Could not fetch current height from daemon.");
+          }
+        }
+
         let targetSeed = mnemonic;
 
         if (!targetSeed) {
@@ -122,7 +129,7 @@ export class XmrStealthEngine implements IStealthEngine {
         
         // 🛡️ DOUBLE PROTECTION: Explicitly set the sync height after creation
         if (walletConfig.restoreHeight > 0) {
-          await this.wallet.setRestoreHeight(walletConfig.restoreHeight);
+          await this.wallet.setRestoreHeight(walletConfig.restoreHeight).catch(() => {});
         }
       }
 

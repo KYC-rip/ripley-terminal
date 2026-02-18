@@ -297,10 +297,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         } else {
           setHasVaultFile(false);
         }
-      } catch (err) { } finally {
         setIsAppLoading(false);
-      }
-    };
       } catch (err) { } finally {
         setIsAppLoading(false);
       }
