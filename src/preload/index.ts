@@ -30,7 +30,11 @@ const api = {
     const subscription = (_event: any, msg: string) => callback(msg);
     ipcRenderer.on('tor-status', subscription);
     return () => ipcRenderer.removeListener('tor-status', subscription);
-  }
+  },
+  onVaultShutdown: (callback: () => void) => {
+    ipcRenderer.on('vault-shutdown', () => callback());
+  },
+  confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 };
 
 try {

@@ -287,6 +287,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     loadIdentities();
   }, []);
 
+  // 🛡️ GRACEFUL SHUTDOWN LISTENER
+  useEffect(() => {
+    if (window.api.onVaultShutdown) {
+      window.api.onVaultShutdown(async () => {
+        addLog("🛡️ System shutdown signal received. Securing vault...", "process");
+        if (engineRef.current) {
+          await engineRef.current.shutdown();
+        }
+        window.api.confirmShutdown();
+      });
+    }
+  }, [addLog]);
+
   useEffect(() => {
     if (!isLocked && !isInitializing) {
       const interval = setInterval(refresh, 20000);

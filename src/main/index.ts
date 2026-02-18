@@ -116,15 +116,41 @@ registerIdentityHandlers(store);
 registerFileHandlers();
 registerProxyHandlers(store, torAgent, torReadyRef);
 
+let isSafeToExit = false;
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1100, height: 720, show: false, backgroundColor: '#050505', titleBarStyle: 'hiddenInset',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, webSecurity: false }
   });
+  
   mainWindow.on('ready-to-show', () => mainWindow.show());
+
+  // 🛡️ GRACEFUL SHUTDOWN INTERCEPTOR
+  mainWindow.on('close', (e) => {
+    if (isSafeToExit) return;
+    
+    e.preventDefault();
+    console.log('[Main] Shutdown sequence initiated. Notifying renderer...');
+    mainWindow.webContents.send('vault-shutdown');
+    
+    // Safety timeout: If renderer hangs, force exit after 10 seconds
+    setTimeout(() => {
+      console.warn('[Main] Shutdown timeout reached. Forcing exit.');
+      isSafeToExit = true;
+      app.quit();
+    }, 10000);
+  });
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   else mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
 }
+
+ipcMain.on('confirm-shutdown', () => {
+  console.log('[Main] Renderer confirmed shutdown. Exiting.');
+  isSafeToExit = true;
+  app.quit();
+});
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('rip.kyc.terminal');
