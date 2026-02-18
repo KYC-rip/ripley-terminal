@@ -285,10 +285,34 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           window.api.getIdentities(),
           window.api.getActiveIdentity()
         ]);
-        setIdentities(ids || []);
-        setActiveId(current || 'primary');
-        const fileData = await window.api.readWalletFile(current || 'primary');
-        setHasVaultFile(!!fileData && fileData.length > 0);
+        
+        let validIds = ids || [];
+        
+        // 🛡️ STALE IDENTITY CLEANUP:
+        // If we have identities but the active one has no file (and it's a default ID),
+        // we might be in a broken state from previous versions.
+        if (validIds.length > 0) {
+          const checkTasks = validIds.map(async (idObj: any) => {
+            const data = await window.api.readWalletFile(idObj.id);
+            return { ...idObj, hasFile: !!data && data.length > 0 };
+          });
+          const results = await Promise.all(checkTasks);
+          // Only keep identities that actually have files, 
+          // OR keep all if the user explicitly created them (we'll handle 'MODE' step in AuthView)
+          // For now, if it's the old 'primary' and has no file, kill it.
+          validIds = results.filter(r => r.id !== 'primary' || r.hasFile);
+        }
+
+        setIdentities(validIds);
+        const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
+        setActiveId(nextActiveId);
+        
+        if (validIds.length > 0 && nextActiveId) {
+          const fileData = await window.api.readWalletFile(nextActiveId);
+          setHasVaultFile(!!fileData && fileData.length > 0);
+        } else {
+          setHasVaultFile(false);
+        }
       } catch (err) { } finally {
         setIsAppLoading(false);
       }

@@ -4,18 +4,7 @@ import { join } from 'path';
 
 export function registerIdentityHandlers(store: any) {
   ipcMain.handle('get-identities', () => {
-    let ids = store.get('identities');
-    if (ids?.length === 0) {
-      const dir = join(app.getPath('userData'), 'wallets');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-      ids = fs.readdirSync(dir).filter(f => f.endsWith('.keys')).map(f => f.replace('.keys', ''));
-    }
-    if (ids?.length === 0) {
-      const defaultId = [{ id: 'primary', name: 'DEFAULT_VAULT', created: Date.now() }];
-      store.set('identities', defaultId);
-      return defaultId;
-    }
+    const ids = store.get('identities') || [];
     return ids;
   });
 

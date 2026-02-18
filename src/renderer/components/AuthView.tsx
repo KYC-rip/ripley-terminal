@@ -21,15 +21,17 @@ interface AuthViewProps {
 type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
 export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
-  // 🔥 FIX: Improved Step Logic
-  // 1. If no identities exist -> LABEL (Create new)
-  // 2. If active identity exists but has no file -> MODE (Setup strategy)
-  // 3. Otherwise -> AUTH (Unlock)
   const [step, setStep] = useState<SetupStep>(() => {
     if (identities.length === 0) return 'LABEL';
     if (isInitialSetup) return 'MODE';
     return 'AUTH';
   });
+
+  // 🛡️ Sync step if identities change (e.g. purged from another view)
+  React.useEffect(() => {
+    if (identities.length === 0) setStep('LABEL');
+    else if (isInitialSetup && step === 'AUTH') setStep('MODE');
+  }, [identities.length, isInitialSetup]);
   
   const [showSwitcher, setShowSwitcher] = useState(false);
   

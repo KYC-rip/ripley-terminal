@@ -25,6 +25,9 @@ export interface IApi {
 
   // Events
   onTorStatus: (callback: (msg: string) => void) => () => void;
+
+  confirmShutdown: () => Promise<boolean>;
+  onVaultShutdown: (callback: () => void) => () => void;
 }
 
 declare global {

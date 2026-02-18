@@ -122,7 +122,7 @@ export class XmrStealthEngine implements IStealthEngine {
         
         // 🛡️ DOUBLE PROTECTION: Explicitly set the sync height after creation
         if (walletConfig.restoreHeight > 0) {
-          await this.wallet.setSyncHeight(walletConfig.restoreHeight);
+          await this.wallet.setRestoreHeight(walletConfig.restoreHeight);
         }
       }
 
