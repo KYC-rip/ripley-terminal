@@ -85,6 +85,7 @@ export class TorManager {
       onProgress("Tor installation complete.");
       return true;
     } catch (e: any) {
+      console.error(`[TorManager] Download failed:`, e.message);
       onProgress(`Tor Download Failed: ${e.message}`);
       return false;
     }

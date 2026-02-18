@@ -29,9 +29,14 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
   // 🛡️ Sync step if identities change (e.g. purged from another view)
   React.useEffect(() => {
-    if (identities.length === 0) setStep('LABEL');
-    else if (isInitialSetup && step === 'AUTH') setStep('MODE');
-  }, [identities.length, isInitialSetup]);
+    // Only force redirect to LABEL if we are in AUTH mode but have no identities.
+    // This allows the user to progress through LABEL -> MODE -> RESTORE without being snapped back.
+    if (identities.length === 0 && step === 'AUTH') {
+      setStep('LABEL');
+    } else if (isInitialSetup && identities.length > 0 && step === 'AUTH') {
+      setStep('MODE');
+    }
+  }, [identities.length, isInitialSetup, step]);
   
   const [showSwitcher, setShowSwitcher] = useState(false);
   
