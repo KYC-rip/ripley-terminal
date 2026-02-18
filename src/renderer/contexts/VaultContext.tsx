@@ -193,7 +193,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }
       })(engine);
 
-      const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, listener, stagenetActive, targetId);
+      const result = await engine.init(
+        "http://127.0.0.1:18082", 
+        password, 
+        seedToUse, 
+        0, 
+        restoreHeight || savedHeight || undefined, // 🛡️ Use undefined to trigger engine defaults
+        listener, 
+        stagenetActive, 
+        targetId
+      );
 
       // Immediately fetch network height to drive the progress bar
       if (result.networkHeight > 0) {

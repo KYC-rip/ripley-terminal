@@ -110,9 +110,12 @@ export class XmrStealthEngine implements IStealthEngine {
           await tempWallet.close();
         }
         walletConfig.seed = targetSeed;
+        
+        // 🛡️ TACTICAL PROTECTION: Default to currentHeight - 1000 instead of 0
+        // to prevent massive cache file bloat on new identities.
         walletConfig.restoreHeight = (overrideHeight !== undefined && !isNaN(overrideHeight))
           ? overrideHeight
-          : Math.max(0, currentHeight - 10);
+          : (currentHeight > 0 ? Math.max(0, currentHeight - 1000) : 0);
 
         this.wallet = await moneroTs.createWalletFull(walletConfig);
       }
@@ -329,18 +332,21 @@ export class XmrStealthEngine implements IStealthEngine {
     try {
       if (this.wallet) {
         // 1. Stop active background syncing
-        await this.wallet.stopSyncing();
+        await this.wallet.stopSyncing().catch(() => {});
         
-        // 2. Perform one final state persistence
-        await this.saveWalletToDisk();
+        // 2. Perform one final state persistence via IPC
+        // We do this BEFORE closing to ensure we have access to the wallet data.
+        await this.saveWalletToDisk().catch(e => {
+          console.error("[StealthEngine] Final save failed during shutdown:", e);
+        });
         
-        // 3. Gracefully close the Wasm wallet instance
-        await this.wallet.close(true);
+        // 3. Gracefully close the Wasm wallet instance and free memory.
+        // We pass 'false' because we've already manually handled the save via IPC.
+        await this.wallet.close(false);
         this.wallet = null;
       }
 
       // 4. Terminate background workers (Library-wide)
-      // This is critical in Electron to prevent ghost processes.
       if ((moneroTs as any).LibraryUtils?.shutdown) {
         await (moneroTs as any).LibraryUtils.shutdown();
       }
