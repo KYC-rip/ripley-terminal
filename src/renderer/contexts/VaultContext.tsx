@@ -143,7 +143,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     let targetId = activeId;
 
     if (newIdentityName) {
-      const newId = `vault_${Date.now()}`;
+      // 🛡️ COLLISION CHECK: Ensure the name (label) is unique
+      const nameExists = identities.some(i => i.name.toLowerCase() === newIdentityName.toLowerCase());
+      if (nameExists) {
+        throw new Error(`CONFLICT: Identity "${newIdentityName}" already exists.`);
+      }
+
+      // 🛡️ ID GENERATION: Use random suffix to prevent any chance of file collision
+      const randomId = Math.random().toString(36).substring(2, 9);
+      const newId = `vault_${Date.now()}_${randomId}`;
+      
       const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
       const updated = [...identities, newIdentity];
       await window.api.saveIdentities(updated);
@@ -322,10 +331,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       try { const newAddr = await engineRef.current.createNextSubaddress(label); await refresh(); return newAddr; } catch (e) { }
     }, [refresh]),
     renameIdentity: useCallback(async (id: string, name: string) => {
+      // 🛡️ CHECK: Is the target name already taken by ANOTHER identity?
+      const nameExists = identities.some(i => i.id !== id && i.name.toLowerCase() === name.toLowerCase());
+      if (nameExists) throw new Error(`CONFLICT: Name "${name}" is already in use.`);
+
       await window.api.renameIdentity(id, name);
       const ids = await window.api.getIdentities();
       setIdentities(ids);
-    }, []),
+    }, [identities]),
     setSubaddressLabel: useCallback(async (index: number, label: string) => {
       if (!engineRef.current) return;
       try { await engineRef.current.setSubaddressLabel(index, label); await refresh(); } catch (e) { }
