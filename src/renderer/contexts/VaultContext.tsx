@@ -220,8 +220,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeId, identities, refresh, addLog]);
 
-  const lock = useCallback(() => {
-    if (engineRef.current) { engineRef.current.stop(); engineRef.current = null; }
+  const lock = useCallback(async () => {
+    if (engineRef.current) { 
+      await engineRef.current.shutdown(); 
+      engineRef.current = null; 
+    }
     setAddress('');
     setBalance({ total: '0.0000', unlocked: '0.0000' });
     setIsLocked(true);

@@ -321,5 +321,38 @@ export class XmrStealthEngine implements IStealthEngine {
 
   public async getMnemonic() { return this.wallet ? await this.wallet.getSeed() : ''; }
   public async getHeight() { return this.wallet ? await this.wallet.getHeight() : 0; }
-  public stop() { if (this.wallet) this.wallet.stopSyncing(); }
+
+  public async shutdown() {
+    this.isSyncing = false;
+    this.logger("🛑 Shutting down Stealth Engine...", 'process');
+
+    try {
+      if (this.wallet) {
+        // 1. Stop active background syncing
+        await this.wallet.stopSyncing();
+        
+        // 2. Perform one final state persistence
+        await this.saveWalletToDisk();
+        
+        // 3. Gracefully close the Wasm wallet instance
+        await this.wallet.close(true);
+        this.wallet = null;
+      }
+
+      // 4. Terminate background workers (Library-wide)
+      // This is critical in Electron to prevent ghost processes.
+      if ((moneroTs as any).LibraryUtils?.shutdown) {
+        await (moneroTs as any).LibraryUtils.shutdown();
+      }
+      
+      this.logger("✅ Engine offline.", 'success');
+    } catch (e: any) {
+      this.logger(`⚠️ Shutdown notice: ${e.message}`, 'warning');
+    }
+  }
+
+  public stop() { 
+    this.isSyncing = false;
+    if (this.wallet) this.wallet.stopSyncing(); 
+  }
 }
