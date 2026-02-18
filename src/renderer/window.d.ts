@@ -17,7 +17,7 @@ export interface IApi {
   // File System (Wallet Storage)
   getWalletPath: () => Promise<string>;
   readWalletFile: (filename: string) => Promise<Uint8Array[] | null>;
-  writeWalletFile: (params: { filename: string; data: Uint8Array[] | number[][] }) => Promise<boolean>;
+  writeWalletFile: (params: { filename: string; data: number[][] | Uint8Array[] | any }) => Promise<boolean>;
 
   // Networking
   getUplinkStatus: () => Promise<{ target: string; useTor: boolean; isTorReady: boolean; isStagenet: boolean }>;

@@ -6,13 +6,20 @@ const NODES_YAML_URL = 'https://raw.githubusercontent.com/feather-wallet/feather
 // Hardcoded fallbacks in case GitHub is unreachable
 const FALLBACK_DATA = {
   mainnet: {
-    tor: ["loveanvthlsepingenr7opdqy6nlhn5jidwvzzxfmwsw2rry5mn2gfqd.onion:18089", "cakexmrl7bonq7ovjka5kuwuyd3f7qnkz6z6s6dmsy3uckwra7bvggyd.onion:18081"],
+    tor: [
+      "loveanvthlsepingenr7opdqy6nlhn5jidwvzzxfmwsw2rry5mn2gfqd.onion:18089", 
+      "cakexmrl7bonq7ovjka5kuwuyd3f7qnkz6z6s6dmsy3uckwra7bvggyd.onion:18081",
+      "p5f02ne7vsh6osscub.onion:18081",
+      "moneroxmrlp6id6767naw77etndmndyie6p26mrt63ioeiq26h6v27qd.onion:18081",
+      "sel36y6vnyv7v3cv.onion:18081"
+    ],
     clearnet: ["https://node.community.as65535.net", "https://monero.herominers.com:18081", "xmr-node.cakewallet.com:18081"]
   },
   stagenet: {
     tor: [
       "loveanvthlsepingenr7opdqy6nlhn5jidwvzzxfmwsw2rry5mn2gfqd.onion:18089",
-      "ct36dsbe3oubpbebpxmiqz4uqk6zb6nhmkhoekileo4fts23rvuse2qd.onion:38081"
+      "ct36dsbe3oubpbebpxmiqz4uqk6zb6nhmkhoekileo4fts23rvuse2qd.onion:38081",
+      "monero.stagenet.xmr.ditatompel.com:38081"
     ],
     clearnet: [
       "https://rpc-stagenet.kyc.rip",
@@ -31,7 +38,8 @@ interface MoneroNode {
 }
 
 export class NodeManager {
-  private bestNode: string | null = null;
+  private bestTorNode: string | null = null;
+  private bestClearnetNode: string | null = null;
   private torAgent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
   private nodeCache: any = FALLBACK_DATA;
 
@@ -126,16 +134,25 @@ export class NodeManager {
       return a.latency - b.latency;
     });
 
-    if (healthyNodes.length > 0) {
-      this.bestNode = healthyNodes[0].url;
-      console.log(`[NodeRadar] Elected: ${this.bestNode} (${healthyNodes[0].latency}ms)`);
-    } else {
-      this.bestNode = seeds[0];
-    }
-    return this.bestNode;
+    const election = healthyNodes.length > 0 
+      ? healthyNodes[0].url 
+      : seeds[Math.floor(Math.random() * seeds.length)];
+
+    if (useTor) this.bestTorNode = election;
+    else this.bestClearnetNode = election;
+
+    console.log(`[NodeRadar] Elected ${useTor ? 'TOR' : 'CLEAR'}: ${election}`);
+    return election;
   }
 
-  public getBestNode() {
-    return this.bestNode || this.nodeCache.mainnet.clearnet[0];
+  public getBestNode(useTor: boolean = false) {
+    const currentBest = useTor ? this.bestTorNode : this.bestClearnetNode;
+    if (currentBest) return currentBest;
+    
+    // Safety fallback
+    const network = this.nodeCache.mainnet;
+    const seeds = useTor ? network.tor : network.clearnet;
+    const fallback = seeds[Math.floor(Math.random() * seeds.length)];
+    return fallback.startsWith('http') ? fallback : `http://${fallback}`;
   }
 }

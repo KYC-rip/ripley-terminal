@@ -43,24 +43,55 @@ async function startNodeRadar() {
   setInterval(() => nodeManager.scout(!!store.get('is_stagenet'), !!store.get('use_tor')), 10 * 60 * 1000);
 }
 
-const proxy = httpProxy.createProxyServer({ changeOrigin: true, proxyTimeout: 60000 });
+const proxy = httpProxy.createProxyServer({ 
+  changeOrigin: true, 
+  proxyTimeout: 120000, // 🛡️ Extend to 120s for Tor resilience
+  timeout: 120000 
+});
 const localProxyServer = http.createServer((req, res) => {
   const useTor = !!store.get('use_tor');
   const isStagenet = !!store.get('is_stagenet');
   const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
   const isAutoNode = store.get(`auto_node_${configPrefix}`) !== false;
   const customDaemon = store.get(`custom_daemon_${configPrefix}`);
-  const baseTarget = (isAutoNode || !customDaemon) ? nodeManager.getBestNode() : customDaemon;
+  const baseTarget = (isAutoNode || !customDaemon) ? nodeManager.getBestNode(useTor) : customDaemon;
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', '*');
   res.setHeader('Access-Control-Allow-Headers', '*');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-  if (useTor && !torReadyRef.current) { res.writeHead(503); res.end(JSON.stringify({ error: 'TOR_BOOTSTRAPPING' })); return; }
+  
+  if (useTor && !torReadyRef.current) { 
+    res.writeHead(503); 
+    res.end(JSON.stringify({ error: 'TOR_BOOTSTRAPPING' })); 
+    return; 
+  }
+
   const attemptProxy = (nodeIndex: number) => {
-    const currentTarget = nodeIndex === 0 ? baseTarget : nodeManager.getBestNode();
+    // 🛡️ RESPECT USER CHOICE: If auto-node is off, NEVER switch to NodeManager nodes.
+    const currentTarget = (nodeIndex === 0 || !isAutoNode) ? baseTarget : nodeManager.getBestNode(useTor);
+    
     proxy.web(req, res, { target: currentTarget, agent: useTor ? torAgent : undefined }, async (e: any) => {
-      if (nodeIndex < 2 && isAutoNode) { await nodeManager.scout(isStagenet, useTor); attemptProxy(nodeIndex + 1); } 
-      else { res.writeHead(502); res.end(JSON.stringify({ error: 'LINK_EXHAUSTED' })); }
+      // 🔄 RETRY STRATEGY: 
+      // 1. If AutoNode is ON: Switch nodes after each failure.
+      // 2. If AutoNode is OFF: Retry on the same custom node (to handle Tor/Network flickers).
+      if (nodeIndex < 5) { 
+        console.warn(`[Proxy] Request failed for ${currentTarget}. Retry ${nodeIndex + 1}/5...`);
+        
+        // Wait 1s before retry to let circuit recover
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // Only scout/refresh if we are in auto-node mode
+        if (isAutoNode && nodeIndex % 2 === 0) await nodeManager.scout(isStagenet, useTor); 
+        
+        attemptProxy(nodeIndex + 1); 
+      } 
+      else { 
+        const errorMsg = isAutoNode ? 'LINK_EXHAUSTED' : 'NODE_UNREACHABLE';
+        console.error(`[Proxy] ${errorMsg}: Failed after maximum retries for ${currentTarget}`);
+        res.writeHead(502); 
+        res.end(JSON.stringify({ error: errorMsg })); 
+      }
     });
   };
   attemptProxy(0);
@@ -68,12 +99,15 @@ const localProxyServer = http.createServer((req, res) => {
 localProxyServer.listen(18082, '0.0.0.0');
 
 // --- Register All IPC Handlers ---
-ipcMain.handle('get-uplink-status', () => ({ 
-  target: nodeManager.getBestNode(), 
-  useTor: !!store.get('use_tor'), 
-  isTorReady: torReadyRef.current, 
-  isStagenet: !!store.get('is_stagenet') 
-}));
+ipcMain.handle('get-uplink-status', () => {
+  const useTor = !!store.get('use_tor');
+  return { 
+    target: nodeManager.getBestNode(useTor), 
+    useTor, 
+    isTorReady: torReadyRef.current, 
+    isStagenet: !!store.get('is_stagenet') 
+  };
+});
 ipcMain.handle('get-config', (_, key) => store.get(key));
 ipcMain.handle('set-config', (_, key, val) => { store.set(key, val); return true; });
 

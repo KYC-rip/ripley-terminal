@@ -166,53 +166,39 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
 
-      let lastLogHeight = 0;
-
-      const onHeightUpdate = (h: number) => {
-        if (h > 0) {
-          setCurrentHeight(h);
-          
-          // Use current totalHeight state
-          const targetH = totalHeight;
-
-          if (targetH > 0) {
-            const progress = Math.min((h / targetH) * 100, 100);
-            setSyncPercent(progress);
-
-            // Throttle logs: Every 500 blocks or on major milestones
-            if (h - lastLogHeight > 500 || h >= targetH - 1) {
-              lastLogHeight = h;
-              addLog(`📡 Scanning Ledger: ${progress.toFixed(1)}% [${h}/${targetH}]`, 'process');
-            }
-          } else {
-            // Fallback if targetH is 0
-            if (h - lastLogHeight > 1000) {
-              lastLogHeight = h;
-              addLog(`📡 Scanning Ledger: Block ${h}...`, 'process');
-            }
-          }
-
-          window.api.setConfig(`last_sync_height_${targetId}`, h);
-        }
-      };
-
       const listener = new (class extends UpdateListener {
         async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
           // monero-ts provides percentDone as 0.0 - 1.0
-          const displayPercent = percentDone * 100;
-          onHeightUpdate(height);
+          const displayPercent = Math.min(percentDone * 100, 100);
+          
+          setCurrentHeight(height);
+          if (endHeight > 0) setTotalHeight(endHeight);
           setSyncPercent(displayPercent);
+
+          if (height % 1000 === 0 || percentDone >= 0.99) {
+            addLog(`📡 Scanning Ledger: ${displayPercent.toFixed(1)}% [${height}/${endHeight || '?'}]`, 'process');
+          }
+          
+          // Persist height
+          if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
         }
         async onNewBlock(height: number) {
-          onHeightUpdate(height);
+          setCurrentHeight(height);
+          if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
+          
+          // Refresh total height on new blocks
+          engine.getNetworkHeight().then(nh => {
+            if (nh > 0) setTotalHeight(nh);
+          });
         }
       })(engine);
 
       const result = await engine.init("http://127.0.0.1:18082", password, seedToUse, 0, restoreHeight || savedHeight || 0, listener, stagenetActive, targetId);
 
       // Immediately fetch network height to drive the progress bar
-      const nH = await engine.getNetworkHeight();
-      if (nH > 0) setTotalHeight(nH);
+      if (result.networkHeight > 0) {
+        setTotalHeight(result.networkHeight);
+      }
 
       const mnemonic = await engine.getMnemonic();
       if (mnemonic) await window.api.setConfig(`master_seed_${targetId}`, mnemonic);

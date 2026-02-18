@@ -401,6 +401,8 @@ const logMap: Record<ComplianceLevel, string> = {
 export const fetchBridgeEstimate = async (from: string, to: string, amount: number, network_from: string = "Mainnet", network_to: string = "Mainnet", kyc: ComplianceLevel, log: ComplianceLevel) => {
   const params = new URLSearchParams({ from, to, network_from, network_to, amount: amount.toString(), type: 'from', kyc: kycMap[kyc], log: logMap[log] });
 
+  console.log(`requesting API: /v1/exchange/bridge/estimate?${params.toString()}`);
+
   const data = await apiClient<BridgeEstimate>(`/v1/exchange/bridge/estimate?${params.toString()}`, {}, async (res) => {
     if (!res.ok) {
       let errMsg = "Estimate Failed";

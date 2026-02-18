@@ -15,19 +15,19 @@ import { StealthStep } from './services/stealth/types';
 function MainApp() {
   const [view, setView] = useState<'home' | 'vault' | 'swap' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
-  
+
   const vault = useVault();
-  const { 
+  const {
     address, logs, status, isAppLoading, isInitializing, syncPercent, currentHeight, totalHeight, isLocked, unlock, lock, purgeIdentity,
-    hasVaultFile, identities, activeId, switchIdentity 
+    hasVaultFile, identities, activeId, switchIdentity
   } = vault;
-  
+
   const { useTor: torEnabled, setUseTor } = useTor();
   const { stats, loading: statsLoading } = useStats();
   const { mode, cycleTheme, resolvedTheme } = useTheme();
 
   const activeIdentity = identities.find(i => i.id === activeId);
-  
+
   const [showScanlines, setShowScanlines] = useState(true);
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [uplink, setUplink] = useState<string>('SCANNING...');
@@ -126,9 +126,9 @@ function MainApp() {
   // 2. Auth View: Visible whenever locked
   if (isLocked) {
     return (
-      <AuthView 
-        onUnlock={unlock} 
-        isInitialSetup={!hasVaultFile} 
+      <AuthView
+        onUnlock={unlock}
+        isInitialSetup={!hasVaultFile}
         identities={identities}
         activeId={activeId}
         onSwitchIdentity={switchIdentity}
@@ -142,7 +142,7 @@ function MainApp() {
   const isSyncing = currentHeight < totalHeight - 1 && totalHeight > 0;
 
   const NavButton = ({ id, label, icon: Icon, badge }: any) => (
-    <button 
+    <button
       onClick={() => setView(id)}
       className={`w-full flex items-center justify-between px-6 py-4 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
     >
@@ -162,27 +162,27 @@ function MainApp() {
     <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
-      
+
       <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
         <div className="p-8 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
-           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
-             <img src="/favicon.svg" className={`w-10 h-10 ${resolvedTheme === 'light' ? 'invert' : ''} drop-shadow-[0_0_12px_rgba(0,255,65,0.4)]`} alt="Logo" />
-             <div className="absolute inset-0 bg-xmr-green/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-           </div>
-           <div className="text-center">
-             <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
-             <div className="text-[7px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">
-                {activeIdentity?.name || 'TACTICAL_UPLINK'}
-             </div>
-           </div>
+          <div className="relative group cursor-pointer" onClick={() => setView('home')}>
+            <img src="/favicon.svg" className={`w-10 h-10 ${resolvedTheme === 'light' ? 'invert' : ''} drop-shadow-[0_0_12px_rgba(0,255,65,0.4)]`} alt="Logo" />
+            <div className="absolute inset-0 bg-xmr-green/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
+            <div className="text-[7px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">
+              {activeIdentity?.name || 'TACTICAL_UPLINK'}
+            </div>
+          </div>
         </div>
 
         <nav className="flex-grow space-y-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <NavButton id="home" label="Dashboard" icon={Ghost} />
-          <NavButton 
-            id="vault" 
-            label="Vault_Storage" 
-            icon={Shield} 
+          <NavButton
+            id="vault"
+            label="Vault_Storage"
+            icon={Shield}
             badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null}
           />
           <NavButton id="swap" label="Vanish_Swap" icon={Zap} />
@@ -191,37 +191,37 @@ function MainApp() {
 
         <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="space-y-2">
-             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
-                <span className="text-xmr-dim">THEME_MODE</span>
-                <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
-                  {mode === 'dark' && <Moon size={10} />}
-                  {mode === 'light' && <Sun size={10} />}
-                  {mode === 'system' && <Monitor size={10} />}
-                  {mode.toUpperCase()}
-                </button>
-             </div>
-             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
-                <span className="text-xmr-dim">NETWORK_MODE</span>
-                <button onClick={() => setUseTor(!torEnabled)} className={`px-1.5 py-0.5 rounded border ${torEnabled ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}>
-                  {torEnabled ? 'TOR_ONLY' : 'CLEARNET'}
-                </button>
-             </div>
-             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
-                <span className="text-xmr-dim">SESSION_TIME</span>
-                <span className="text-xmr-green opacity-80">{uptime}</span>
-             </div>
-             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
-                <span className="text-xmr-dim">UPLINK_STATUS</span>
-                <span className="text-xmr-green flex items-center gap-1 font-black">
-                   <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div> 
-                   {isSyncing ? `SCANNING [${currentHeight} / ${totalHeight}]` : 'READY'}
-                </span>
-             </div>
+            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+              <span className="text-xmr-dim">THEME_MODE</span>
+              <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
+                {mode === 'dark' && <Moon size={10} />}
+                {mode === 'light' && <Sun size={10} />}
+                {mode === 'system' && <Monitor size={10} />}
+                {mode.toUpperCase()}
+              </button>
+            </div>
+            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+              <span className="text-xmr-dim">NETWORK_MODE</span>
+              <button onClick={() => setUseTor(!torEnabled)} className={`px-1.5 py-0.5 rounded border ${torEnabled ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}>
+                {torEnabled ? 'TOR_ONLY' : 'CLEARNET'}
+              </button>
+            </div>
+            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+              <span className="text-xmr-dim">SESSION_TIME</span>
+              <span className="text-xmr-green opacity-80">{uptime}</span>
+            </div>
+            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+              <span className="text-xmr-dim">UPLINK_STATUS</span>
+              <span className="text-xmr-green flex items-center gap-1 font-black">
+                <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
+                {isSyncing || status === StealthStep.SYNCING ? ` ${totalHeight - currentHeight > 0 ? (totalHeight - currentHeight) + " LEFT": '--'}` : 'SYNCED'}
+              </span>
+            </div>
           </div>
           <div className="pt-2 border-t border-xmr-border/10">
-             <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic">
-                Uplink: {uplink || 'Scanning...'}
-             </div>
+            <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic">
+              Uplink: {uplink || 'Scanning...'}
+            </div>
           </div>
         </div>
       </aside>
@@ -229,9 +229,9 @@ function MainApp() {
       <div className="flex-grow flex flex-col min-w-0 bg-xmr-base relative">
         <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
           <div className="flex gap-6 text-[8px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
-             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
-             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
-             <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
+            <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
+            <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
+            <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
           </div>
         </header>
 
@@ -247,58 +247,57 @@ function MainApp() {
           <>
             <div className="fixed inset-0 z-50 bg-black/5" onClick={() => setShowConsole(false)} />
             <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
-               <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
-                  <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
-                  <div className="flex items-center gap-4">
-                     <span className="text-[7px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
-                     <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14}/></button>
-                  </div>
-               </div>
-               <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
-                  {logs.map((log, i) => (
-                    <div key={i} className="flex gap-3 group">
-                      <span className="text-xmr-dim opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                      <span className={`break-all ${
-                        log.type === 'error' ? 'text-red-500 font-bold' : 
-                        log.type === 'success' ? 'text-xmr-green font-bold' : 
-                        log.type === 'process' ? 'text-xmr-accent animate-pulse' : 
-                        log.type === 'warning' ? 'text-orange-500' :
-                        log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' : 
-                        log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' : 
-                        'text-xmr-green/70'
+              <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
+                <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
+                <div className="flex items-center gap-4">
+                  <span className="text-[7px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
+                  <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14} /></button>
+                </div>
+              </div>
+              <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
+                {logs.map((log, i) => (
+                  <div key={i} className="flex gap-3 group">
+                    <span className="text-xmr-dim opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span className={`break-all ${log.type === 'error' ? 'text-red-500 font-bold' :
+                        log.type === 'success' ? 'text-xmr-green font-bold' :
+                          log.type === 'process' ? 'text-xmr-accent animate-pulse' :
+                            log.type === 'warning' ? 'text-orange-500' :
+                              log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' :
+                                log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' :
+                                  'text-xmr-green/70'
                       }`}>{'>'} {log.msg}</span>
-                    </div>
-                  ))}
-               </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         )}
 
         <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
-           <div className="flex items-center gap-4">
-              <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
-              <span className="opacity-20">|</span>
-              <span>ID: {address.substring(0, 12)}...</span>
-           </div>
-           <div className="flex gap-4">
-              <span className="animate-pulse flex items-center gap-1">
-                 <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
-                 {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
-              </span>
-              <span className="opacity-40">© 2026 kyc.rip // tactical_terminal_v1.0</span>
-           </div>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
+            <span className="opacity-20">|</span>
+            <span>ID: {address.substring(0, 12)}...</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="animate-pulse flex items-center gap-1">
+              <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
+              {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
+            </span>
+            <span className="opacity-40">© 2026 kyc.rip // tactical_terminal_v1.0</span>
+          </div>
         </footer>
       </div>
     </div>
   );
 }
 
-export default function App() { 
+export default function App() {
   return (
     <TorProvider>
       <VaultProvider>
         <MainApp />
       </VaultProvider>
     </TorProvider>
-  ); 
+  );
 }
