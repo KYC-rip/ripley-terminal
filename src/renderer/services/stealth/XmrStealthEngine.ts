@@ -65,13 +65,23 @@ export class XmrStealthEngine implements IStealthEngine {
     this.logger(`🌀 Initializing Identity: ${this.identityId}`, 'process');
 
     try {
-      // --- 1. Background Daemon Connection (Non-blocking for existing wallets) ---
-      moneroTs.connectToDaemonRpc({ server: { uri: rpcUrl }, proxyToWorker: false })
-        .then(d => { this.daemon = d; })
-        .catch(() => { console.warn("[StealthEngine] Background daemon probe failed."); });
-
-      // --- 2. Raw Binary Retrieval ---
+      // --- 1. Raw Binary Retrieval ---
       const rawData = await window.api.readWalletFile(this.identityId);
+      
+      // 🛡️ TACTICAL DECISION: If a mnemonic is provided, we are in RESTORE/NEW mode.
+      // We MUST ignore existing cache data, otherwise monero-ts will prioritize
+      // the height stored in the cache (which might be 0) over our restoreHeight.
+      const isRestore = !!mnemonic;
+      const keysData = (rawData && rawData.length >= 1) ? new Uint8Array(rawData[0] as any) : null;
+      const cacheData = (rawData && rawData.length >= 2 && !isRestore) ? new Uint8Array(rawData[1] as any) : null;
+
+      // --- 2. Daemon Connection (Blocking for New/Restore to ensure height accuracy) ---
+      try {
+        this.daemon = await moneroTs.connectToDaemonRpc({ server: { uri: rpcUrl }, proxyToWorker: false });
+      } catch (e) {
+        if (isRestore) throw new Error("DAEMON_UNREACHABLE: Cannot restore identity without node connection.");
+        console.warn("[StealthEngine] Daemon unreachable, proceeding in offline mode.");
+      }
 
       const walletConfig: Partial<moneroTs.MoneroWalletConfig> = {
         networkType: isStagenet ? moneroTs.MoneroNetworkType.STAGENET : moneroTs.MoneroNetworkType.MAINNET,
@@ -82,42 +92,38 @@ export class XmrStealthEngine implements IStealthEngine {
         subaddressLookahead: 50,
       };
 
-      if (rawData && rawData.length >= 2) {
+      if (keysData && cacheData) {
         this.logger(`📂 Accessing encrypted vault file...`, 'process');
-        walletConfig.keysData = new Uint8Array(rawData[0] as any);
-        walletConfig.cacheData = new Uint8Array(rawData[1] as any);
-
-        this.wallet = await Promise.race([
-          moneroTs.openWalletFull(walletConfig),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("VAULT_OPEN_TIMEOUT: Decryption engine stalled.")), 25000))
-        ]) as any;
+        walletConfig.keysData = keysData;
+        walletConfig.cacheData = cacheData;
+        this.wallet = await moneroTs.openWalletFull(walletConfig);
       } else {
-        this.logger("🆕 Constructing fresh cryptographic keys...", 'process');
+        this.logger(isRestore ? "🌅 Restoring cryptographic identity..." : "🆕 Constructing fresh keys...", 'process');
         
-        // Only for NEW wallets, we try to get the height to set a restore point
-        let currentHeight = 0;
-        try {
-          const tempDaemon = await moneroTs.connectToDaemonRpc({ server: { uri: rpcUrl }, proxyToWorker: false });
-          currentHeight = await tempDaemon.getHeight();
-        } catch (e) {
-          this.logger("⚠️ Node unreachable, defaulting restore height to 0", "warning");
-        }
-
+        const currentHeight = this.daemon ? await this.daemon.getHeight() : 0;
         let targetSeed = mnemonic;
+
         if (!targetSeed) {
+          // If no seed and no cache, this is an error state or a new random wallet
           const tempWallet = await moneroTs.createWalletFull({ ...walletConfig, proxyToWorker: false, password: "temp" });
           targetSeed = await tempWallet.getSeed();
           await tempWallet.close();
         }
+
         walletConfig.seed = targetSeed;
-        
-        // 🛡️ TACTICAL PROTECTION: Default to currentHeight - 1000 instead of 0
-        // to prevent massive cache file bloat on new identities.
         walletConfig.restoreHeight = (overrideHeight !== undefined && !isNaN(overrideHeight))
           ? overrideHeight
           : (currentHeight > 0 ? Math.max(0, currentHeight - 1000) : 0);
 
+        // If we have keysData but no cacheData (e.g. forced restore), use keysData
+        if (keysData) walletConfig.keysData = keysData;
+
         this.wallet = await moneroTs.createWalletFull(walletConfig);
+        
+        // 🛡️ DOUBLE PROTECTION: Explicitly set the sync height after creation
+        if (walletConfig.restoreHeight > 0) {
+          await this.wallet.setSyncHeight(walletConfig.restoreHeight);
+        }
       }
 
       if (!this.wallet) throw new Error("Wallet initialization failed");
