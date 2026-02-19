@@ -9,12 +9,14 @@ import { AddressList } from './vault/AddressList';
 import { CoinControl } from './vault/CoinControl';
 import { TransactionLedger } from './vault/TransactionLedger';
 import { VaultModals } from './vault/VaultModals';
+import { type VaultContextType } from '../contexts/VaultContext';
 
 // Subcomponents
 
+
 interface VaultViewProps {
   setView: (v: any) => void;
-  vault: any; 
+  vault: VaultContextType; 
   handleBurn: () => void;
 }
 

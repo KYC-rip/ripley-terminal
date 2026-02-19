@@ -13,7 +13,7 @@ export interface SubaddressInfo { index: number; address: string; label: string;
 export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
 export interface LogEntry { msg: string; timestamp: number; type?: 'info' | 'success' | 'warning' | 'process' | 'error'; }
 
-interface VaultContextType {
+export interface VaultContextType {
   balance: { total: string; unlocked: string };
   address: string;
   subaddresses: SubaddressInfo[];
@@ -34,6 +34,7 @@ interface VaultContextType {
   isStagenet: boolean;
   unlock: (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => Promise<void>;
   lock: () => void;
+  sendXmr: (address: string, amount: number) => Promise<string | undefined>;
   purgeIdentity: (id: string) => Promise<void>;
   switchIdentity: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -75,17 +76,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!engineRef.current) return;
     try {
-      const [b, h, height, networkHeight, subs, outs] = await Promise.all([
+      const [b, h, height, networkHeight, subs, outs, restoreHeight] = await Promise.all([
         engineRef.current.getBalance(),
         engineRef.current.getTxs(),
         engineRef.current.getHeight(),
         engineRef.current.getNetworkHeight(),
         engineRef.current.getSubaddresses(),
-        engineRef.current.getOutputs()
+        engineRef.current.getOutputs(),
+        engineRef.current.getRestoreHeight()
       ]);
       setBalance(b);
       setTxs(h);
-      setCurrentHeight(height);
+      setCurrentHeight(Math.max(height, restoreHeight));
       if (networkHeight > 0) setTotalHeight(networkHeight); // Only update if valid
 
       // Auto-calc sync percent if not provided by listener
@@ -112,7 +114,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     // 🛡️ TACTICAL CHECK: Ensure Tor is ready before allowing unlock if enabled
     const useTorConfig = await window.api.getConfig('use_tor');
     const useTor = useTorConfig !== false; // Default to true if undefined
-    
+
     if (useTor) {
       addLog("🛡️ Verifying Tor Circuit Integrity...", "process");
 
@@ -152,7 +154,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       // 🛡️ ID GENERATION: Use random suffix to prevent any chance of file collision
       const randomId = Math.random().toString(36).substring(2, 9);
       const newId = `vault_${Date.now()}_${randomId}`;
-      
+
       const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
       const updated = [...identities, newIdentity];
       await window.api.saveIdentities(updated);
@@ -164,6 +166,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
+      engine.onStatusChange = (s) => setStatus(s); // 🔗 Connect engine status to UI state
       engineRef.current = engine;
 
       const seedToUse = restoreSeed || await window.api.getConfig(`master_seed_${targetId}`);
@@ -179,22 +182,29 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
           // monero-ts provides percentDone as 0.0 - 1.0
           const displayPercent = Math.min(percentDone * 100, 100);
-          
+
           setCurrentHeight(height);
           if (endHeight > 0) setTotalHeight(endHeight);
           setSyncPercent(displayPercent);
 
-          if (height % 1000 === 0 || percentDone >= 0.99) {
+          if (height % 20 === 0 || percentDone >= 0.99) {
             addLog(`📡 Scanning Ledger: ${displayPercent.toFixed(1)}% [${height}/${endHeight || '?'}]`, 'process');
           }
-          
+
           // Persist height
           if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
+        }
+        async onBalancesChanged(newBalance: bigint, newUnlockedBalance: bigint) {
+          // 🛡️ TACTICAL FIX: Convert atomic units to formatted XMR strings (1e12)
+          const total = (Number(newBalance) / 1e12).toFixed(12);
+          const unlocked = (Number(newUnlockedBalance) / 1e12).toFixed(12);
+          setBalance({ total, unlocked });
+          addLog(`💰 Balance updated: ${total} XMR`, "success");
         }
         async onNewBlock(height: number) {
           setCurrentHeight(height);
           if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
-          
+
           // Refresh total height on new blocks
           engine.getNetworkHeight().then(nh => {
             if (nh > 0) setTotalHeight(nh);
@@ -203,13 +213,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       })(engine);
 
       const result = await engine.init(
-        "http://127.0.0.1:18082", 
-        password, 
-        seedToUse, 
-        0, 
+        "http://127.0.0.1:18082",
+        password,
+        seedToUse,
+        0,
         restoreHeight || savedHeight || undefined, // 🛡️ Use undefined to trigger engine defaults
-        listener, 
-        stagenetActive, 
+        listener,
+        stagenetActive,
         targetId
       );
 
@@ -239,9 +249,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [activeId, identities, refresh, addLog]);
 
   const lock = useCallback(async () => {
-    if (engineRef.current) { 
-      await engineRef.current.shutdown(); 
-      engineRef.current = null; 
+    if (engineRef.current) {
+      await engineRef.current.shutdown();
+      engineRef.current = null;
     }
     setAddress('');
     setBalance({ total: '0.0000', unlocked: '0.0000' });
@@ -264,6 +274,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     location.reload();
   }, [identities, activeId]);
 
+  const sendXmr = useCallback(async (destination: string, amount: number) => {
+    if (!engineRef.current) return;
+    setIsSending(true);
+    try {
+      const tx = await engineRef.current.transfer(destination, amount);
+      addLog(`✅ Transaction sent: ${tx}`);
+      await refresh();
+      return tx;
+    } catch (e: any) {
+      addLog(`❌ SEND_ERROR: ${e.message}`);
+    } finally {
+      setIsSending(false);
+    }
+  }, [refresh, addLog]);
+
   const rescan = useCallback(async (height: number) => {
     if (!engineRef.current) return;
     setStatus('SYNCING');
@@ -285,12 +310,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           window.api.getIdentities(),
           window.api.getActiveIdentity()
         ]);
-        
+
         const validIds = ids || [];
         setIdentities(validIds);
         const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
         setActiveId(nextActiveId);
-        
+
         if (validIds.length > 0 && nextActiveId) {
           const fileData = await window.api.readWalletFile(nextActiveId);
           setHasVaultFile(!!fileData && fileData.length > 0);
@@ -329,6 +354,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     balance, address, subaddresses, outputs, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
     unlock, lock, purgeIdentity, switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
+    sendXmr,
     refresh, rescan, churn: useCallback(async () => {
       if (!engineRef.current) throw new Error("NOT_INIT");
       setIsSending(true);

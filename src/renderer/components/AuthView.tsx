@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck, Download, Sparkles, ArrowLeft, Calendar, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Lock, Shield, Skull, RefreshCw, Key, Users, PlusCircle, Check, ShieldCheck, Download, Sparkles, ArrowLeft, Calendar, ChevronDown, ChevronUp, Trash2, Globe, ShieldAlert } from 'lucide-react';
 import { Card } from './Card';
 import { AuthForm } from './auth/AuthForm';
 import { IdentitySwitcher } from './auth/IdentitySwitcher';
 import { LogEntry } from '../contexts/VaultContext';
+import { useTor } from '../contexts/TorContext';
 
 interface Identity { id: string; name: string; created: number; }
 
@@ -21,11 +22,22 @@ interface AuthViewProps {
 type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
 export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
-  const [step, setStep] = useState<SetupStep>(() => {
-    if (identities.length === 0) return 'LABEL';
-    if (isInitialSetup) return 'MODE';
-    return 'AUTH';
-  });
+  const { useTor: torEnabled, setUseTor } = useTor();
+  const [step, setStep] = useState<SetupStep>('AUTH');
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // 🛡️ SYNC STEP WITH ASYNC DATA
+  // When identities finally load from the IPC, we need to decide where to put the user.
+  React.useEffect(() => {
+    if (!hasInitialized && identities.length > 0) {
+      if (isInitialSetup) setStep('MODE');
+      else setStep('AUTH');
+      setHasInitialized(true);
+    } else if (!hasInitialized && identities.length === 0) {
+      setStep('LABEL');
+      // We don't setHasInitialized(true) here because we want to catch the transition when IDs arrive
+    }
+  }, [identities.length, isInitialSetup, hasInitialized]);
   
   const [showSwitcher, setShowSwitcher] = useState(false);
   
@@ -105,6 +117,27 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
               onStartNew={() => setStep('LABEL')}
               onPurge={onPurgeIdentity}
             />
+          )}
+
+          {/* 🛡️ TACTICAL NETWORK TOGGLE: Allows disabling Tor before login */}
+          {!isProcessing && (
+            <div className="mt-6 pt-4 border-t border-xmr-border/10 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {torEnabled ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
+                <span className="text-[8px] font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setUseTor(!torEnabled)} 
+                className={`px-2 py-0.5 rounded border text-[8px] font-black transition-all cursor-pointer ${
+                  torEnabled 
+                    ? 'border-xmr-green/50 text-xmr-green hover:bg-xmr-green/10' 
+                    : 'border-xmr-accent/50 text-xmr-accent hover:bg-xmr-accent/10'
+                }`}
+              >
+                {torEnabled ? 'TOR_ONLY' : 'CLEARNET_ACTIVE'}
+              </button>
+            </div>
           )}
         </Card>
 

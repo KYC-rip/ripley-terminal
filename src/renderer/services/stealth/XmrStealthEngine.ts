@@ -50,13 +50,19 @@ export class XmrStealthEngine implements IStealthEngine {
   private identityId: string = 'primary';
   private isSyncing = false;
   private updateListener?: UpdateListener;
+  public onStatusChange?: (status: StealthStep) => void;
 
   constructor(logger: StealthLogger = console.log) {
     this.logger = logger;
   }
 
+  private setStep(step: StealthStep) {
+    this.step = step;
+    if (this.onStatusChange) this.onStatusChange(step);
+  }
+
   public async init(rpcUrl: string, password: string = "stealth_session", mnemonic?: string, subaddressIndex?: number, overrideHeight?: number, updateListener?: UpdateListener, isStagenet: boolean = false, identityId: string = 'primary') {
-    this.step = StealthStep.INITIALIZING;
+    this.setStep(StealthStep.INITIALIZING);
     this.identityId = identityId;
     this.updateListener = updateListener;
 
@@ -87,7 +93,7 @@ export class XmrStealthEngine implements IStealthEngine {
         password,
         server: { uri: rpcUrl },
         proxyToWorker: true,
-        accountLookahead: 3,
+        accountLookahead: 25,
         subaddressLookahead: 50,
       };
 
@@ -139,12 +145,12 @@ export class XmrStealthEngine implements IStealthEngine {
       this.logger(`🔗 Identity online: ${address.substring(0, 12)}...`, 'success');
 
       await this.saveWalletToDisk();
-      this.step = StealthStep.AWAITING_FUNDS;
+      this.setStep(StealthStep.AWAITING_FUNDS);
 
       return { address, restoreHeight: walletConfig.restoreHeight, networkHeight: 0 }; // Return 0, let sync fill it in
     } catch (e: any) {
       this.logger(`❌ FATAL: ${e.message}`, 'error');
-      this.step = StealthStep.ERROR;
+      this.setStep(StealthStep.ERROR);
       throw e;
     }
   }
@@ -152,6 +158,7 @@ export class XmrStealthEngine implements IStealthEngine {
   public async startSyncInBackground() {
     if (this.isSyncing || !this.wallet) return;
     this.isSyncing = true;
+    this.setStep(StealthStep.SYNCING);
 
     const listener = this.updateListener;
     this.logger("🔄 Background Sync Service Started", 'process');
@@ -185,7 +192,7 @@ export class XmrStealthEngine implements IStealthEngine {
             }
 
             // Periodic save: Every 500 blocks or if we haven't saved in a while
-            if (height - lastSavedHeight >= 500) {
+            if (height - lastSavedHeight >= 100) {
               await this.saveWalletToDisk();
               lastSavedHeight = height;
             }
@@ -210,6 +217,7 @@ export class XmrStealthEngine implements IStealthEngine {
       this.logger("✅ Sync cycle active.", 'success');
     } catch (e: any) {
       this.isSyncing = false;
+      this.setStep(StealthStep.ERROR);
       this.logger(`❌ Sync service failed: ${e.message}`, 'error');
     }
   }
@@ -275,9 +283,14 @@ export class XmrStealthEngine implements IStealthEngine {
   public async getBalance() {
     if (!this.wallet) return { total: '0.0', unlocked: '0.0' };
     try {
-      const balance = await this.wallet.getBalance();
-      const unlocked = await this.wallet.getUnlockedBalance();
-      return { total: (Number(balance) / 1e12).toFixed(12), unlocked: (Number(unlocked) / 1e12).toFixed(12) };
+      const accounts = await this.wallet.getAccounts();
+      let total = BigInt(0);
+      let unlocked = BigInt(0);
+      for (const acc of accounts) {
+        total += BigInt(acc.getBalance().toString());
+        unlocked += BigInt(acc.getUnlockedBalance().toString());
+      }
+      return { total: (Number(total) / 1e12).toFixed(12), unlocked: (Number(unlocked) / 1e12).toFixed(12) };
     } catch (e) { return { total: '0.0', unlocked: '0.0' }; }
   }
 
@@ -312,12 +325,44 @@ export class XmrStealthEngine implements IStealthEngine {
     } catch (e) { return []; }
   }
 
+  public async getRestoreHeight() {
+    if (!this.wallet) throw new Error("Wallet not initialized");
+    try {
+      return await this.wallet.getRestoreHeight();
+    } catch (e) { return 0; }
+  }
+
   public async rescan(height: number) {
     if (!this.wallet) throw new Error("Wallet not initialized");
-    await this.wallet.setRestoreHeight(height);
-    await this.wallet.rescanSpent();
-    await this.wallet.rescanBlockchain();
-    await this.saveWalletToDisk();
+    
+    this.logger(`🔄 Preparing rescan from height ${height}...`, 'process');
+    
+    // 1. Stop background sync to prevent deadlocks
+    this.isSyncing = false;
+    await this.wallet.stopSyncing();
+
+    try {
+      // 2. Set new restore height
+      await this.wallet.setRestoreHeight(height);
+      
+      this.logger(`📡 Rescan initiated. This may take a few minutes...`, 'process');
+      
+      // 3. Trigger the actual scan
+      // Note: We use the listener to get progress updates
+      await this.wallet.rescanBlockchain();
+      
+      this.logger(`✅ Rescan complete. Resuming background sync.`, 'success');
+      
+      // 4. Persistence
+      await this.saveWalletToDisk();
+      
+      // 5. Restart background sync
+      this.startSyncInBackground();
+    } catch (e: any) {
+      this.logger(`❌ Rescan failed: ${e.message}`, 'error');
+      this.startSyncInBackground(); // Try to recover
+      throw e;
+    }
   }
 
   public async getTxs() {

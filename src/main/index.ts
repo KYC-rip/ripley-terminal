@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import http from 'http';
-import httpProxy from 'http-proxy';
+import { createServer } from 'http';
+import { createProxyServer } from 'http-proxy';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { TorManager } from './tor-manager';
@@ -43,12 +43,12 @@ async function startNodeRadar() {
   setInterval(() => nodeManager.scout(!!store.get('is_stagenet'), !!store.get('use_tor')), 10 * 60 * 1000);
 }
 
-const proxy = httpProxy.createProxyServer({ 
+const proxy = createProxyServer({ 
   changeOrigin: true, 
   proxyTimeout: 120000, // 🛡️ Extend to 120s for Tor resilience
   timeout: 120000 
 });
-const localProxyServer = http.createServer((req, res) => {
+const localProxyServer = createServer((req, res) => {
   const useTor = !!store.get('use_tor');
   const isStagenet = !!store.get('is_stagenet');
   const configPrefix = isStagenet ? 'stagenet' : 'mainnet';

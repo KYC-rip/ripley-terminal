@@ -257,10 +257,10 @@ function MainApp() {
               <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-3 group">
-                    <span className="text-xmr-dim opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span className="text-xmr-dim opacity-85 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                     <span className={`break-all ${log.type === 'error' ? 'text-red-500 font-bold' :
                         log.type === 'success' ? 'text-xmr-green font-bold' :
-                          log.type === 'process' ? 'text-xmr-accent animate-pulse' :
+                          log.type === 'process' ? 'text-xmr-accent' :
                             log.type === 'warning' ? 'text-orange-500' :
                               log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' :
                                 log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' :
@@ -275,7 +275,7 @@ function MainApp() {
 
         <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
           <div className="flex items-center gap-4">
-            <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">{'>'}_CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
+            <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
             <span className="opacity-20">|</span>
             <span>ID: {address.substring(0, 12)}...</span>
           </div>
