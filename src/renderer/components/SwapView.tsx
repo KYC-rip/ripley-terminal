@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowDown, Zap, Shield, Ghost, RefreshCw, AlertCircle, Copy, Check, X, ArrowRight } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { Card } from './Card';
+import { AddressDisplay } from './common/AddressDisplay';
 import { useCurrencies, type Currency } from '../hooks/useCurrencies';
 import { fetchBridgeEstimate, createBridgeTrade, type BridgeEstimate, type BridgeTrade } from '../services/swap';
 
@@ -104,8 +105,8 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
                     <span>Deposit_Amount</span>
                     <span className="text-xmr-accent">{activeTrade.amount_from} {activeTrade.ticker_from}</span>
                  </div>
-                 <div className="flex justify-between items-center gap-4">
-                    <code className="text-xs text-xmr-green font-black break-all">{activeTrade.address_provider}</code>
+                 <div className="flex justify-between items-center gap-4 overflow-hidden">
+                    <AddressDisplay address={activeTrade.address_provider || ''} className="text-xs text-xmr-green font-black" />
                     <button onClick={() => handleCopy(activeTrade.address_provider || '')} className="text-xmr-accent shrink-0 hover:scale-110 transition-transform cursor-pointer">
                        {copyFeedback ? <Check size={16}/> : <Copy size={16}/>}
                     </button>
@@ -194,10 +195,8 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
               <label className="text-[9px] font-bold text-xmr-dim uppercase ml-1">Recipient_Address (Local_Vault)</label>
               <span className="text-[8px] text-xmr-green font-bold uppercase tracking-widest">[ AUTO_SYNCED ]</span>
             </div>
-            <div className="mt-1 p-3 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
-              <code className="text-[9px] text-xmr-green break-all leading-tight opacity-80 font-mono">
-                {localXmrAddress || 'WAITING_FOR_VAULT_UPLINK...'}
-              </code>
+            <div className="mt-1 p-3 bg-xmr-green/5 border border-xmr-green/20 rounded-sm overflow-hidden">
+              <AddressDisplay address={localXmrAddress} className="text-[9px] text-xmr-green opacity-80" />
             </div>
           </div>
 

@@ -8,6 +8,7 @@ import { SettingsView } from './components/SettingsView';
 import { HomeView } from './components/HomeView';
 import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
+import { AddressDisplay } from './components/common/AddressDisplay';
 import { TorProvider, useTor } from './contexts/TorContext';
 import { VaultProvider } from './contexts/VaultContext';
 import { StealthStep } from './services/stealth/types';
@@ -299,7 +300,10 @@ function MainApp() {
           <div className="flex items-center gap-4">
             <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
             <span className="opacity-20">|</span>
-            <span>ID: {address.substring(0, 12)}...</span>
+            <div className="flex items-center gap-1">
+              <span>ID:</span>
+              <AddressDisplay address={address} truncate length={12} className="text-xmr-dim" />
+            </div>
           </div>
           <div className="flex gap-4">
             <span className="animate-pulse flex items-center gap-1">

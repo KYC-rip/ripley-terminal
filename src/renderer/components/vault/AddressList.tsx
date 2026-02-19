@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Edit2, Check, X } from 'lucide-react';
 import { Card } from '../Card';
+import { AddressDisplay } from '../common/AddressDisplay';
 
 interface AddressListProps {
   subaddresses: any[];
@@ -67,10 +68,10 @@ export function AddressList({ subaddresses, handleCopy, onUpdateLabel }: Address
                 </td>
                 <td className="px-4 py-3 font-mono opacity-60">
                   <div className="flex items-center gap-2">
-                    <span className="truncate max-w-[200px]">{s.address}</span>
+                    <AddressDisplay address={s.address} truncate length={16} className="text-[9px]" />
                     <button 
                       onClick={() => handleCopy(s.address)} 
-                      className="text-xmr-green opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="text-xmr-green opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
                     >
                       <Copy size={10}/>
                     </button>

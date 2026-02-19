@@ -10,6 +10,7 @@ import { CoinControl } from './vault/CoinControl';
 import { TransactionLedger } from './vault/TransactionLedger';
 import { VaultModals } from './vault/VaultModals';
 import { type VaultContextType } from '../contexts/VaultContext';
+import { AddressDisplay } from './common/AddressDisplay';
 
 // Subcomponents
 
@@ -76,8 +77,8 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-[0.4em] font-black">Available_Liquidity</span>
-              <div className="text-7xl font-black mt-4 text-xmr-green drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{parseFloat(balance.total).toFixed(4)} <span className="text-2xl text-xmr-dim uppercase font-black">XMR</span></div>
-              <div className="text-xl font-black text-xmr-green/60 mt-1 uppercase tracking-[0.2em]">≈ ${stats?.price.street ? (parseFloat(balance.total) * +stats.price.street).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---.--'} <span className="text-xs opacity-50">USD</span></div>
+              <div className="text-5xl font-black mt-4 text-xmr-green drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{parseFloat(balance.total).toFixed(4)} <span className="text-xl text-xmr-dim uppercase font-black">XMR</span></div>
+              <div className="text-sm text-xmr-green/60 mt-1 uppercase tracking-[0.2em]">≈ ${stats?.price.street ? (parseFloat(balance.total) * +stats.price.street).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---.--'} <span className="text-xs opacity-50">USD</span></div>
             </div>
             <button disabled={isChurning || parseFloat(balance.unlocked) <= 0} onClick={handleChurn} className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer ${isChurning ? 'animate-pulse' : ''}`}>
                <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
@@ -91,9 +92,9 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         </Card>
 
         <div className="flex flex-col gap-6 font-black">
-          <Card className="flex-grow flex flex-col justify-between">
+          <Card className="flex-grow flex flex-col justify-between p-4!">
             <div className="flex justify-between items-start font-black">
-              <span className="text-[10px] text-xmr-dim uppercase font-bold tracking-widest font-black">Identity_Status</span>
+              <span className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Identity_Status</span>
               <button onClick={async () => { 
                 if(!confirm("⚠️ SECURITY WARNING ⚠️\n\nReveal Master Seed?\nEnsure no cameras or screen recording software is active.")) return;
                 const s = await window.api.getConfig(`master_seed_${activeId}`); 
@@ -103,7 +104,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
             </div>
             <div className="p-3 bg-xmr-base border border-xmr-border/30 rounded-sm font-black overflow-hidden">
               <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-xmr-green font-black uppercase">SESSION_ADDRESS</span></div>
-              <code className="text-[9px] text-xmr-green break-all leading-tight block h-12 overflow-hidden italic font-black font-mono">{address || 'GENERATING...'}</code>
+              <AddressDisplay address={address} className="text-[9px] " />
             </div>
             <div className="space-y-1.5 border-t border-xmr-border/20 pt-4 font-black">
               <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-xmr-green">Uplink:</span><span className="text-xmr-green font-black">{status}</span></div>
