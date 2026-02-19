@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Zap, Ghost, Database, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { Shield, Zap, Ghost, Database, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -237,10 +237,32 @@ function MainApp() {
 
         <main className="flex-grow overflow-y-auto p-10 custom-scrollbar relative transition-colors duration-300">
           <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-xmr-green/5 to-transparent pointer-events-none`}></div>
-          <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
-          <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
-          <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView localXmrAddress={address} /></div>
-          <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
+          
+          {isInitializing ? (
+            <div className="h-full flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500">
+              <div className="relative">
+                <Shield size={48} className="text-xmr-green animate-pulse" />
+                <RefreshCw size={24} className="absolute -bottom-2 -right-2 text-xmr-accent animate-spin" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-sm font-black uppercase tracking-[0.3em] text-xmr-green">Waking_Stealth_Engine</h3>
+                <p className="text-[9px] text-xmr-dim uppercase tracking-widest leading-relaxed">
+                  Decrypting vault keys and preparing Wasm runtime...<br/>
+                  <span className="opacity-50 italic">This may take a moment for large wallets.</span>
+                </p>
+              </div>
+              <div className="w-48 h-1 bg-xmr-border/20 rounded-full overflow-hidden">
+                <div className="h-full bg-xmr-green animate-progress-indeterminate"></div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
+              <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
+              <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView localXmrAddress={address} /></div>
+              <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
+            </>
+          )}
         </main>
 
         {showConsole && (

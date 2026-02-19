@@ -11,14 +11,6 @@ function applyTacticalPatches(lib: any) {
       lib.MoneroWalletFull.FS = (window as any).fs?.promises;
     }
 
-    // 2. Set Worker Loader (Critical for desktop environment)
-    if (lib.LibraryUtils && !lib.LibraryUtils.getWorkerLoader()) {
-      console.log("[StealthEngine] 🛠️ Setting Worker Loader...");
-      lib.LibraryUtils.setWorkerLoader(() => {
-        return new Worker(new URL("/monero.worker.js", window.location.origin));
-      });
-    }
-
     // 3. HTTP Client Patch (Critical for proxyToWorker: false / direct daemon calls)
     if (lib.HttpClient) {
       if (typeof lib.HttpClient === 'function' && typeof lib.HttpClient.request !== 'function') {

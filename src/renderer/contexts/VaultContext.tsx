@@ -178,6 +178,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const stagenetActive = !!networkSetting;
       setIsStagenet(stagenetActive);
 
+      // 🚀 TACTICAL MOVE: Release the lock EARLY to enter the dashboard immediately
+      setIsLocked(false);
+      setIsInitializing(true);
+
       const listener = new (class extends UpdateListener {
         async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
           // monero-ts provides percentDone as 0.0 - 1.0
@@ -232,7 +236,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (mnemonic) await window.api.setConfig(`master_seed_${targetId}`, mnemonic);
 
       setAddress(result.address);
-      setIsLocked(false);
       setHasVaultFile(true);
       setIsInitializing(false);
 
@@ -244,6 +247,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } catch (e: any) {
       engineRef.current = null;
       setIsInitializing(false);
+      setIsLocked(true); // Snap back to login if initialization fails
       throw e;
     }
   }, [activeId, identities, refresh, addLog]);

@@ -73,3 +73,8 @@
   50% { transform: translateX(0%) scaleX(0.5); }
   100% { transform: translateX(100%) scaleX(0.2); }
 }
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 2s infinite linear;
+  transform-origin: left;
+}
