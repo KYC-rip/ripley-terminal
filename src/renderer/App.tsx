@@ -215,7 +215,7 @@ function MainApp() {
               <span className="text-xmr-dim">UPLINK_STATUS</span>
               <span className="text-xmr-green flex items-center gap-1 font-black">
                 <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
-                {isSyncing || status === StealthStep.SYNCING ? ` ${totalHeight - currentHeight > 0 ? (totalHeight - currentHeight) + " LEFT": '--'}` : 'SYNCED'}
+                {isSyncing || status === StealthStep.SYNCING ? ` ${totalHeight - currentHeight > 0 ? (totalHeight - currentHeight) + " LEFT": '--'}` : status.toUpperCase()}
               </span>
             </div>
           </div>
