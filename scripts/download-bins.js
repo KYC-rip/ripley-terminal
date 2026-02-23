@@ -25,7 +25,7 @@ const TARGETS = {
     url: `https://raw.githubusercontent.com/KYC-rip/wallet-binaries/main/${remoteSubDir}/tor-bundle.tar.gz`,
     hash: {
       'mac-arm64': '40ae11c3ec51d5d83d3208df6681e2142bd3cda1032d340e36fb0ee77d2cb818',
-      'mac-x64': '8866e9c783cc6a2b8b01eef599dcce21f257665c62a800abe11c40212f06f814',
+      'mac-x64': '0300f1a60d0a1925e98d7666a7dc9101d0c7b5dafbe195e876d865f1358bfebf',
       'linux-x64': 'c421c7990e4a17df8269d680bdb8860d3cf1c77911ff5be5a874eb22ae08cc1c',
       'win-x64': '3defe0489e5979568239114e97b2a421b91d430032a273dd278b4af06b9329a9'
     }[remoteSubDir] || '40ae11c3ec51d5d83d3208df6681e2142bd3cda1032d340e36fb0ee77d2cb818',
@@ -35,7 +35,7 @@ const TARGETS = {
     url: `https://raw.githubusercontent.com/KYC-rip/wallet-binaries/main/${remoteSubDir}/monero-rpc.tar.gz`,
     hash: {
       'mac-arm64': '0dbbab8147e3c6523c60ce5a62d35e3899606c727b7a2752c492f5fa8d07b3db',
-      'mac-x64': '5441ab29c6fe6359d8a97460135383ad68367eb79c6b39a9e68998fc8e166fee',
+      'mac-x64': 'fbd617be574886d275c47428bcf4bed9242b00695018fbe788e4860083e6ad8a',
       'linux-x64': '2c5e8f97d44bad338513a02b43fee919f93ac7bedfd1611dbb411b8731d3ddc7',
       'win-x64': '4d8c6280b5315dfd336d21292e3d66b781102c38bce58063701592dd82f4e872'
     }[remoteSubDir] || '0dbbab8147e3c6523c60ce5a62d35e3899606c727b7a2752c492f5fa8d07b3db',
