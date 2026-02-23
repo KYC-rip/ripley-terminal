@@ -177,8 +177,41 @@ function MainApp() {
       <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
         <div className="p-8 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
-            <img src="/favicon.svg" className={`w-10 h-10 ${resolvedTheme === 'light' ? 'invert' : ''} drop-shadow-[0_0_12px_rgba(0,255,65,0.4)]`} alt="Logo" />
-            <div className="absolute inset-0 bg-xmr-green/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <svg
+              viewBox="0 0 100 100"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`w-10 h-10 drop-shadow-[0_0_12px_rgba(0,255,65,0.4)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]`}
+            >
+              <defs>
+                <mask id="cutMask">
+                  <rect width="100" height="100" fill="white" />
+                  <line
+                    x1="85" y1="15" x2="15" y2="85"
+                    stroke="black" strokeWidth="16" strokeLinecap="round"
+                    className="origin-center transition-all duration-300 ease-out group-hover:scale-x-125 group-hover:stroke-[24]"
+                  />
+                </mask>
+              </defs>
+              <g mask="url(#cutMask)" className="origin-center transition-all duration-500 ease-out group-hover:opacity-75">
+                <circle cx="50" cy="50" r="45" fill="none" stroke={resolvedTheme === 'light' ? '#0bc43a' : '#ffffff'} strokeWidth="6" />
+                <path
+                  d="M30,50 a20,20 0 0,1 40,0"
+                  fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="6" strokeLinecap="round"
+                  className="transition-transform duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom group-hover:-translate-y-3 group-hover:opacity-0"
+                />
+                <path
+                  d="M30,50 a20,20 0 0,0 40,0"
+                  fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="4" strokeLinecap="round" strokeDasharray="2 6"
+                  className="transition-all duration-[600ms] ease-out opacity-0 group-hover:opacity-100 group-hover:translate-y-3"
+                />
+              </g>
+              <line
+                x1="85" y1="15" x2="15" y2="85"
+                stroke="#ff3333" strokeWidth="8" strokeLinecap="round"
+                className="origin-center transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.4] group-hover:shadow-[0_0_20px_rgba(255,51,51,0.8)]"
+              />
+            </svg>
+            <div className="absolute inset-0 bg-red-500/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100"></div>
           </div>
           <div className="text-center">
             <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
