@@ -41,9 +41,14 @@ jobs:
         run: pnpm install
 
       - name: Package Application
+        shell: bash
         run: |
           pnpm run build
-          npx electron-builder --${{ matrix.target }}
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            npx electron-builder --${{ matrix.target }} --publish always
+          else
+            npx electron-builder --${{ matrix.target }}
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # The download-bins script will auto-detect platform from process.platform
