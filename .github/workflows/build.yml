@@ -18,6 +18,8 @@ jobs:
             target: mac
           - os: ubuntu-latest
             target: linux
+          - os: windows-latest
+            target: win
 
     steps:
       - name: Checkout Code
@@ -51,4 +53,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-build
-          path: dist/*.${{ matrix.target == 'mac' && 'dmg' || 'AppImage' }}
+          path: |
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.exe
