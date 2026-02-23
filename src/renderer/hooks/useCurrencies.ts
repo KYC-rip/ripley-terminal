@@ -24,7 +24,7 @@ const TESTNET_COINS: Currency[] = [
     ticker: 'sETH',
     network: 'sepolia',
     name: 'Sepolia ETH (Testnet)',
-    image: 'https://cryptologos.cc/logos/ethereum-eth-logo.png', // 复用 ETH logo
+    image: 'https://cryptologos.cc/logos/ethereum-eth-logo.png', // Reusing ETH logo
     minimum: 0.001,
     maximum: 10
   },

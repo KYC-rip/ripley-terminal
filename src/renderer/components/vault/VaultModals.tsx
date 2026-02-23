@@ -19,14 +19,13 @@ interface VaultModalsProps {
   onCloseSend: () => void;
   onSend: (address: string, amount: number) => void;
   isSending: boolean;
-  torFetch: any;
   initialAddr?: string;
 }
 
 export function VaultModals({ 
   showSeed, onCloseSeed, mnemonic,
   showReceive, onCloseReceive, onCreateSub,
-  showSend, onCloseSend, onSend, isSending, torFetch,
+  showSend, onCloseSend, onSend, isSending,
   initialAddr = ''
 }: VaultModalsProps) {
   
@@ -43,11 +42,12 @@ export function VaultModals({
   // Ban check logic
   useEffect(() => {
     if (destAddr.length > 30) {
-      torFetch(`https://api.kyc.rip/v1/tools/ban-list?address=${destAddr}`)
+      fetch(`https://api.kyc.rip/v1/tools/ban-list?address=${destAddr}`)
+        .then(res => res.json())
         .then((data: any) => setIsBanned(data.results && data.results.length > 0))
         .catch(() => setIsBanned(false));
     } else setIsBanned(false);
-  }, [destAddr, torFetch]);
+  }, [destAddr]);
 
   return (
     <>

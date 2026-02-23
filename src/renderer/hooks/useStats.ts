@@ -33,13 +33,13 @@ export function useStats() {
   const fetchData = async () => {
     try {
       // Direct call to main process proxy which handles Tor internally
-      const result = await window.api.proxyRequest({
-        url: 'https://api.kyc.rip/v1/stats',
+      const result = await fetch('https://api.kyc.rip/v1/stats', {
         method: 'GET'
       });
       
-      if (result && result.data) {
-        setStats(result.data);
+      if (result && result.ok) {
+        const data = await result.json();
+        setStats(data);
       }
     } catch (err: any) {
       console.warn("[Stats] Uplink issue:", err.message);

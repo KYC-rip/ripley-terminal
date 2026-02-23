@@ -31,6 +31,9 @@ export function AddressDisplay({ address, className = '', truncate = false, leng
   const raw = truncate ? address.substring(0, length) : address;
   const blocks = raw.match(/.{4}/g) || [raw];
 
+  const leftOver = raw.replace(blocks.join(''), '');
+  if (leftOver) blocks.push(leftOver);
+
   // Format each block
   const formattedBlocks = blocks.map((block, i) => {
     // First block: make first char strong

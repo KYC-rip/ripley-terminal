@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Zap, Ghost, Database, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
+import { Shield, Zap, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -9,13 +9,13 @@ import { HomeView } from './components/HomeView';
 import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
-import { TorProvider, useTor } from './contexts/TorContext';
 import { VaultProvider } from './contexts/VaultContext';
-import { StealthStep } from './services/stealth/types';
 
 function MainApp() {
   const [view, setView] = useState<'home' | 'vault' | 'swap' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
+
+  const [appConfig, setAppConfig] = useState<any>(null);
 
   const vault = useVault();
   const {
@@ -23,7 +23,6 @@ function MainApp() {
     hasVaultFile, identities, activeId, switchIdentity
   } = vault;
 
-  const { useTor: torEnabled, setUseTor } = useTor();
   const { stats, loading: statsLoading } = useStats();
   const { mode, cycleTheme, resolvedTheme } = useTheme();
 
@@ -37,6 +36,28 @@ function MainApp() {
 
   const lastActivityRef = useRef(Date.now());
   const resetActivity = useCallback(() => { lastActivityRef.current = Date.now(); }, []);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const config = await window.api.getConfig();
+      setAppConfig(config);
+
+      // Maintain compatibility with legacy single-setting logic
+      if (config.show_scanlines !== undefined) setShowScanlines(config.show_scanlines);
+      if (config.auto_lock_minutes !== undefined) setAutoLockMinutes(config.auto_lock_minutes);
+    };
+    loadConfig();
+  }, [view]); // Refresh configuration on view change
+
+  const toggleTor = async () => {
+    if (!appConfig) return;
+    const newConfig = {
+      ...appConfig,
+      routingMode: appConfig.routingMode === 'tor' ? 'clearnet' : 'tor'
+    };
+    await window.api.saveConfigAndReload(newConfig);
+    setAppConfig(newConfig); // Sync local state
+  };
 
   useEffect(() => {
     if (isLocked) return;
@@ -79,20 +100,11 @@ function MainApp() {
   }, [showConsole]);
 
   useEffect(() => {
-    window.api.getConfig('show_scanlines').then((v: boolean) => {
-      if (v !== undefined) setShowScanlines(v);
-    });
-    window.api.getConfig('auto_lock_minutes').then((v: any) => {
-      setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0));
-    });
-  }, [view]);
-
-  useEffect(() => {
     const fetchStatus = async () => {
       try {
         const s = await window.api.getUplinkStatus();
-        if (s && s.target) {
-          let cleanUrl = s.target.replace('http://', '').replace('https://', '');
+        if (s && s.node) {
+          let cleanUrl = s.node.replace('http://', '').replace('https://', '');
           if (cleanUrl.includes('.onion')) {
             const parts = cleanUrl.split('.');
             if (parts[0].length > 12) {
@@ -113,13 +125,11 @@ function MainApp() {
   // --- 🔒 LOCK / AUTH RENDERING LOGIC ---
 
   // 1. Splash Screen: Only during initial app data load
-  if (isAppLoading) {
+  if (isAppLoading || !appConfig) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden" style={{ WebkitAppRegion: 'drag' } as any}>
-        <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; } `}</style>
-        <div className="fixed inset-0 scanline-overlay pointer-events-none z-50"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden">
         <Shield size={48} className="animate-pulse mb-6 text-xmr-green" />
-        <div className="text-[10px] text-xmr-dim uppercase tracking-[0.4em] animate-pulse">Initializing_Terminal...</div>
+        <div className="text-[10px] text-xmr-dim uppercase tracking-[0.4em] animate-pulse">Establishing_Uplink...</div>
       </div>
     );
   }
@@ -133,7 +143,7 @@ function MainApp() {
         identities={identities}
         activeId={activeId}
         onSwitchIdentity={switchIdentity}
-        onCreateIdentity={(name) => unlock('', undefined, undefined, name)}
+        onCreateIdentity={(name) => unlock('', name, '', 0)}
         onPurgeIdentity={purgeIdentity}
         logs={logs}
       />
@@ -192,6 +202,37 @@ function MainApp() {
 
         <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="space-y-2">
+
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={lock}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-[10px] font-black"
+              >
+                <Lock size={14} className="group-hover:scale-110 transition-transform" />
+                LOCK_VAULT
+              </button>
+
+              <button
+                onClick={() => setShowConsole(!showConsole)}
+                className={`px-3 py-2 border transition-all cursor-pointer ${showConsole ? 'border-xmr-green text-xmr-green bg-xmr-green/10' : 'border-xmr-border text-xmr-dim hover:border-xmr-green'}`}
+              >
+                <TerminalIcon size={12} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {/* 👤 Current identity and switching entry point */}
+              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xmr-dim">ACTIVE_ID</span>
+                <button
+                  onClick={() => setView('settings')}
+                  className="text-xmr-green hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  {activeIdentity?.name.substring(0, 8) || 'UNKNOWN'} <RefreshCw size={8} />
+                </button>
+              </div>
+            </div>
+
             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">THEME_MODE</span>
               <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
@@ -203,8 +244,11 @@ function MainApp() {
             </div>
             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">NETWORK_MODE</span>
-              <button onClick={() => setUseTor(!torEnabled)} className={`px-1.5 py-0.5 rounded border ${torEnabled ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}>
-                {torEnabled ? 'TOR_ONLY' : 'CLEARNET'}
+              <button
+                onClick={toggleTor}
+                className={`px-1.5 py-0.5 rounded border ${appConfig.routingMode === 'tor' ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}
+              >
+                {appConfig.routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET'}
               </button>
             </div>
             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
@@ -213,9 +257,9 @@ function MainApp() {
             </div>
             <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">UPLINK_STATUS</span>
-              <span className="text-xmr-green flex items-center gap-1 font-black">
-                <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
-                {isSyncing || status === StealthStep.SYNCING ? ` ${totalHeight - currentHeight > 0 ? (totalHeight - currentHeight) + " LEFT": '--'}` : status.toUpperCase()}
+              <span className={`flex items-center gap-1 font-black ${status === 'SYNCING' || status === 'READY' ? 'text-xmr-accent' : 'text-xmr-green'}`}>
+                <div className={`w-1 h-1 rounded-full ${status === 'SYNCING' || status === 'READY' ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
+                {status === 'SYNCING' || status === 'READY' ? `SYNCING ${syncPercent ? syncPercent.toFixed(1) + '%' : ''}` : status}
               </span>
             </div>
           </div>
@@ -238,7 +282,7 @@ function MainApp() {
 
         <main className="flex-grow overflow-y-auto p-10 custom-scrollbar relative transition-colors duration-300">
           <div className={`absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-xmr-green/5 to-transparent pointer-events-none`}></div>
-          
+
           {isInitializing ? (
             <div className="h-full flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500">
               <div className="relative">
@@ -248,7 +292,7 @@ function MainApp() {
               <div className="text-center space-y-2">
                 <h3 className="text-sm font-black uppercase tracking-[0.3em] text-xmr-green">Waking_Stealth_Engine</h3>
                 <p className="text-[9px] text-xmr-dim uppercase tracking-widest leading-relaxed">
-                  Decrypting vault keys and preparing Wasm runtime...<br/>
+                  Decrypting vault keys and preparing Wasm runtime...<br />
                   <span className="opacity-50 italic">This may take a moment for large wallets.</span>
                 </p>
               </div>
@@ -280,14 +324,14 @@ function MainApp() {
               <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-3 group">
-                    <span className="text-xmr-dim opacity-85 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span className="text-xmr-dim opacity-85 shrink-0 hidden">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                     <span className={`break-all ${log.type === 'error' ? 'text-red-500 font-bold' :
-                        log.type === 'success' ? 'text-xmr-green font-bold' :
-                          log.type === 'process' ? 'text-xmr-accent' :
-                            log.type === 'warning' ? 'text-orange-500' :
-                              log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' :
-                                log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' :
-                                  'text-xmr-green/70'
+                      log.type === 'success' ? 'text-xmr-green font-bold' :
+                        log.type === 'process' ? 'text-xmr-accent' :
+                          log.type === 'warning' ? 'text-orange-500' :
+                            log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' :
+                              log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' :
+                                'text-xmr-green/70'
                       }`}>{'>'} {log.msg}</span>
                   </div>
                 ))}
@@ -320,10 +364,8 @@ function MainApp() {
 
 export default function App() {
   return (
-    <TorProvider>
-      <VaultProvider>
-        <MainApp />
-      </VaultProvider>
-    </TorProvider>
+    <VaultProvider>
+      <MainApp />
+    </VaultProvider>
   );
 }

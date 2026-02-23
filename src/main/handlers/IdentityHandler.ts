@@ -1,39 +1,71 @@
+// src/main/IdentityManager.ts
 import { app, ipcMain } from 'electron';
-import fs from 'fs';
-import { join } from 'path';
+import fs from 'fs/promises'; // 🚀 Force async API to prevent UI stutter
+import { existsSync } from 'fs';
+import path from 'path';
 
 export function registerIdentityHandlers(store: any) {
-  ipcMain.handle('get-identities', () => {
-    let ids = store.get('identities') || [];
-    if (ids?.length === 0) {
-      const dir = join(app.getPath('userData'), 'wallets');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const walletDir = path.join(app.getPath('userData'), 'wallets');
 
-      ids = fs.readdirSync(dir).filter(f => f.endsWith('.keys')).map(f => ({ id: f.replace('.keys', ''), name: f.replace('.keys', ''), created: fs.statSync(join(dir, f)).birthtimeMs }));
+  // 🔍 Fetch list: Force reconciliation between physical disk and Store database
+  ipcMain.handle('get-identities', async () => {
+    try {
+      if (!existsSync(walletDir)) {
+        await fs.mkdir(walletDir, { recursive: true });
+      }
+
+      // 1. Read the absolute truth: physical vault files on disk
+      const files = await fs.readdir(walletDir);
+      const keyFiles = files.filter(f => f.endsWith('.keys'));
+
+      // 2. Read auxiliary attributes: alias records in the Store
+      const storedIds: any[] = store.get('identities') || [];
+
+      // 3. Execute Reconciliation
+      const validIdentities = await Promise.all(keyFiles.map(async (fileName) => {
+        const id = fileName.replace('.keys', '');
+        const existingMeta = storedIds.find((i: any) => i.id === id);
+
+        if (existingMeta) {
+          // If on disk and in Store, preserve user-defined name
+          return existingMeta;
+        } else {
+          // 👻 "Ghost Wallet" detected: physical file present but no record in Store
+          const stats = await fs.stat(path.join(walletDir, fileName));
+          return {
+            id: id,
+            name: id, // Default to filename as display name
+            created: stats.birthtimeMs
+          };
+        }
+      }));
+
+      // 4. Cleanup dead links: if record exists in Store but file is deleted, remove it
+      store.set('identities', validIdentities);
+
+      // 5. Graceful degradation: avoid fabricating 'primary' dummy data in backend
+      // If no files, return empty array and let React front-end render "Welcome" UI
+      return validIdentities;
+
+    } catch (error) {
+      console.error('[IdentityManager] Failed to scan vault:', error);
+      return [];
     }
-    if (ids?.length === 0) {
-      const defaultId = [{ id: 'primary', name: 'DEFAULT_VAULT', created: Date.now() }];
-      store.set('identities', defaultId);
-      return defaultId;
-    }
-    return ids;
+  });
+
+  // 📝 Maintain pure CRUD for other methods and remove redundant defensive code
+  ipcMain.handle('get-active-identity', () => {
+    return store.get('active_identity_id') || null;
+  });
+
+  ipcMain.handle('set-active-identity', (_, id) => {
+    if (id) store.set('active_identity_id', id);
+    else store.delete('active_identity_id');
+    return true;
   });
 
   ipcMain.handle('save-identities', (_, ids) => {
     store.set('identities', ids);
-    return true;
-  });
-
-  ipcMain.handle('get-active-identity', () => {
-    return store.get('active_identity_id') || 'primary';
-  });
-
-  ipcMain.handle('set-active-identity', (_, id) => {
-    if (!id) {
-      store.delete('active_identity_id');
-      return true;
-    }
-    store.set('active_identity_id', id);
     return true;
   });
 
@@ -42,5 +74,31 @@ export function registerIdentityHandlers(store: any) {
     const updated = ids.map((i: any) => i.id === id ? { ...i, name } : i);
     store.set('identities', updated);
     return true;
+  });
+
+  // 🔥 Physical vault destruction — deletes .keys and companion files from disk
+  ipcMain.handle('delete-identity-files', async (_, id: string) => {
+    try {
+      const keysFile = path.join(walletDir, `${id}.keys`);
+      const cacheFile = path.join(walletDir, id); // wallet cache file (no extension)
+
+      if (existsSync(keysFile)) await fs.unlink(keysFile);
+      if (existsSync(cacheFile)) await fs.unlink(cacheFile);
+
+      // Also clean up from Store
+      const ids = (store.get('identities') || []).filter((i: any) => i.id !== id);
+      store.set('identities', ids);
+
+      // If this was the active identity, clear it
+      if (store.get('active_identity_id') === id) {
+        store.delete('active_identity_id');
+      }
+
+      console.log(`[IdentityHandler] 🔥 Identity "${id}" physically destroyed.`);
+      return { success: true };
+    } catch (error: any) {
+      console.error(`[IdentityHandler] Failed to delete identity "${id}":`, error);
+      return { success: false, error: error.message };
+    }
   });
 }

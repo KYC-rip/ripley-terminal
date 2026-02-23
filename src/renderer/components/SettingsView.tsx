@@ -1,80 +1,109 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2 } from 'lucide-react';
 import { Card } from './Card';
-import { useTor } from '../contexts/TorContext';
 import { useVault } from '../hooks/useVault';
 
 export function SettingsView() {
-  const { useTor: torEnabled, setUseTor } = useTor();
   const { rescan, currentHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
-  
-  const [daemonUrl, setDaemonUrl] = useState('');
-  const [isAutoNode, setIsAutoNode] = useState(true);
-  const [isStagenet, setIsStagenet] = useState(false);
-  const [showScanlines, setShowScanlines] = useState(true);
-  const [autoLockMinutes, setAutoLockMinutes] = useState<number>(0);
+
+  // 🟢 Unified configuration state
+  const [config, setConfig] = useState<any>(null);
+
+  // Local UI state (for interaction before saving)
+  const [localSettings, setLocalSettings] = useState({
+    routingMode: 'tor',
+    network: 'mainnet',
+    customNodeAddress: '',
+    show_scanlines: true,
+    auto_lock_minutes: 10,
+    identityName: '',
+    useSystemProxy: false,
+    systemProxyAddress: ''
+  });
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  
-  // Rescan State
   const [targetHeight, setTargetHeight] = useState<string>('');
   const [isRescanning, setIsRescaning] = useState(false);
 
-  // Identity Renaming State
   const currentIdentity = identities.find(i => i.id === activeId);
-  const [identityName, setIdentityName] = useState('');
 
+  // 1. Initialization: Load full configuration
   useEffect(() => {
-    const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
-    window.api.getConfig(`custom_daemon_${configPrefix}`).then((v: string) => setDaemonUrl(v || ''));
-    window.api.getConfig(`auto_node_${configPrefix}`).then((v: boolean) => setIsAutoNode(v !== false));
-    window.api.getConfig('is_stagenet').then((v: boolean) => setIsStagenet(!!v));
-    window.api.getConfig('show_scanlines').then((v: boolean) => {
-      if (v !== undefined) setShowScanlines(v);
-    });
-    window.api.getConfig('auto_lock_minutes').then((v: any) => setAutoLockMinutes(v === undefined ? 10 : (parseInt(v) || 0)));
-  }, [isStagenet]);
-
-  useEffect(() => {
-    if (currentIdentity) setIdentityName(currentIdentity.name);
+    const loadInitialConfig = async () => {
+      const fullConfig = await window.api.getConfig();
+      setConfig(fullConfig);
+      setLocalSettings({
+        routingMode: fullConfig.routingMode || 'tor',
+        network: fullConfig.network || 'mainnet',
+        customNodeAddress: fullConfig.customNodeAddress || '',
+        show_scanlines: fullConfig.show_scanlines !== false,
+        auto_lock_minutes: fullConfig.auto_lock_minutes || 10,
+        identityName: currentIdentity?.name || '',
+        useSystemProxy: fullConfig.useSystemProxy || false,
+        systemProxyAddress: fullConfig.systemProxyAddress || ''
+      });
+    };
+    loadInitialConfig();
   }, [currentIdentity]);
 
+  // 2. Save: One-time submission to backend
   const handleSave = async () => {
     setSaveStatus('saving');
-    
-    const oldStagenet = await window.api.getConfig('is_stagenet');
-    const networkChanged = !!oldStagenet !== isStagenet;
-    const configPrefix = isStagenet ? 'stagenet' : 'mainnet';
 
-    await window.api.setConfig(`custom_daemon_${configPrefix}`, daemonUrl);
-    await window.api.setConfig(`auto_node_${configPrefix}`, isAutoNode);
-    await window.api.setConfig('is_stagenet', isStagenet);
-    await window.api.setConfig('show_scanlines', showScanlines);
-    await window.api.setConfig('auto_lock_minutes', autoLockMinutes);
-    
-    setUseTor(torEnabled);
-
-    // Save Identity Name
-    if (identityName && identityName !== currentIdentity?.name) {
-      await renameIdentity(activeId, identityName);
-    }
-
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
-    
-    if (networkChanged) {
-      if (confirm("NETWORK_PROTOCOL_CHANGED. Terminal must reboot to re-initialize WASM engine. Continue?")) {
-        location.reload();
+    try {
+      // 1. Handle identity renaming (logical change, no effect on engine)
+      if (localSettings.identityName && localSettings.identityName !== currentIdentity?.name) {
+        await renameIdentity(activeId, localSettings.identityName);
       }
+
+      // 2. Check if a "physical change" was triggered
+      const needsPhysicalReload =
+        localSettings.routingMode !== config.routingMode ||
+        localSettings.network !== config.network ||
+        localSettings.customNodeAddress !== config.customNodeAddress ||
+        localSettings.useSystemProxy !== config.useSystemProxy ||
+        localSettings.systemProxyAddress !== config.systemProxyAddress;
+
+      const newConfig = {
+        ...config,
+        routingMode: localSettings.routingMode,
+        network: localSettings.network,
+        customNodeAddress: localSettings.customNodeAddress,
+        useSystemProxy: localSettings.useSystemProxy,
+        systemProxyAddress: localSettings.systemProxyAddress,
+        show_scanlines: localSettings.show_scanlines,
+        auto_lock_minutes: localSettings.auto_lock_minutes
+      };
+
+      if (needsPhysicalReload) {
+        // 🚀 Trigger physical reload: Reboot Tor / RPC processes
+        console.log("⚙️ Physical parameters changed. Re-igniting Uplink...", "warning");
+        const res = await window.api.saveConfigAndReload(newConfig);
+        if (!res.success) throw new Error(res.error);
+      } else {
+        // 💾 Save config only: no interruption to current connection
+        console.log("💾 UI preferences synchronized.", "success");
+        // note: if backend lacks saveConfigOnly, reloadEngine can skip reboot based on logic checks
+        await window.api.saveConfigOnly?.(newConfig) || await window.api.saveConfigAndReload(newConfig);
+      }
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+
+      // Update local benchmark to prevent miscalculation next time
+      setConfig(newConfig);
+
+    } catch (e: any) {
+      alert(`SAVE_FAILED: ${e.message}`);
+      setSaveStatus('idle');
     }
   };
 
   const handleRescan = async () => {
     const h = parseInt(targetHeight);
-    if (isNaN(h)) {
-      alert("INVALID_HEIGHT");
-      return;
-    }
-    if (confirm(`INITIATE_RESCAN from height ${h}? This will clear local cache and re-scan the blockchain.`)) {
+    if (isNaN(h)) return alert("INVALID_HEIGHT");
+
+    if (confirm(`INITIATE_RESCAN from height ${h}? This will clear local wallet cache.`)) {
       setIsRescaning(true);
       try {
         await rescan(h);
@@ -87,151 +116,196 @@ export function SettingsView() {
     }
   };
 
+  if (!config) return null; // Loading
+
   return (
     <div className="max-w-3xl mx-auto py-8 space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 font-mono font-black">
       <div className="flex items-center gap-4 border-b border-xmr-border/30 pb-6">
         <Settings size={32} className="text-xmr-green" />
         <div>
-          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-black">Terminal_Config</h2>
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green">Terminal_Config</h2>
           <p className="text-[10px] text-xmr-dim uppercase tracking-widest">Adjust tactical parameters and cryptographic routing.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 font-black">
+        {/* 🆔 Identity Section */}
         <section className="space-y-4">
-          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><Edit2 size={14} /> Identity_Management</h3>
-          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
-             <div className="space-y-2">
-                <label className="text-[9px] font-black text-xmr-dim uppercase">Active_Identity_Label</label>
-                <input 
-                  type="text" 
-                  value={identityName}
-                  onChange={(e) => setIdentityName(e.target.value)}
-                  className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
-                />
-             </div>
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><Edit2 size={14} /> Identity_Management</h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40">
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-xmr-dim uppercase">Active_Identity_Label</label>
+              <input
+                type="text"
+                value={localSettings.identityName}
+                onChange={(e) => setLocalSettings({ ...localSettings, identityName: e.target.value })}
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+              />
+            </div>
           </Card>
         </section>
 
+        {/* 🌐 Network Section */}
         <section className="space-y-4 font-black">
-          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><Server size={14} /> Uplink_Protocols</h3>
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><Server size={14} /> Uplink_Protocols</h3>
           <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
-            
+
+            {/* Routing Mode Toggle (Tor vs Clearnet) */}
             <div className="flex items-center justify-between p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
               <div className="space-y-1">
-                <span className="text-[10px] text-xmr-green font-black uppercase">Automatic_Node_Switching</span>
-                <p className="text-[8px] text-xmr-dim uppercase font-black tracking-tighter">Radar_Optimization_Active</p>
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className={localSettings.routingMode === 'tor' ? "text-xmr-green animate-pulse" : "text-xmr-dim"} />
+                  <span className="text-[10px] text-xmr-green font-black uppercase">Tor_Darknet_Routing</span>
+                </div>
+                <p className="text-[8px] text-xmr-dim uppercase font-black">Onion_Tunnel_Privacy_Active</p>
               </div>
-              <button 
-                onClick={() => setIsAutoNode(!isAutoNode)}
-                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${isAutoNode ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, routingMode: localSettings.routingMode === 'tor' ? 'clearnet' : 'tor' })}
+                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.routingMode === 'tor' ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${isAutoNode ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.routingMode === 'tor' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
               </button>
             </div>
 
-            {!isAutoNode && (
-              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                <label className="text-[9px] font-black text-xmr-dim uppercase">Manual_Uplink_Address (RPC_URL)</label>
-                <input 
-                  type="text" 
-                  placeholder="https://your-private-node.com:18081"
-                  value={daemonUrl}
-                  onChange={(e) => setDaemonUrl(e.target.value)}
-                  className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+            {/* Network Toggle (Mainnet vs Stagenet) */}
+            <div className={`flex items-center justify-between p-4 border rounded-sm transition-all ${localSettings.network === 'stagenet' ? 'bg-xmr-accent/10 border-xmr-accent/40' : 'bg-xmr-green/5 border-xmr-border opacity-60'}`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <RefreshCw size={14} className={localSettings.network === 'stagenet' ? "text-orange-500 animate-spin" : "text-xmr-dim"} />
+                  <span className={`text-[10px] font-black uppercase ${localSettings.network === 'stagenet' ? 'text-orange-500' : ''}`}>Stagenet_Protocol</span>
+                </div>
+                <p className="text-[8px] text-xmr-dim uppercase font-black">Sandbox_Test_Network</p>
+              </div>
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, network: localSettings.network === 'stagenet' ? 'mainnet' : 'stagenet' })}
+                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.network === 'stagenet' ? 'bg-xmr-accent' : 'bg-xmr-base border border-xmr-border'}`}
+              >
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.network === 'stagenet' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+              </button>
+            </div>
+
+            {/* Custom Front Proxy */}
+            <div className="flex items-center justify-between p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-xmr-green font-black uppercase">Frontend_Proxy</span>
+                </div>
+                <p className="text-[8px] text-xmr-dim uppercase font-black">Route_Through_Local_Proxy (e.g., Clash)</p>
+              </div>
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, useSystemProxy: !localSettings.useSystemProxy })}
+                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.useSystemProxy ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
+              >
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.useSystemProxy ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+              </button>
+            </div>
+
+            {localSettings.useSystemProxy && (
+              <div className="space-y-2 mt-2">
+                <label className="text-[9px] font-black text-xmr-green uppercase">Proxy_Address</label>
+                <input
+                  type="text"
+                  placeholder="e.g., socks5://127.0.0.1:7890"
+                  value={localSettings.systemProxyAddress}
+                  onChange={(e) => setLocalSettings({ ...localSettings, systemProxyAddress: e.target.value })}
+                  className="w-full bg-xmr-base border border-xmr-green/50 p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
                 />
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2"><Zap size={14} className={torEnabled ? "text-xmr-green animate-pulse" : "text-xmr-dim"} /><span className="text-[10px] text-xmr-green font-black uppercase">Tor_Routing</span></div>
-                  <p className="text-[8px] text-xmr-dim uppercase font-black">Darknet_Tunnel</p>
-                </div>
-                <button onClick={() => setUseTor(!torEnabled)} className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${torEnabled ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${torEnabled ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div></button>
-              </div>
+            {/* Custom Node Address */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-xmr-dim uppercase">Manual_Uplink_Address (Optional)</label>
+              <input
+                type="text"
+                placeholder="Leave empty for automatic node selection"
+                value={localSettings.customNodeAddress}
+                onChange={(e) => setLocalSettings({ ...localSettings, customNodeAddress: e.target.value })}
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+              />
+            </div>
+          </Card>
+        </section>
 
-              <div className={`flex items-center justify-between p-4 border rounded-sm transition-all ${isStagenet ? 'bg-xmr-accent/10 border-xmr-accent/40' : 'bg-xmr-green/5 border-xmr-border opacity-60'}`}>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2"><RefreshCw size={14} className={isStagenet ? "text-orange-500 animate-spin" : "text-xmr-dim"} /><span className={`text-[10px] font-black uppercase ${isStagenet ? 'text-orange-500' : ''}`}>Stagenet_Mode</span></div>
-                  <p className="text-[8px] text-xmr-dim uppercase font-black">Testing_Assets</p>
-                </div>
-                <button onClick={() => setIsStagenet(!isStagenet)} className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${isStagenet ? 'bg-xmr-accent' : 'bg-xmr-base border border-xmr-border'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${isStagenet ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div></button>
+        {/* 📊 Rescan Section */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><History size={14} /> Synchronized_Ledger</h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase">
+              <span className="text-xmr-dim">Current_Head</span>
+              <span className="text-xmr-green">{currentHeight || 'FETCHING...'}</span>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-xmr-dim uppercase">Target_Restore_Height</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="3100000"
+                  value={targetHeight}
+                  onChange={(e) => setTargetHeight(e.target.value)}
+                  className="flex-grow bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+                />
+                <button
+                  disabled={isRescanning || !targetHeight}
+                  onClick={handleRescan}
+                  className="px-4 bg-xmr-green text-xmr-base text-[10px] font-black uppercase hover:bg-white transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {isRescanning ? 'Scanning...' : 'Trigger_Rescan'}
+                </button>
               </div>
             </div>
           </Card>
         </section>
 
+        {/* 👁️ Visuals Section */}
         <section className="space-y-4">
-          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><History size={14} /> Synchronized_Ledger</h3>
-          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
-             <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                <span className="text-xmr-dim">Current_Head</span>
-                <span className="text-xmr-green">{currentHeight || 'WAITING...'}</span>
-             </div>
-             <div className="space-y-2">
-                <label className="text-[9px] font-black text-xmr-dim uppercase">Target_Restore_Height</label>
-                <div className="flex gap-2">
-                   <input 
-                     type="number" 
-                     placeholder="3000000"
-                     value={targetHeight}
-                     onChange={(e) => setTargetHeight(e.target.value)}
-                     className="flex-grow bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
-                   />
-                   <button 
-                     disabled={isRescanning || !targetHeight}
-                     onClick={handleRescan}
-                     className="px-4 bg-xmr-green text-xmr-base text-[10px] font-black uppercase hover:bg-white transition-all disabled:opacity-50 cursor-pointer"
-                   >
-                     {isRescanning ? 'Scanning...' : 'Trigger_Rescan'}
-                   </button>
-                </div>
-                <p className="text-[7px] text-xmr-dim uppercase italic">Caution: Rescanning will clear local TX history and re-parse blockchain from the specified height.</p>
-             </div>
-          </Card>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase font-black"><EyeOff size={14} /> Countermeasures</h3>
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><EyeOff size={14} /> Countermeasures</h3>
           <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
             <div className="flex items-center justify-between">
-               <div className="space-y-1"><span className="text-[10px] text-xmr-green font-black uppercase">Visual_Scanlines</span><p className="text-[8px] text-xmr-dim uppercase font-black">CRT_Effect_Overlay</p></div>
-               <button onClick={() => setShowScanlines(!showScanlines)} className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${showScanlines ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}><div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${showScanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div></button>
+              <div className="space-y-1"><span className="text-[10px] text-xmr-green font-black uppercase">CRT_Visual_Scanlines</span><p className="text-[8px] text-xmr-dim uppercase font-black">Overlay_Effect</p></div>
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, show_scanlines: !localSettings.show_scanlines })}
+                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.show_scanlines ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
+              >
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.show_scanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+              </button>
             </div>
 
             <div className="flex items-center justify-between border-t border-xmr-border/10 pt-6">
-               <div className="space-y-1">
-                  <span className="text-[10px] text-xmr-green font-black uppercase">Auto_Lock_Timeout</span>
-                  <p className="text-[8px] text-xmr-dim uppercase font-black">Securely lock identity after inactivity (min)</p>
-               </div>
-               <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    value={autoLockMinutes} 
-                    onChange={(e) => setAutoLockMinutes(parseInt(e.target.value) || 0)} 
-                    className="w-20 bg-xmr-base border border-xmr-border p-2 text-right text-[10px] text-xmr-green outline-none font-black" 
-                  />
-                  <span className="text-[8px] text-xmr-dim uppercase font-black">MIN</span>
-               </div>
+              <div className="space-y-1">
+                <span className="text-[10px] text-xmr-green font-black uppercase">Auto_Lock_Timeout</span>
+                <p className="text-[8px] text-xmr-dim uppercase font-black">Lock session after inactivity (min)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={localSettings.auto_lock_minutes}
+                  onChange={(e) => setLocalSettings({ ...localSettings, auto_lock_minutes: parseInt(e.target.value) || 0 })}
+                  className="w-20 bg-xmr-base border border-xmr-border p-2 text-right text-[10px] text-xmr-green outline-none font-black"
+                />
+              </div>
             </div>
           </Card>
         </section>
 
+        {/* ☢️ Danger Zone */}
         <section className="space-y-4 pt-4">
-          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase font-black"><ShieldAlert size={14} /> Dangerous_Sector</h3>
+          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
           <Card className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
-            <div className="space-y-1"><span className="text-[10px] font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-[8px] text-red-500/60 uppercase font-black max-w-[200px]">Irreversibly erase local master seed.</p></div>
-            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-red-600 text-red-500 text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase font-black cursor-pointer">Exterminate_ID</button>
+            <div className="space-y-1"><span className="text-[10px] font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-[8px] text-red-500/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
+            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-red-600 text-red-500 text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>
         </section>
       </div>
 
-      <div className="pt-6 flex justify-end font-black">
-        <button onClick={handleSave} disabled={saveStatus !== 'idle'} className={`px-10 py-4 font-black uppercase tracking-[0.3em] flex items-center gap-3 transition-all cursor-pointer ${saveStatus === 'saved' ? 'bg-xmr-green text-xmr-base' : 'bg-xmr-green text-xmr-base hover:opacity-90 font-black'}`}>
+      <div className="pt-6 flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saveStatus !== 'idle'}
+          className="px-10 py-4 font-black uppercase tracking-[0.3em] flex items-center gap-3 transition-all cursor-pointer bg-xmr-green text-xmr-base hover:opacity-90"
+        >
           {saveStatus === 'saving' ? <RefreshCw size={16} className="animate-spin" /> : saveStatus === 'saved' ? <Check size={16} /> : null}
-          {saveStatus === 'saving' ? 'Applying...' : saveStatus === 'saved' ? 'Config_Applied' : 'Save_Configurations'}
+          {saveStatus === 'saving' ? 'Applying_Uplink...' : saveStatus === 'saved' ? 'Config_Synchronized' : 'Commit_Changes'}
         </button>
       </div>
     </div>

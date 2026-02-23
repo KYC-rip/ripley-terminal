@@ -199,16 +199,16 @@ export function getTradeStatus(id: string) {
 
     let status = 'waiting';
 
-    // 模拟真实的时间流逝
-    if (elapsed > 60) status = 'finished';      // 1分钟后完成
-    else if (elapsed > 30) status = 'sending';  // 30秒后发送
-    else if (elapsed > 10) status = 'exchanging'; // 10秒后兑换
-    else if (elapsed > 0) status = 'confirming';  // 只要 ID 存在，就算 Confirming (因为是 Vigil 模式，钱已经发出去了)
+    // Simulate real time passage
+    if (elapsed > 60) status = 'finished';      // Finish after 1 minute
+    else if (elapsed > 30) status = 'sending';  // Send after 30 seconds
+    else if (elapsed > 10) status = 'exchanging'; // Exchange after 10 seconds
+    else if (elapsed > 0) status = 'confirming';  // Presence of ID implies confirming (Vigil mode implies transaction already broadcast)
 
     return Promise.resolve({
       trade_id: id,
       status: status,
-      amount_from: 0.1, // 这些数可以随便填，或者存 localStorage 读取
+      amount_from: 0.1, // Mock values for testnet
       amount_to: 0.05,
       ticker_from: 'SETH',
       ticker_to: 'SXMR',
@@ -286,7 +286,7 @@ export async function fetchQuote(
 }
 
 /**
- * A. 仅批量询价
+ * A. Batch Quote Only
  */
 export async function quoteBatchTrades(
   requests: BatchQuoteRequest[],
@@ -356,7 +356,7 @@ export async function quoteBatchTrades(
 }
 
 /**
- * B. 批量开单
+ * B. Batch Order Execution
  */
 export async function executeBatchTrades(quotes: BatchQuoteResult[], destinationMap: Record<string, string>): Promise<BatchOrderResult[]> {
   const createPromises = quotes.map(async (q) => {

@@ -76,7 +76,7 @@ async function client<T>(type: APIType, endpoint: string, { body, ...customConfi
 
   if (body && typeof body === 'object') {
     config.body = JSON.stringify(body);
-  } else if(body && typeof body === 'string') {
+  } else if (body && typeof body === 'string') {
     config.body = body;
   }
 
@@ -88,14 +88,18 @@ async function client<T>(type: APIType, endpoint: string, { body, ...customConfi
     const id = setTimeout(() => controller.abort(), customConfig.timeout || 15000);
     config.signal = controller.signal;
 
-    const result = await window.api.proxyRequest({url, ...config as RequestInit});
+    const result = await fetch(url, config);
     clearTimeout(id);
 
-    if (result.error) {
-       throw new APIError(result.error, result.status || 0);
+    if (!result.ok) {
+      throw new APIError(result.statusText || `HTTP Error ${result.status}`, result.status, await result.json());
     }
 
-    const { data, status } = result;
+    if (customResponseHandler) {
+      return await customResponseHandler(result);
+    }
+
+    const { data, status } = await result.json();
 
     if (status === 204) return {} as T;
 

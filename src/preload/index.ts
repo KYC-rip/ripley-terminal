@@ -1,44 +1,53 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
-  // Config & Secrets
-  getEnv: () => ipcRenderer.invoke('get-env'),
-  getSeed: () => ipcRenderer.invoke('get-seed'),
-  saveSeed: (seed: string) => ipcRenderer.invoke('save-seed', seed),
-  burnIdentity: () => ipcRenderer.invoke('burn-identity'),
-  getConfig: (key: string) => ipcRenderer.invoke('get-config', key),
-  setConfig: (key: string, value: any) => ipcRenderer.invoke('set-config', key, value),
-  
-  // Identity Management
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfigAndReload: (config: any) => ipcRenderer.invoke('save-config-and-reload', config),
+  saveConfigOnly: (config: any) => ipcRenderer.invoke('save-config-only', config),
+
   getIdentities: () => ipcRenderer.invoke('get-identities'),
-  saveIdentities: (identities: any[]) => ipcRenderer.invoke('save-identities', identities),
+  saveIdentities: (ids: any) => ipcRenderer.invoke('save-identities', ids),
   getActiveIdentity: () => ipcRenderer.invoke('get-active-identity'),
   setActiveIdentity: (id: string) => ipcRenderer.invoke('set-active-identity', id),
   renameIdentity: (id: string, name: string) => ipcRenderer.invoke('rename-identity', { id, name }),
+  deleteIdentityFiles: (id: string) => ipcRenderer.invoke('delete-identity-files', id),
 
-  // File System (Wallet Storage)
-  getWalletPath: () => ipcRenderer.invoke('get-wallet-path'),
-  readWalletFile: (filename: string) => ipcRenderer.invoke('read-wallet-file', filename),
-  writeWalletFile: (params: { filename: string, data: Uint8Array | string }) => ipcRenderer.invoke('write-wallet-file', params),
-
-  // Networking
+  walletAction: (action: string, payload?: any) => ipcRenderer.invoke('wallet-action', action, payload),
   getUplinkStatus: () => ipcRenderer.invoke('get-uplink-status'),
-  proxyRequest: (params: any) => ipcRenderer.invoke('proxy-request', params),
-  
-  // Events
-  onTorStatus: (callback: (msg: string) => void) => {
-    const subscription = (_event: any, msg: string) => callback(msg);
-    ipcRenderer.on('tor-status', subscription);
-    return () => ipcRenderer.removeListener('tor-status', subscription);
-  },
-  onVaultShutdown: (callback: () => void) => {
-    ipcRenderer.on('vault-shutdown', () => callback());
-  },
-  confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
-};
+  retryEngine: () => ipcRenderer.invoke('retry-engine'),
 
-try {
-  contextBridge.exposeInMainWorld('api', api);
-} catch (error) {
-  console.error('Failed to inject API:', error);
+  // Event Listeners (returning a cleanup function to remove the listener)
+  onEngineStatus: (callback: any) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('engine-status', handler);
+    return () => ipcRenderer.removeListener('engine-status', handler);
+  },
+  onCoreLog: (callback: any) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('core-log', handler);
+    return () => ipcRenderer.removeListener('core-log', handler);
+  },
+  onWalletEvent: (callback: any) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('wallet-event', handler);
+    return () => ipcRenderer.removeListener('wallet-event', handler);
+  },
+  onVaultShutdown: (callback: any) => {
+    ipcRenderer.once('vault-shutdown', callback); // Notice 'once' instead of 'on'
+    return () => { };
+  },
+  proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
+
+  confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
+}
+
+if (process.contextIsolated) {
+  try {
+    contextBridge.exposeInMainWorld('api', api)
+  } catch (error) {
+    console.error(error)
+  }
+} else {
+  // @ts-ignore (define in dts)
+  window.api = api
 }

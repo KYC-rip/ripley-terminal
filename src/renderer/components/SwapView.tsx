@@ -53,8 +53,8 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
       }
     };
 
-    // const timer = setTimeout(fetchQuote, 500);
-    // return () => clearTimeout(timer);
+    const timer = setTimeout(fetchQuote, 500);
+    return () => clearTimeout(timer);
   }, [fromCoin, toCoin, amount]);
 
   const handleSwap = async () => {

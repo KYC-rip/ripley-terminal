@@ -1,23 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { XmrStealthEngine } from '../services/stealth/XmrStealthEngine';
-import moneroTs from 'monero-ts';
-import { UpdateListener } from '../services/stealth/UpdateListener';
-
-// 🔥 Tactical Patch
-if (moneroTs.MoneroWalletFull) {
-  (moneroTs as any).MoneroWalletFull.FS = (window as any).fs?.promises;
-}
+import { WalletService } from '../services/walletService';
 
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
-export interface OutputInfo { amount: string; index: number; keyImage: string; isUnlocked: boolean; isFrozen: boolean; subaddressIndex: number; timestamp: number; }
 export interface LogEntry { msg: string; timestamp: number; type?: 'info' | 'success' | 'warning' | 'process' | 'error'; }
+export type MoneroAccount = {
+  "index": number
+  "label": string,
+  "balance": string,
+  "unlockedBalance": string,
+  "baseAddress": string
+}
 
 export interface VaultContextType {
+  accounts: MoneroAccount[];
+  selectedAccountIndex: number;
   balance: { total: string; unlocked: string };
   address: string;
   subaddresses: SubaddressInfo[];
-  outputs: OutputInfo[];
   status: string;
   logs: LogEntry[];
   txs: any[];
@@ -32,26 +32,31 @@ export interface VaultContextType {
   identities: Identity[];
   activeId: string;
   isStagenet: boolean;
-  unlock: (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => Promise<void>;
+  outputs: any[];
+  setSelectedAccountIndex: (index: number) => void;
+  createAccount: (label: string) => Promise<void>;
+  unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
   lock: () => void;
   sendXmr: (address: string, amount: number) => Promise<string | undefined>;
   purgeIdentity: (id: string) => Promise<void>;
   switchIdentity: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
-  rescan: (height: number) => Promise<void>;
-  churn: () => Promise<string>;
   createSubaddress: (label?: string) => Promise<string | undefined>;
   renameIdentity: (id: string, name: string) => Promise<void>;
+  renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
+  churn: () => Promise<void>;
   setSubaddressLabel: (index: number, label: string) => Promise<void>;
+  rescan: (height: number) => Promise<void>;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
 
 export function VaultProvider({ children }: { children: React.ReactNode }) {
+  const [selectedAccountIndex, setSelectedAccountIndex] = useState(0);
+  const [accounts, setAccounts] = useState<MoneroAccount[]>([]);
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
-  const [outputs, setOutputs] = useState<OutputInfo[]>([]);
   const [txs, setTxs] = useState<any[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [totalHeight, setTotalHeight] = useState<number>(0);
@@ -62,251 +67,327 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
   const [identities, setIdentities] = useState<Identity[]>([]);
-  const [activeId, setActiveId] = useState<string>('primary');
+  const [activeId, setActiveId] = useState<string>("primary");
   const [hasVaultFile, setHasVaultFile] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isStagenet, setIsStagenet] = useState(false);
-
-  const engineRef = useRef<XmrStealthEngine | null>(null);
+  const [outputs, setOutputs] = useState<any[]>([]);
+  const lastHeightRef = useRef<number>(0); // Track previous height for sync detection
 
   const addLog = useCallback((msg: string, type: any = 'info') => {
     setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!engineRef.current) return;
+    if (isLocked || isInitializing) return;
+
     try {
-      const [b, h, height, networkHeight, subs, outs, restoreHeight] = await Promise.all([
-        engineRef.current.getBalance(),
-        engineRef.current.getTxs(),
-        engineRef.current.getHeight(),
-        engineRef.current.getNetworkHeight(),
-        engineRef.current.getSubaddresses(),
-        engineRef.current.getOutputs(),
-        engineRef.current.getRestoreHeight()
+      const allAccs = await WalletService.getAccounts().catch(() => null);
+      if (allAccs) setAccounts(allAccs);
+
+      // Use allSettled: a single RPC failure (e.g. get_transfers over flaky Tor)
+      // must NOT prevent balance/height/addresses from displaying
+      const results = await Promise.allSettled([
+        WalletService.getBalance(selectedAccountIndex),
+        WalletService.getHeight(selectedAccountIndex),
+        WalletService.getTransactions(selectedAccountIndex),
+        WalletService.getSubaddresses(selectedAccountIndex),
+        WalletService.getOutputs(selectedAccountIndex)
       ]);
-      setBalance(b);
-      setTxs(h);
-      setCurrentHeight(Math.max(height, restoreHeight));
-      if (networkHeight > 0) setTotalHeight(networkHeight); // Only update if valid
 
-      // Auto-calc sync percent if not provided by listener
-      if (networkHeight > 0 && height > 0) {
-        setSyncPercent((height / networkHeight) * 100);
+      const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
+
+      if (balRes.status === 'fulfilled') setBalance(balRes.value);
+      if (heightRes.status === 'fulfilled') setCurrentHeight(heightRes.value);
+      if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
+      if (addrRes.status === 'fulfilled') {
+        setSubaddresses(addrRes.value);
+        setAddress(addrRes.value[0]?.address || '');
       }
+      if (outsRes.status === 'fulfilled') setOutputs(outsRes.value);
 
-      setSubaddresses(subs);
-      setOutputs(outs);
-    } catch (e) { }
-  }, []);
+    } catch (e: any) {
+      console.warn("Sync gap detected:", e.message);
+    }
+  }, [isLocked, isInitializing, selectedAccountIndex]);
 
-  // 🔄 High-frequency polling during sync to ensure UI updates
   useEffect(() => {
-    if (status === 'SYNCING') {
-      const interval = setInterval(refresh, 2500);
+    console.log("🔌 Initializing Core Log Listener...");
+    if (window.api.onCoreLog) {
+      const cleanup = window.api.onCoreLog((data) => {
+        // Backend data usually looks like { source: 'TOR', level: 'info', message: '...' }
+        const typeMap: Record<string, string> = {
+          'info': 'info',
+          'error': 'error',
+          'warn': 'warning',
+          'success': 'success'
+        };
+
+        const displayMsg = `[${data.source}] ${data.message}`;
+        addLog(displayMsg, typeMap[data.level] || 'info');
+
+        if (data.level === 'error') {
+          console.error("CORE_FATAL:", data.message);
+        }
+      });
+
+      return () => cleanup(); // Auto-cleanup listener on unmount to prevent leaks
+    }
+  }, [addLog]);
+
+  // 🔄 Wallet Event Listener (Real-time updates from SyncWatcher)
+  useEffect(() => {
+    if (window.api.onWalletEvent) {
+      const cleanup = window.api.onWalletEvent((event) => {
+        if (event.type === 'SYNC_UPDATE' && event.payload?.height) {
+          const newHeight = event.payload.height;
+          const daemonH = event.payload.daemonHeight || 0;
+          setCurrentHeight(newHeight);
+
+          // Store daemon height for UI display
+          if (daemonH > 0) {
+            setTotalHeight(daemonH);
+            // Use daemon height for accurate sync detection
+            const blocksLeft = daemonH - newHeight;
+            if (blocksLeft > 5) {
+              setStatus('SYNCING');
+              setSyncPercent(Math.min((newHeight / daemonH) * 100, 99.9));
+            } else {
+              setStatus('SYNCED');
+              setSyncPercent(100);
+            }
+          } else {
+            // Fallback: height-delta detection when daemon height is unknown
+            const prevHeight = lastHeightRef.current;
+            if (prevHeight > 0) {
+              const delta = newHeight - prevHeight;
+              setStatus(delta > 2 ? 'SYNCING' : 'SYNCED');
+            }
+          }
+          lastHeightRef.current = newHeight;
+        }
+        if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
+          // Set balance directly from SyncWatcher data (piconeros → XMR)
+          // This bypasses the renderer's proxy-request pipeline which may be failing
+          const formatPico = (v: number) => {
+            const whole = Math.floor(v / 1e12);
+            const frac = v % 1e12;
+            return `${whole}.${frac.toString().padStart(12, '0')}`;
+          };
+          setBalance({
+            total: formatPico(event.payload.balance),
+            unlocked: formatPico(event.payload.unlocked || 0)
+          });
+          // Also trigger refresh for accounts/subaddresses/txs (best effort)
+          refresh();
+        }
+      });
+      return () => cleanup();
+    }
+  }, [refresh]);
+
+  // 🔄 UI Polling Loop (Replaces the background worker)
+  useEffect(() => {
+    if (!isLocked && !isInitializing) {
+      refresh(); // Initial fetch
+      const interval = setInterval(refresh, status === 'SYNCING' ? 3000 : 10000);
       return () => clearInterval(interval);
     }
-  }, [status, refresh]);
+  }, [isLocked, isInitializing, status, refresh]);
 
-  const unlock = useCallback(async (password: string, restoreSeed?: string, restoreHeight?: number, newIdentityName?: string) => {
-    if (engineRef.current) return;
+  const unlock = useCallback(async (
+    password: string,
+    newIdentityName?: string,
+    restoreSeed?: string,
+    restoreHeight?: number,
+    seedLanguage?: string
+  ) => {
+    setIsInitializing(true);
+    addLog("🛡️ Waiting for darknet uplink to stabilize...", "process");
+    try {
+      // 🔄 1. Await background network readiness (Tor + Proxy + Node Discovery)
 
-    // 🛡️ TACTICAL CHECK: Ensure Tor is ready before allowing unlock if enabled
-    const useTorConfig = await window.api.getConfig('use_tor');
-    const useTor = useTorConfig !== false; // Default to true if undefined
+      // Initial check: if engine is paralyzed, attempt forced restart
+      let uplink = await window.api.getUplinkStatus();
+      if (uplink.status === 'ERROR') {
+        addLog("🔄 Engine is currently paralyzed. Attempting reboot...", "warning");
+        await window.api.retryEngine();
+        await new Promise(r => setTimeout(r, 3000)); // Give engine some buffer time to change state
+      }
 
-    if (useTor) {
-      addLog("🛡️ Verifying Tor Circuit Integrity...", "process");
+      for (let i = 0; i < 20; i++) {
+        uplink = await window.api.getUplinkStatus();
+        if (uplink.status === 'ONLINE') break;
+        if (uplink.status === 'ERROR') throw new Error(uplink.error || "Engine failed to start.");
 
-      let attempts = 0;
-      const MAX_ATTEMPTS = 40; // ~2 minutes
-
-      while (true) {
-        const uplink = await window.api.getUplinkStatus();
-        if (uplink.isTorReady) {
-          addLog("✅ Tor Circuit Secured.", "success");
-          break;
-        }
-
-        attempts++;
-        if (attempts > MAX_ATTEMPTS) {
-          throw new Error("TOR_TIMEOUT: Uplink failed to bootstrap. Check network.");
-        }
-
-        if (attempts % 4 === 0) {
-          addLog(`⏳ Establishing Tor Uplink... [${attempts}/${MAX_ATTEMPTS}]`, "warning");
-        }
-
+        addLog(`⏳ Uplink bootstrapping... (Attempt ${i + 1}/20)`, "warning");
         await new Promise(r => setTimeout(r, 3000));
       }
-    }
 
-    setIsInitializing(true);
-    let targetId = activeId;
-
-    if (newIdentityName) {
-      // 🛡️ COLLISION CHECK: Ensure the name (label) is unique
-      const nameExists = identities.some(i => i.name.toLowerCase() === newIdentityName.toLowerCase());
-      if (nameExists) {
-        throw new Error(`CONFLICT: Identity "${newIdentityName}" already exists.`);
+      if (!uplink || uplink.status !== 'ONLINE') {
+        throw new Error("UPLINK_TIMEOUT: Could not establish secure route.");
       }
 
-      // 🛡️ ID GENERATION: Use random suffix to prevent any chance of file collision
-      const randomId = Math.random().toString(36).substring(2, 9);
-      const newId = `vault_${Date.now()}_${randomId}`;
-
-      const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
-      const updated = [...identities, newIdentity];
-      await window.api.saveIdentities(updated);
-      await window.api.setActiveIdentity(newId);
-      setIdentities(updated);
-      setActiveId(newId);
-      targetId = newId;
-    }
-
-    try {
-      const engine = new XmrStealthEngine((msg, type) => addLog(msg, type));
-      engine.onStatusChange = (s) => setStatus(s); // 🔗 Connect engine status to UI state
-      engineRef.current = engine;
-
-      const seedToUse = restoreSeed || await window.api.getConfig(`master_seed_${targetId}`);
-      const [savedHeight, networkSetting] = await Promise.all([
-        window.api.getConfig(`last_sync_height_${targetId}`),
-        window.api.getConfig('is_stagenet')
-      ]);
-
-      const stagenetActive = !!networkSetting;
-      setIsStagenet(stagenetActive);
-
-      // 🚀 TACTICAL MOVE: Release the lock EARLY to enter the dashboard immediately
-      setIsLocked(false);
-      setIsInitializing(true);
-
-      const listener = new (class extends UpdateListener {
-        async onSyncProgress(height: number, startHeight: number, endHeight: number, percentDone: number, message: string) {
-          // monero-ts provides percentDone as 0.0 - 1.0
-          const displayPercent = Math.min(percentDone * 100, 100);
-
-          setCurrentHeight(height);
-          if (endHeight > 0) setTotalHeight(endHeight);
-          setSyncPercent(displayPercent);
-
-          if (height % 20 === 0 || percentDone >= 0.99) {
-            addLog(`📡 Scanning Ledger: ${displayPercent.toFixed(1)}% [${height}/${endHeight || '?'}]`, 'process');
-          }
-
-          // Persist height
-          if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
-        }
-        async onBalancesChanged(newBalance: bigint, newUnlockedBalance: bigint) {
-          // 🛡️ TACTICAL FIX: Convert atomic units to formatted XMR strings (1e12)
-          const total = (Number(newBalance) / 1e12).toFixed(12);
-          const unlocked = (Number(newUnlockedBalance) / 1e12).toFixed(12);
-          setBalance({ total, unlocked });
-          addLog(`💰 Balance updated: ${total} XMR`, "success");
-        }
-        async onNewBlock(height: number) {
-          setCurrentHeight(height);
-          if (height > 0) window.api.setConfig(`last_sync_height_${targetId}`, height);
-
-          // Refresh total height on new blocks
-          engine.getNetworkHeight().then(nh => {
-            if (nh > 0) setTotalHeight(nh);
-          });
-        }
-      })(engine);
-
-      const result = await engine.init(
-        "http://127.0.0.1:18082",
-        password,
-        seedToUse,
-        0,
-        restoreHeight || savedHeight || undefined, // 🛡️ Use undefined to trigger engine defaults
-        listener,
-        stagenetActive,
-        targetId
-      );
-
-      // Immediately fetch network height to drive the progress bar
-      if (result.networkHeight > 0) {
-        setTotalHeight(result.networkHeight);
+      // Determine ID for the current operation
+      let targetId = activeId;
+      if (!newIdentityName && !targetId) {
+        targetId = await window.api.getActiveIdentity();
       }
 
-      const mnemonic = await engine.getMnemonic();
-      if (mnemonic) await window.api.setConfig(`master_seed_${targetId}`, mnemonic);
+      setIsStagenet(uplink.isStagenet);
 
-      setAddress(result.address);
+      // 🛡️ 2. Identity management and RPC interaction
+      if (newIdentityName) {
+        // --- [CREATE OR RESTORE MODE] ---
+        const randomId = Math.random().toString(36).substring(2, 9);
+        const newId = `vault_${Date.now()}_${randomId}`;
+
+        // Display different logs based on presence of seed
+        if (restoreSeed) {
+          addLog(`🌅 Restoring identity from seed: ${newIdentityName}...`, 'process');
+        } else {
+          addLog(`🆕 Constructing fresh identity: ${newIdentityName}...`, 'process');
+        }
+
+        // 🚀 Dispatch to backend: include seed and height parameters
+        const res = await window.api.walletAction('create', {
+          name: newId,
+          pwd: password,
+          seed: restoreSeed,
+          height: restoreHeight,
+          language: seedLanguage
+        });
+
+        if (!res.success) throw new Error(res.error);
+
+        // Sync local metadata
+        const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
+        const updated = [...identities, newIdentity];
+
+        await window.api.saveIdentities(updated);
+        await window.api.setActiveIdentity(newId);
+
+        setIdentities(updated);
+        setActiveId(newId);
+        targetId = newId;
+      } else {
+        // --- [OPEN EXISTING WALLET MODE] ---
+        if (!targetId || targetId === 'primary') {
+          throw new Error("Please create a new identity first.");
+        }
+
+        addLog(`🌅 Opening vault: ${targetId}...`, 'process');
+        const res = await window.api.walletAction('open', { name: targetId, pwd: password });
+        if (!res.success) throw new Error(res.error);
+      }
+
+      // Finalize after success
       setHasVaultFile(true);
+      setStatus('SYNCING'); // Show SYNCING until first successful refresh confirms otherwise
+      setIsLocked(false);
       setIsInitializing(false);
+      addLog("✅ Vault unlocked. Synchronizing with network...", "success");
 
-      // Start Background Sync
-      setStatus('SYNCING');
-      engine.startSyncInBackground();
-
-      await refresh();
     } catch (e: any) {
-      engineRef.current = null;
+      addLog(`❌ FATAL: ${e.message}`, 'error');
       setIsInitializing(false);
-      setIsLocked(true); // Snap back to login if initialization fails
+      setIsLocked(true);
       throw e;
     }
-  }, [activeId, identities, refresh, addLog]);
+  }, [activeId, identities, addLog]);
 
   const lock = useCallback(async () => {
-    if (engineRef.current) {
-      await engineRef.current.shutdown();
-      engineRef.current = null;
-    }
+    // 1. 🟢 Immediate UI update (instant lock manifestation)
+    setIsLocked(true);
+    addLog("🔒 Vault Secured. Finalizing background sync...", 'warning');
+
+    // 2. 🧹 Purge sensitive state
     setAddress('');
     setBalance({ total: '0.0000', unlocked: '0.0000' });
-    setIsLocked(true);
     setStatus('READY');
-  }, []);
 
-  const purgeIdentity = useCallback(async (id: string) => {
-    const targetName = identities.find(i => i.id === id)?.name || id;
-    if (!confirm(`🚨 DELETE IDENTITY "${targetName}"?`)) return;
-    await window.api.setConfig(`master_seed_${id}`, null);
-    await window.api.setConfig(`last_sync_height_${id}`, null);
-    await window.api.writeWalletFile({ filename: id, data: [] });
-    const updated = identities.filter(i => i.id !== id);
-    await window.api.saveIdentities(updated);
-    if (id === activeId) {
-      const nextId = updated.length > 0 ? updated[0].id : 'primary';
-      await window.api.setActiveIdentity(nextId);
-    }
-    location.reload();
-  }, [identities, activeId]);
+    // 3. ⏳ Background shutdown (async, non-blocking)
+    // No await, processed in an independent async block
+    window.api.walletAction('close', {})
+      .then(() => {
+        addLog("✅ Backend wallet file saved and closed.", 'success');
+      })
+      .catch((err) => {
+        console.error("Lock sequence background error:", err);
+        addLog("⚠️ Backend close error (already closed or busy).", 'error');
+      });
 
-  const sendXmr = useCallback(async (destination: string, amount: number) => {
-    if (!engineRef.current) return;
+  }, [addLog]);
+
+  const sendXmr = useCallback(async (destination: string, amount: number, accountIndex?: number) => {
     setIsSending(true);
+    addLog(`💸 Preparing transfer of ${amount} XMR...`, 'process');
     try {
-      const tx = await engineRef.current.transfer(destination, amount);
-      addLog(`✅ Transaction sent: ${tx}`);
+      const txHash = await WalletService.sendTransaction(destination, amount, accountIndex || 0);
+      addLog(`✅ Transaction dispatched: ${txHash}`, 'success');
       await refresh();
-      return tx;
+      return txHash;
     } catch (e: any) {
-      addLog(`❌ SEND_ERROR: ${e.message}`);
+      addLog(`❌ SEND_ERROR: ${e.message}`, 'error');
     } finally {
       setIsSending(false);
     }
   }, [refresh, addLog]);
 
-  const rescan = useCallback(async (height: number) => {
-    if (!engineRef.current) return;
-    setStatus('SYNCING');
-    addLog(`🔄 Initiating rescan from height: ${height}...`);
+  const createSubaddress = useCallback(async (label?: string, accountIndex?: number) => {
     try {
-      await engineRef.current.rescan(height);
+      const res = await WalletService.createSubaddressWithLabel(label || '', accountIndex || 0);
       await refresh();
+      return res.address;
+    } catch (e) { console.error(e); }
+  }, [refresh]);
+
+  const purgeIdentity = useCallback(async (id: string) => {
+    try {
+      // Always attempt to close the wallet via RPC first — the wallet-rpc process
+      // holds a file lock on .keys files, preventing deletion
+      await window.api.walletAction('close', {}).catch(() => { });
+
+      // Physically delete .keys and cache files from disk
+      const res = await window.api.deleteIdentityFiles(id);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to delete wallet files');
+      }
+
+      // Refresh identity list and reload
+      const updated = identities.filter(i => i.id !== id);
+      setIdentities(updated);
+      location.reload();
     } catch (e: any) {
-      addLog(`❌ RESCAN_ERROR: ${e.message}`);
-    } finally {
-      setStatus('READY');
+      addLog(`❌ PURGE_FAILED: ${e.message}`, 'error');
+      alert(`PURGE_FAILED: ${e.message}`);
+    }
+  }, [identities, addLog]);
+
+  const renameIdentity = useCallback(async (id: string, name: string) => {
+    const nameExists = identities.some(i => i.id !== id && i.name.toLowerCase() === name.toLowerCase());
+    if (nameExists) throw new Error(`CONFLICT: Name "${name}" is already in use.`);
+    await window.api.renameIdentity(id, name);
+    const ids = await window.api.getIdentities();
+    setIdentities(ids);
+  }, [identities]);
+
+  const createAccount = useCallback(async (label: string) => {
+    try {
+      addLog(`Generating new account: ${label}...`, 'info');
+      const newAcc = await WalletService.createAccount(label);
+
+      setSelectedAccountIndex(newAcc.index);
+
+      await refresh();
+
+      addLog(`Account #${newAcc.index} initialized.`, 'success');
+    } catch (e: any) {
+      addLog(`Account generation failed: ${e.message}`, 'error');
     }
   }, [refresh, addLog]);
 
+  // Boot Sequence
   useEffect(() => {
     const loadIdentities = async () => {
       try {
@@ -314,19 +395,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           window.api.getIdentities(),
           window.api.getActiveIdentity()
         ]);
-
         const validIds = ids || [];
         setIdentities(validIds);
         const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
         setActiveId(nextActiveId);
-
-        if (validIds.length > 0 && nextActiveId) {
-          const fileData = await window.api.readWalletFile(nextActiveId);
-          setHasVaultFile(!!fileData && fileData.length > 0);
-        } else {
-          setHasVaultFile(false);
-        }
-        setIsAppLoading(false);
+        setHasVaultFile(validIds.length > 0 && !!nextActiveId);
       } catch (err) { } finally {
         setIsAppLoading(false);
       }
@@ -334,54 +407,40 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     loadIdentities();
   }, []);
 
-  // 🛡️ GRACEFUL SHUTDOWN LISTENER
+  // Graceful Shutdown
   useEffect(() => {
     if (window.api.onVaultShutdown) {
       window.api.onVaultShutdown(async () => {
         addLog("🛡️ System shutdown signal received. Securing vault...", "process");
-        if (engineRef.current) {
-          await engineRef.current.shutdown();
-        }
+        await window.api.walletAction('close', {});
         window.api.confirmShutdown();
       });
     }
   }, [addLog]);
 
-  useEffect(() => {
-    if (!isLocked && !isInitializing) {
-      const interval = setInterval(refresh, 20000);
-      return () => clearInterval(interval);
-    }
-  }, [isLocked, isInitializing, refresh]);
-
   const value = {
-    balance, address, subaddresses, outputs, status, logs, txs, currentHeight, totalHeight, syncPercent,
+    accounts, selectedAccountIndex,
+    balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
-    unlock, lock, purgeIdentity, switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
-    sendXmr,
-    refresh, rescan, churn: useCallback(async () => {
-      if (!engineRef.current) throw new Error("NOT_INIT");
-      setIsSending(true);
-      try { const txHash = await engineRef.current.churn(); await refresh(); return txHash; }
-      finally { setIsSending(false); }
-    }, [refresh]),
-    createSubaddress: useCallback(async (label?: string) => {
-      if (!engineRef.current) return;
-      try { const newAddr = await engineRef.current.createNextSubaddress(label); await refresh(); return newAddr; } catch (e) { }
-    }, [refresh]),
-    renameIdentity: useCallback(async (id: string, name: string) => {
-      // 🛡️ CHECK: Is the target name already taken by ANOTHER identity?
-      const nameExists = identities.some(i => i.id !== id && i.name.toLowerCase() === name.toLowerCase());
-      if (nameExists) throw new Error(`CONFLICT: Name "${name}" is already in use.`);
-
-      await window.api.renameIdentity(id, name);
-      const ids = await window.api.getIdentities();
-      setIdentities(ids);
-    }, [identities]),
-    setSubaddressLabel: useCallback(async (index: number, label: string) => {
-      if (!engineRef.current) return;
-      try { await engineRef.current.setSubaddressLabel(index, label); await refresh(); } catch (e) { }
-    }, [refresh])
+    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex,
+    rescan: async (height: number) => {
+      await WalletService.rescan(height);
+      await refresh();
+    },
+    renameAccount: async (accountIndex: number, newLabel: string) => {
+      await WalletService.renameAccount(accountIndex, newLabel);
+      await refresh();
+    },
+    churn: async (accountIndex?: number) => {
+      await WalletService.churn(accountIndex || 0);
+      await refresh();
+    },
+    setSubaddressLabel: async (index: number, label: string, accountIndex?: number) => {
+      await WalletService.setSubaddressLabel(index, label, accountIndex || 0);
+      await refresh();
+    },
+    switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
+    createAccount
   };
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

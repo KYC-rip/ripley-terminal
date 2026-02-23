@@ -5,35 +5,43 @@
   "main": "./out/main/index.js",
   "author": "KYC.RIP",
   "scripts": {
-    "copy-worker": "cp node_modules/monero-ts/dist/monero.worker.js public/",
-    "dev": "npm run copy-worker && electron-vite dev",
-    "build": "npm run copy-worker && electron-vite build",
+    "setup-bins": "node scripts/download-bins.js",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:renderer",
-    "start": "electron-vite preview"
+    "start": "electron-vite preview",
+    "prebuild": "npm run setup-bins",
+    "predev": "npm run setup-bins",
+    "prestart": "npm run setup-bins"
+  },
+  "build": {
+    "extraResources": [
+      {
+        "from": "resources/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
-    "assert": "^2.1.0",
-    "buffer": "^6.0.3",
     "electron-store": "^11.0.2",
     "ethers": "6.16.0",
     "framer-motion": "12.34.0",
-    "http-proxy": "^1.18.1",
     "js-yaml": "^4.1.1",
     "lightweight-charts": "^5.1.0",
     "lucide-react": "0.564.0",
-    "monero-ts": "0.11.8",
-    "process": "^0.11.10",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-helmet-async": "2.0.5",
     "react-router-dom": "7.13.0",
-    "socks-proxy-agent": "^8.0.5",
-    "tar": "^7.5.9"
+    "tar": "^7.5.9",
+    "vite-plugin-node-polyfills": "^0.25.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
@@ -42,7 +50,6 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/vite": "4.1.18",
-    "@types/http-proxy": "^1.17.17",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "25.2.3",
     "@types/react": "19.2.14",
@@ -56,8 +63,7 @@
     "postcss": "8.5.6",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.3",
-    "vite": "7.3.1",
-    "vite-plugin-node-polyfills": "^0.25.0"
+    "vite": "7.3.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -17,6 +17,7 @@ interface AuthFormProps {
   restoreSeed: string; setRestoreSeed: (v: string) => void;
   restoreHeight: string; setRestoreHeight: (v: string) => void;
   newName: string; setNewName: (v: string) => void;
+  seedLanguage: string; setSeedLanguage: (v: string) => void;
   
   // State
   error: string;
@@ -32,7 +33,7 @@ export function AuthForm({
   step, setStep, isInitialSetup,
   password, setPassword, confirmPassword, setConfirmPassword,
   restoreSeed, setRestoreSeed, restoreHeight, setRestoreHeight,
-  newName, setNewName,
+  newName, setNewName, seedLanguage, setSeedLanguage,
   error, isProcessing, logs,
   handleUnlockSubmit
 }: AuthFormProps) {
@@ -73,9 +74,32 @@ export function AuthForm({
             <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex justify-between"><span>Mnemonic_Seed (25 words)</span><span className="text-xmr-accent font-black">STANDARD_ONLY</span></label>
             <textarea rows={2} value={restoreSeed} onChange={(e) => setRestoreSeed(e.target.value)} placeholder="word1 word2 ..." className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none resize-none" />
           </div>
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Calendar size={10} /> Restore_Height (Optional)</label>
-            <input type="number" value={restoreHeight} onChange={(e) => setRestoreHeight(e.target.value)} placeholder="e.g. 3000000" className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Calendar size={10} /> Restore_Height (Optional)</label>
+              <input type="number" value={restoreHeight} onChange={(e) => setRestoreHeight(e.target.value)} placeholder="e.g. 3000000" className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Seed_Language</label>
+              <select
+                value={seedLanguage}
+                onChange={(e) => setSeedLanguage(e.target.value)}
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none cursor-pointer"
+              >
+                <option value="English">English</option>
+                <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Spanish">Spanish</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="German">German</option>
+                <option value="French">French</option>
+                <option value="Italian">Italian</option>
+                <option value="Dutch">Dutch</option>
+                <option value="Russian">Russian</option>
+                <option value="Esperanto">Esperanto</option>
+                <option value="Lojban">Lojban</option>
+              </select>
+            </div>
           </div>
         </div>
       )}

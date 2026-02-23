@@ -59,10 +59,11 @@ export default function SpreadChart() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const result = await window.api.proxyRequest({
-          url: `https://api.kyc.rip/v1/history?period=${timeframe}`,
+        const response = await fetch(`https://api.kyc.rip/v1/history?period=${timeframe}`, {
           method: 'GET'
         });
+
+        const result = await response.json();
         
         if (active && result && Array.isArray(result.data)) {
           const cleanData = result.data
