@@ -72,13 +72,24 @@ async function downloadAndExtractTarGz(name, url, expectedTarHash, destSubDir) {
 
   try {
     console.log(`  [DOWNLOADING] Fetching tarball from remote...`);
-    const writer = fs.createWriteStream(tempTarFile);
-    const response = await https.get(url, { responseType: 'stream' });
-    response.data.pipe(writer);
 
     await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
+      const download = (downloadUrl) => {
+        https.get(downloadUrl, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return download(res.headers.location);
+          }
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Failed to download: ${res.statusCode}`));
+          }
+
+          const writer = fs.createWriteStream(tempTarFile);
+          res.pipe(writer);
+          writer.on('finish', resolve);
+          writer.on('error', reject);
+        }).on('error', reject);
+      };
+      download(url);
     });
 
     console.log(`  [AUDIT] Calculating SHA256...`);
