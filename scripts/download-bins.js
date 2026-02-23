@@ -26,7 +26,7 @@ const TARGETS = {
     hash: {
       'mac-arm64': '40ae11c3ec51d5d83d3208df6681e2142bd3cda1032d340e36fb0ee77d2cb818',
       'mac-x64': '50b3f5d6f83134e19191316f272a2752c492f5fa8d07b3db2bd3cda1032d340e', // Example placeholder
-      'linux-x64': '60c4f6d7f94235f19191316f272a2752c492f5fa8d07b3db3bd3cda1032d340f' // Example placeholder
+      'linux-x64': 'c421c7990e4a17df8269d680bdb8860d3cf1c77911ff5be5a874eb22ae08cc1c'
     }[remoteSubDir] || '40ae11c3ec51d5d83d3208df6681e2142bd3cda1032d340e36fb0ee77d2cb818',
     folder: 'tor-bundle'
   },
@@ -35,7 +35,7 @@ const TARGETS = {
     hash: {
       'mac-arm64': '0dbbab8147e3c6523c60ce5a62d35e3899606c727b7a2752c492f5fa8d07b3db',
       'mac-x64': '70d5f7d8f05336f19191316f272a2752c492f5fa8d07b3db4bd3cda1032d340g', // Example placeholder
-      'linux-x64': '80e6f8d9f16437f19191316f272a2752c492f5fa8d07b3db5bd3cda1032d340h' // Example placeholder
+      'linux-x64': '2c5e8f97d44bad338513a02b43fee919f93ac7bedfd1611dbb411b8731d3ddc7'
     }[remoteSubDir] || '0dbbab8147e3c6523c60ce5a62d35e3899606c727b7a2752c492f5fa8d07b3db',
     folder: 'rpc-core'
   },
