@@ -45,6 +45,9 @@ const BIN_DIR = path.join(__dirname, '../resources/bin');
 async function downloadAndExtractTarGz(name, url, expectedTarHash, destSubDir) {
   console.log(`\n[Armory] Processing: ${name}`);
 
+  // Ensure binary directory exists before any FS operations
+  if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
+
   const destFolder = path.join(BIN_DIR, destSubDir);
   const tempTarFile = path.join(BIN_DIR, `temp_${Date.now()}.tar.gz`);
   const lockFilePath = path.join(destFolder, '.version.lock');
@@ -63,8 +66,7 @@ async function downloadAndExtractTarGz(name, url, expectedTarHash, destSubDir) {
     }
   }
 
-  // Ensure directories exist and clean up old folders
-  if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
+  // Ensure destination folder exists and is clean
   if (fs.existsSync(destFolder)) fs.rmSync(destFolder, { recursive: true, force: true });
   fs.mkdirSync(destFolder, { recursive: true });
 
