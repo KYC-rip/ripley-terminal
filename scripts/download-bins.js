@@ -22,7 +22,7 @@ console.log(`[System] Identity: ${currentTarget} -> Mapping to: ${remoteSubDir}`
 
 const TARGETS = {
   tor: {
-    url: `https://github.com/kyc-rip/wallet-binaries/raw/main/${remoteSubDir}/tor-bundle.tar.gz`,
+    url: `https://raw.githubusercontent.com/KYC-rip/wallet-binaries/main/${remoteSubDir}/tor-bundle.tar.gz`,
     hash: {
       'mac-arm64': '40ae11c3ec51d5d83d3208df6681e2142bd3cda1032d340e36fb0ee77d2cb818',
       'mac-x64': '50b3f5d6f83134e19191316f272a2752c492f5fa8d07b3db2bd3cda1032d340e', // Example placeholder
@@ -31,7 +31,7 @@ const TARGETS = {
     folder: 'tor-bundle'
   },
   rpc: {
-    url: `https://github.com/kyc-rip/wallet-binaries/raw/main/${remoteSubDir}/monero-rpc.tar.gz`,
+    url: `https://raw.githubusercontent.com/KYC-rip/wallet-binaries/main/${remoteSubDir}/monero-rpc.tar.gz`,
     hash: {
       'mac-arm64': '0dbbab8147e3c6523c60ce5a62d35e3899606c727b7a2752c492f5fa8d07b3db',
       'mac-x64': '70d5f7d8f05336f19191316f272a2752c492f5fa8d07b3db4bd3cda1032d340g', // Example placeholder
@@ -71,7 +71,7 @@ async function downloadAndExtractTarGz(name, url, expectedTarHash, destSubDir) {
   fs.mkdirSync(destFolder, { recursive: true });
 
   try {
-    console.log(`  [DOWNLOADING] Fetching tarball from remote...`);
+    console.log(`  [DOWNLOADING] Fetching tarball from: ${url}`);
 
     await new Promise((resolve, reject) => {
       const download = (downloadUrl) => {
