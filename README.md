@@ -45,5 +45,35 @@ pnpm build
 - **Traffic Sealing**: All outbound RPC calls are forced through the integrated Tor proxy.
 - **Graceful Shutdown**: Safety-interceptor to ensure wallet state is saved before process termination.
 
+## 🏗 Maintenance & Release Workflow
+
+This project is maintained as part of the `kyc-rip` ecosystem and synchronized via **Git Subtree**.
+
+### 🔄 Synchronizing with Parent
+To push local changes from the parent workspace to this repository:
+```bash
+git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main
+```
+
+### 🏷 Triggering a Release
+The CI pipeline automatically builds and publishes a GitHub Release when a version tag is pushed. **Note:** To ensure the tag points to the correct isolated history of this repository:
+
+1. Create a temporary branch of the subtree:
+   ```bash
+   git subtree split --prefix desktop -b release-v1.x.x
+   ```
+2. Tag that branch:
+   ```bash
+   git tag v1.x.x release-v1.x.x
+   ```
+3. Push the tag to this repository:
+   ```bash
+   git push git@github-xbtoshi:KYC-rip/ghost-terminal.git v1.x.x
+   ```
+4. Cleanup:
+   ```bash
+   git branch -D release-v1.x.x
+   ```
+
 ---
 **SECURE_UPLINK_ESTABLISHED // NO_LOGS // NO_KYC**
