@@ -27,7 +27,7 @@ export function IdentitySwitcher({ identities, activeId, onSwitchIdentity, onSta
         <button
           type="button"
           onClick={() => setShowSwitcher(!showSwitcher)} 
-          className={`flex-grow flex justify-between items-center px-2 py-1.5 text-[9px] font-black uppercase tracking-widest transition-all border ${showSwitcher ? 'border-xmr-green text-xmr-green' : 'border-xmr-border/50 text-xmr-dim hover:text-xmr-green'}`}
+          className={`flex-grow flex justify-between items-center px-2 py-1.5 text-[11px] font-black uppercase tracking-widest transition-all border ${showSwitcher ? 'border-xmr-green text-xmr-green' : 'border-xmr-border/50 text-xmr-dim hover:text-xmr-green'}`}
         >
           <div className="flex items-center gap-2">
             <Users size={12} />
@@ -56,7 +56,7 @@ export function IdentitySwitcher({ identities, activeId, onSwitchIdentity, onSta
                     onSwitchIdentity(id.id);
                     setShowSwitcher(false);
                   }}
-                  className={`flex-grow px-3 py-2 text-[9px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer relative overflow-hidden ${id.id === activeId
+                  className={`flex-grow px-3 py-2 text-[11px] font-black border uppercase transition-all flex items-center justify-between cursor-pointer relative overflow-hidden ${id.id === activeId
                       ? 'border-xmr-green text-xmr-green bg-xmr-green/10 shadow-[inset_0_0_10px_rgba(0,255,65,0.05)]'
                       : 'border-xmr-border/30 text-xmr-dim/60 hover:border-xmr-green/50 hover:text-xmr-green'
                     }`}
@@ -66,9 +66,9 @@ export function IdentitySwitcher({ identities, activeId, onSwitchIdentity, onSta
                     <span className="truncate">{id.name}</span>
                   </div>
                   {id.id === activeId ? (
-                    <span className="text-[7px] bg-xmr-green/20 px-1 border border-xmr-green/30">ACTIVE</span>
+                    <span className="text-[11px] bg-xmr-green/20 px-1 border border-xmr-green/30">ACTIVE</span>
                   ) : (
-                    <span className="opacity-0 group-hover:opacity-100 text-[7px] transition-opacity">SELECT_</span>
+                    <span className="opacity-0 group-hover:opacity-100 text-[11px] transition-opacity">SELECT_</span>
                   )}
                 </button>
 

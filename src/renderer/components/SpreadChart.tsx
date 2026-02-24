@@ -173,7 +173,7 @@ export default function SpreadChart() {
   const TimeBtn = ({ period, label }: { period: TimeFrame, label: string }) => (
     <button
       onClick={() => setTimeframe(period)}
-      className={`px-2 py-0.5 text-[9px] font-black border transition-all cursor-pointer ${timeframe === period ? 'bg-xmr-green text-xmr-base border-xmr-green' : 'text-xmr-dim border-xmr-border/30 hover:border-xmr-green/50'}`}
+      className={`px-2 py-0.5 text-[11px] font-black border transition-all cursor-pointer ${timeframe === period ? 'bg-xmr-green text-xmr-base border-xmr-green' : 'text-xmr-dim border-xmr-border/30 hover:border-xmr-green/50'}`}
     >
       {label}
     </button>
@@ -185,11 +185,11 @@ export default function SpreadChart() {
         <div className="flex flex-col flex-1 min-w-0">
           {hoverData ? (
             <div className="flex flex-col animate-in fade-in duration-100">
-              <div className="text-[10px] text-xmr-green font-black tracking-widest mb-1 flex items-center gap-2">
+              <div className="text-xs text-xmr-green font-black tracking-widest mb-1 flex items-center gap-2">
                 <span className="opacity-50">[{hoverData.dateStr}]</span>
                 <span className="bg-xmr-green text-xmr-base px-1">PREMIUM: {hoverData.premium}</span>
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-black uppercase">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-black uppercase">
                 <button onClick={() => toggleSeries('street')} className={`transition-all ${visibleSeries.street ? 'text-xmr-green' : 'text-xmr-dim opacity-30'}`}>STREET: ${hoverData.street.toFixed(2)}</button>
                 <button onClick={() => toggleSeries('paper')} className={`transition-all ${visibleSeries.paper ? 'text-xmr-green opacity-60' : 'text-xmr-dim opacity-30'}`}>PAPER: ${hoverData.paper.toFixed(2)}</button>
                 {hasDeepIntel && (
@@ -203,11 +203,11 @@ export default function SpreadChart() {
             </div>
           ) : (
             <div className="flex flex-col">
-              <div className="text-[10px] text-xmr-green font-black tracking-widest mb-1 flex items-center gap-2 uppercase">
+              <div className="text-xs text-xmr-green font-black tracking-widest mb-1 flex items-center gap-2 uppercase">
                 <div className={`w-1.5 h-1.5 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-xmr-green animate-pulse'}`}></div>
                 INTEL_FEED :: {isLoading ? 'SYNCING...' : 'LIVE'}
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-black uppercase">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-black uppercase">
                 <button onClick={() => toggleSeries('street')} className={`transition-all ${visibleSeries.street ? 'text-xmr-green' : 'text-xmr-dim opacity-30'}`}>◼ STREET</button>
                 <button onClick={() => toggleSeries('paper')} className={`transition-all ${visibleSeries.paper ? 'text-xmr-green opacity-50' : 'text-xmr-dim opacity-30'}`}>-- PAPER</button>
                 {hasDeepIntel && (

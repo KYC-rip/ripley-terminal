@@ -222,7 +222,7 @@ export function CurrencySelector({
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               ) : (
-                <span className="text-[9px] font-bold text-[var(--local-brand)]">
+                <span className="text-[11px] font-bold text-[var(--local-brand)]">
                   {selected.ticker.substring(0, 2).toUpperCase()}
                 </span>
               )}
@@ -332,7 +332,7 @@ export function CurrencySelector({
                                   loading="lazy"
                                 />
                               ) : (
-                                <div className="text-[10px] text-[var(--local-text-dim)]">
+                                <div className="text-xs text-[var(--local-text-dim)]">
                                   {c.ticker.substring(0, 1).toUpperCase()}
                                 </div>
                               )}
@@ -346,7 +346,7 @@ export function CurrencySelector({
                               >
                                 {c.ticker.toUpperCase()}
                               </div>
-                              <div className="text-[10px] text-[var(--local-text-dim)] flex items-center gap-2">
+                              <div className="text-xs text-[var(--local-text-dim)] flex items-center gap-2">
                                 {c.name}
                                 <span className="bg-[var(--color-xmr-surface)] border border-[var(--local-border)] px-1 rounded text-[var(--local-text-dim)]/80">
                                   {c.network}
@@ -361,7 +361,7 @@ export function CurrencySelector({
                       );
                     })}
                     {filteredList.length > 100 && (
-                      <div className="text-center py-2 text-[10px] text-[var(--local-text-dim)] border-t border-[var(--local-border)] mt-2">
+                      <div className="text-center py-2 text-xs text-[var(--local-text-dim)] border-t border-[var(--local-border)] mt-2">
                         + {filteredList.length - 100} MORE COINS... SEARCH TO
                         FIND
                       </div>
@@ -372,7 +372,7 @@ export function CurrencySelector({
 
               {/* Footer Status */}
               {!loading && (
-                <div className="p-2 border-t border-[var(--local-border)] bg-[var(--color-xmr-surface)] text-[10px] text-[var(--local-text-dim)] flex justify-between rounded-b-lg font-mono">
+                <div className="p-2 border-t border-[var(--local-border)] bg-[var(--color-xmr-surface)] text-xs text-[var(--local-text-dim)] flex justify-between rounded-b-lg font-mono">
                   <span>STATUS: ONLINE</span>
                   <span>{includedCurrencies.length} ASSETS</span>
                 </div>

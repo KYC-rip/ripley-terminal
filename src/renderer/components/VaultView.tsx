@@ -130,12 +130,12 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       {/* 1. HEADER */}
       <div className="flex justify-between items-end border-b border-xmr-border/30 pb-4 relative z-10 font-black">
         <div>
-          <button onClick={() => setView('home')} className="text-[10px] text-xmr-dim hover:text-xmr-green mb-1 flex items-center gap-1 cursor-pointer font-black transition-all uppercase tracking-widest">[ DASHBOARD ]</button>
+          <button onClick={() => setView('home')} className="text-xs text-xmr-dim hover:text-xmr-green mb-1 flex items-center gap-1 cursor-pointer font-black transition-all uppercase tracking-widest">[ DASHBOARD ]</button>
           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2>
         </div>
         <div className="flex gap-2 font-black">
-          <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[9px] hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
-          <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[9px] hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black">
+          <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[11px] hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
+          <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[11px] hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black">
             <RefreshCw size={10} className={isSyncing || isSending ? 'animate-spin' : ''} /> Sync_Ledger
           </button>
         </div>
@@ -145,7 +145,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       {isSyncing && (
         <div className="flex items-center gap-3 px-4 py-3 bg-xmr-accent/10 border border-xmr-accent/30 rounded-sm animate-pulse">
           <Loader2 size={14} className="text-xmr-accent animate-spin shrink-0" />
-          <span className="text-[10px] font-black text-xmr-accent uppercase tracking-widest leading-relaxed">
+          <span className="text-xs font-black text-xmr-accent uppercase tracking-widest leading-relaxed">
             Synchronizing_Ledger... Height: {currentHeight || '---'}
             {totalHeight > 0 && currentHeight > 0 ? ` ( ${Math.max(0, totalHeight - currentHeight)} BLOCKS LEFT : ${syncPercent?.toFixed(2)}% )` : ''}
             — Send/Receive disabled until sync completes
@@ -171,7 +171,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
                       {currentAcc?.label || 'UNTITLED_IDENTITY'}
                     </span>
                   </div>
-                  <span className="text-[10px] text-xmr-dim font-black opacity-50 group-hover:text-xmr-green transition-colors ml-4">▼</span>
+                  <span className="text-xs text-xmr-dim font-black opacity-50 group-hover:text-xmr-green transition-colors ml-4">▼</span>
                 </div>
               </div>
 
@@ -201,39 +201,39 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
                 className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${isChurning ? 'animate-pulse' : ''}`}
               >
                 <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
-                <span className="text-[8px] font-black uppercase tracking-widest">
+                <span className="text-xs font-black uppercase tracking-widest">
                   {isChurning ? 'Churning...' : 'Churn_All'}
                 </span>
               </button>
             </div>
           </div>
           <div className="flex gap-12 border-t border-xmr-border/20 pt-6 uppercase font-black">
-            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Unlocked</span><div className="text-2xl font-black text-xmr-green">{parseFloat(currentAcc?.unlockedBalance || '0').toFixed(4)}</div></div>
-            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Active_Outputs</span><div className="text-2xl font-black opacity-40 text-xmr-green">{outputs?.length || 0}</div></div>
+            <div><span className="text-xs font-black text-xmr-dim uppercase">Unlocked</span><div className="text-2xl font-black text-xmr-green">{parseFloat(currentAcc?.unlockedBalance || '0').toFixed(4)}</div></div>
+            <div><span className="text-xs font-black text-xmr-dim uppercase">Active_Outputs</span><div className="text-2xl font-black opacity-40 text-xmr-green">{outputs?.length || 0}</div></div>
           </div>
         </Card>
 
         <div className="flex flex-col gap-6 font-black">
           <Card className="flex-grow flex flex-col justify-between p-4!">
             <div className="flex justify-between items-start font-black">
-              <span className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Identity_Status</span>
+              <span className="text-xs text-xmr-dim uppercase tracking-widest font-black">Identity_Status</span>
               <button onClick={revealSeed} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer">
                 <Key size={16} />
               </button>
             </div>
             <div className="p-3 bg-xmr-base border border-xmr-border/30 rounded-sm font-black overflow-hidden">
-              <div className="flex justify-between items-center mb-1 font-black"><span className="text-[8px] opacity-50 text-xmr-green font-black uppercase">SESSION_ADDRESS</span></div>
-              <AddressDisplay address={address} className="text-[9px] " />
+              <div className="flex justify-between items-center mb-1 font-black"><span className="text-xs opacity-50 text-xmr-green font-black uppercase">SESSION_ADDRESS</span></div>
+              <AddressDisplay address={address} className="text-[11px] " />
             </div>
             <div className="space-y-1.5 border-t border-xmr-border/20 pt-4 font-black">
-              <div className="flex justify-between text-[9px] uppercase font-black">
+              <div className="flex justify-between text-[11px] uppercase font-black">
                 <span className="opacity-40 text-xmr-green">Uplink:</span>
                 <span className={`font-black flex items-center gap-1.5 ${isSyncing ? 'text-xmr-accent animate-pulse' : 'text-xmr-green'}`}>
                   {isSyncing && <Loader2 size={10} className="animate-spin" />}
                   {status}
                 </span>
               </div>
-              <div className="flex justify-between text-[9px] uppercase font-black"><span className="opacity-40 text-xmr-green">Height:</span><span className="text-xmr-green">{currentHeight || '---'}</span></div>
+              <div className="flex justify-between text-[11px] uppercase font-black"><span className="opacity-40 text-xmr-green">Height:</span><span className="text-xmr-green">{currentHeight || '---'}</span></div>
             </div>
           </Card>
           <div className="grid grid-cols-2 gap-4 font-black">
@@ -249,7 +249,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           <button
             key={t}
             onClick={() => setTab(t as any)}
-            className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${tab === t ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-transparent text-xmr-dim hover:text-xmr-green'}`}
+            className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${tab === t ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-transparent text-xmr-dim hover:text-xmr-green'}`}
           >
             {t.replace('_', ' ')}
           </button>
@@ -312,7 +312,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
               </button>
             </div>
 
-            <div className="flex px-6 py-3 border-b border-xmr-border/20 text-[9px] uppercase font-black text-xmr-dim tracking-widest bg-xmr-base">
+            <div className="flex px-6 py-3 border-b border-xmr-border/20 text-[11px] uppercase font-black text-xmr-dim tracking-widest bg-xmr-base">
               <div className="w-12">IDX</div>
               <div className="flex-1">Identity & Address</div>
               <div className="w-24 text-right">Balance</div>
@@ -373,13 +373,13 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
                         </button>
                       </div>
                     )}
-                    <span className="text-[10px] text-xmr-dim font-black tracking-widest opacity-60">
+                    <span className="text-xs text-xmr-dim font-black tracking-widest opacity-60">
                       {acc.baseAddress?.substring(0, 16)}...{acc.baseAddress?.substring(acc.baseAddress.length - 8)}
                     </span>
                   </div>
                   <div className="w-24 text-right flex flex-col justify-center items-end">
                     <span className="text-sm text-xmr-green font-black">{parseFloat(acc.balance).toFixed(4)}</span>
-                    <span className="text-[9px] text-xmr-dim font-black uppercase mt-0.5">XMR</span>
+                    <span className="text-[11px] text-xmr-dim font-black uppercase mt-0.5">XMR</span>
                   </div>
                 </div>
               ))}

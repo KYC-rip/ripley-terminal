@@ -16,7 +16,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
 
   const Row = ({ label, value, highlight = false, alert = false }: any) => (
     <div className="flex justify-between items-center py-1.5 border-b border-xmr-border/10 group/row">
-      <span className="text-[10px] text-xmr-dim uppercase tracking-wider group-hover/row:text-xmr-green transition-colors">{label}</span>
+      <span className="text-xs text-xmr-dim uppercase tracking-wider group-hover/row:text-xmr-green transition-colors">{label}</span>
       <span className={`text-[11px] font-black tracking-tight ${alert ? 'text-xmr-accent animate-pulse' : (highlight ? 'text-xmr-green' : 'text-xmr-green/80')}`}>
         {loading ? '---' : value}
       </span>
@@ -32,7 +32,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
         </div>
         
         <div className="relative z-10 space-y-4 text-center md:text-left">
-           <div className="flex items-center gap-2 text-xmr-dim text-[10px] font-black uppercase tracking-[0.4em]">
+           <div className="flex items-center gap-2 text-xmr-dim text-xs font-black uppercase tracking-[0.4em]">
               <div className="w-2 h-2 bg-xmr-green rounded-full animate-pulse"></div>
               Real_Market_Price (No-KYC)
            </div>
@@ -41,30 +41,30 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
                 ${loading ? '---.--' : stats?.price.street}
               </h1>
               {!loading && stats?.price.premium && (
-                <div className="absolute -top-2 -right-12 px-2 py-0.5 border border-xmr-accent text-xmr-accent text-[9px] font-black rotate-12 bg-xmr-base">
+                <div className="absolute -top-2 -right-12 px-2 py-0.5 border border-xmr-accent text-xmr-accent text-[11px] font-black rotate-12 bg-xmr-base">
                   +{stats?.price.premium}% PREMIUM
                 </div>
               )}
            </div>
-           <div className="text-[10px] text-xmr-dim font-black uppercase tracking-widest flex items-center gap-4">
+           <div className="text-xs text-xmr-dim font-black uppercase tracking-widest flex items-center gap-4">
               <span>Paper_Price: <span className="line-through opacity-50">${stats?.price.paper || '---.--'}</span></span>
               <span>Source: <span className="text-xmr-green">[{stats?.price.source || 'SCANNING'}]</span></span>
            </div>
         </div>
 
         <div className="relative z-10 w-full md:w-64 space-y-3 bg-xmr-green/[0.03] p-4 border border-xmr-border/30 backdrop-blur-md">
-           <div className="text-[9px] font-black text-xmr-green border-b border-xmr-border/20 pb-2 mb-2 uppercase italic flex items-center gap-2">
+           <div className="text-[11px] font-black text-xmr-green border-b border-xmr-border/20 pb-2 mb-2 uppercase italic flex items-center gap-2">
               <TrendingUp size={12} /> Quick_Stats
            </div>
-           <div className="flex justify-between text-[10px] font-black">
+           <div className="flex justify-between text-xs font-black">
               <span className="text-xmr-dim uppercase">24H_Pulse</span>
               <span className="text-xmr-green">{stats?.network.tx_count_24h?.toLocaleString() || '---'} TXs</span>
            </div>
-           <div className="flex justify-between text-[10px] font-black">
+           <div className="flex justify-between text-xs font-black">
               <span className="text-xmr-dim uppercase">Privacy_Score</span>
               <span className="text-xmr-green">{stats?.resistance.privacy_percentage || '--'}%</span>
            </div>
-           <div className="flex justify-between text-[10px] font-black">
+           <div className="flex justify-between text-xs font-black">
               <span className="text-xmr-dim uppercase">CEX_Status</span>
               <span className="text-xmr-accent animate-pulse">{stats?.resistance.cex_status || 'OK'}</span>
            </div>
@@ -108,7 +108,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
             <Card topGradientAccentColor="xmr-green" className="hover:bg-xmr-green/5 transition-all relative overflow-hidden h-full">
                <Lock size={20} className="mb-4 text-xmr-green" />
                <h4 className="text-xs font-black uppercase text-xmr-green mb-1">Vault_Access</h4>
-               <p className="text-[8px] text-xmr-dim uppercase leading-tight">Secure ledger management and subaddress generation.</p>
+               <p className="text-xs text-xmr-dim uppercase leading-tight">Secure ledger management and subaddress generation.</p>
                <div className="absolute -bottom-2 -right-2 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity"><Lock size={80}/></div>
             </Card>
          </button>
@@ -117,7 +117,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
             <Card topGradientAccentColor="xmr-accent" className="hover:bg-xmr-accent/5 transition-all relative overflow-hidden h-full">
                <Ghost size={20} className="mb-4 text-xmr-accent" />
                  <h4 className="text-xs font-black uppercase text-xmr-accent mb-1">Ghost_Send</h4>
-                 <p className="text-[8px] text-xmr-dim uppercase leading-tight">Send XMR — receiver gets any asset. Zero identity link.</p>
+                 <p className="text-xs text-xmr-dim uppercase leading-tight">Send XMR — receiver gets any asset. Zero identity link.</p>
                <div className="absolute -bottom-2 -right-2 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity"><Ghost size={80}/></div>
             </Card>
          </button>
@@ -125,9 +125,9 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
          <Card topGradientAccentColor="xmr-dim" className="flex flex-col justify-center relative overflow-hidden">
             <div className="flex items-center gap-3 text-red-500 animate-pulse">
                <AlertTriangle size={20} />
-               <span className="text-[10px] font-black uppercase tracking-tighter">Sentinel_Active</span>
+               <span className="text-xs font-black uppercase tracking-tighter">Sentinel_Active</span>
             </div>
-            <p className="text-[8px] text-xmr-dim uppercase mt-2 leading-relaxed">
+            <p className="text-xs text-xmr-dim uppercase mt-2 leading-relaxed">
                Local environment is hardware-isolated. All outgoing traffic is routed through encrypted SOCKS5 tunnels.
             </p>
          </Card>
@@ -135,7 +135,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
 
       {/* 4. LOCAL TACTICAL CHART */}
       <Card withGlow={false} noPadding className="border-xmr-border/30 overflow-hidden">
-         <Suspense fallback={<div className="h-64 flex items-center justify-center text-[10px] text-xmr-dim uppercase tracking-widest animate-pulse font-black">Initializing_Chart_Engine...</div>}>
+         <Suspense fallback={<div className="h-64 flex items-center justify-center text-xs text-xmr-dim uppercase tracking-widest animate-pulse font-black">Initializing_Chart_Engine...</div>}>
             <SpreadChart />
          </Suspense>
       </Card>

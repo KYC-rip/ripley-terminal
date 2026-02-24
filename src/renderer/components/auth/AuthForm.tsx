@@ -42,7 +42,7 @@ export function AuthForm({
     return (
       <form onSubmit={(e) => { e.preventDefault(); if(newName) setStep('MODE'); }} className="space-y-4 animate-in fade-in duration-300">
          <div className="space-y-1">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Identity_Label</label>
+            <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Identity_Label</label>
             <input autoFocus type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. PRIMARY_VAULT" className="w-full bg-xmr-base border border-xmr-border p-3 text-lg font-black text-xmr-green outline-none focus:border-xmr-green transition-all" />
          </div>
          <button type="button" onClick={() => { if(newName) setStep('MODE'); }} disabled={!newName} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all disabled:opacity-30 cursor-pointer">Next_Step</button>
@@ -55,13 +55,13 @@ export function AuthForm({
       <div className="grid grid-cols-1 gap-3 animate-in fade-in duration-300">
          <button type="button" onClick={() => setStep('NEW_PASSWORD')} className="p-5 border border-xmr-border bg-xmr-green/5 hover:border-xmr-green hover:bg-xmr-green/10 transition-all text-left group">
             <div className="flex items-center gap-3 mb-1"><Sparkles className="text-xmr-green" size={18} /><span className="text-sm font-black uppercase text-xmr-green">Generate_New</span></div>
-            <p className="text-[8px] text-xmr-dim uppercase">Derive fresh 25-word mnemonic phrase.</p>
+            <p className="text-xs text-xmr-dim uppercase">Derive fresh 25-word mnemonic phrase.</p>
          </button>
          <button type="button" onClick={() => setStep('RESTORE')} className="p-5 border border-xmr-border bg-xmr-accent/5 hover:border-xmr-accent hover:bg-xmr-accent/10 transition-all text-left group">
             <div className="flex items-center gap-3 mb-1"><Download className="text-xmr-accent" size={18} /><span className="text-sm font-black uppercase text-xmr-accent">Restore_Existing</span></div>
-            <p className="text-[8px] text-xmr-dim uppercase">Import identity from private backup seed.</p>
+            <p className="text-xs text-xmr-dim uppercase">Import identity from private backup seed.</p>
          </button>
-         <button type="button" onClick={() => { if(isInitialSetup) setStep('LABEL'); else setStep('AUTH'); }} className="mt-2 text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
+         <button type="button" onClick={() => { if(isInitialSetup) setStep('LABEL'); else setStep('AUTH'); }} className="mt-2 text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
       </div>
     );
   }
@@ -71,20 +71,20 @@ export function AuthForm({
       {step === 'RESTORE' && (
         <div className="space-y-3">
           <div className="space-y-1">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex justify-between"><span>Mnemonic_Seed (25 words)</span><span className="text-xmr-accent font-black">STANDARD_ONLY</span></label>
-            <textarea rows={2} value={restoreSeed} onChange={(e) => setRestoreSeed(e.target.value)} placeholder="word1 word2 ..." className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none resize-none" />
+            <label className="text-[11px] font-black text-xmr-dim uppercase ml-1 flex justify-between"><span>Mnemonic_Seed (25 words)</span><span className="text-xmr-accent font-black">STANDARD_ONLY</span></label>
+            <textarea rows={2} value={restoreSeed} onChange={(e) => setRestoreSeed(e.target.value)} placeholder="word1 word2 ..." className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Calendar size={10} /> Restore_Height (Optional)</label>
-              <input type="number" value={restoreHeight} onChange={(e) => setRestoreHeight(e.target.value)} placeholder="e.g. 3000000" className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none" />
+              <label className="text-[11px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Calendar size={10} /> Restore_Height (Optional)</label>
+              <input type="number" value={restoreHeight} onChange={(e) => setRestoreHeight(e.target.value)} placeholder="e.g. 3000000" className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none" />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Seed_Language</label>
+              <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Seed_Language</label>
               <select
                 value={seedLanguage}
                 onChange={(e) => setSeedLanguage(e.target.value)}
-                className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none cursor-pointer"
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none cursor-pointer"
               >
                 <option value="English">English</option>
                 <option value="Chinese (Simplified)">Chinese (Simplified)</option>
@@ -105,7 +105,7 @@ export function AuthForm({
       )}
 
       <div className="space-y-1">
-        <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">{step === 'AUTH' ? 'Vault_Secret' : 'Set_Master_Password'}</label>
+        <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">{step === 'AUTH' ? 'Vault_Secret' : 'Set_Master_Password'}</label>
         <div className="relative">
           <input autoFocus type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-2 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
           <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-xmr-dim opacity-30" size={20} />
@@ -114,17 +114,17 @@ export function AuthForm({
 
       {step !== 'AUTH' && (
         <div className="space-y-1">
-          <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Confirm_Password</label>
+          <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Confirm_Password</label>
           <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-2 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
         </div>
       )}
 
-      {error && <div className="p-3 bg-red-900/20 border border-red-600/50 text-red-500 text-[10px] font-black uppercase flex items-center gap-2 animate-shake"><Skull size={14} /> {error}</div>}
+      {error && <div className="p-3 bg-red-900/20 border border-red-600/50 text-red-500 text-xs font-black uppercase flex items-center gap-2 animate-shake"><Skull size={14} /> {error}</div>}
 
       {isProcessing && logs.length > 0 && (
         <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">
            {logs.slice(0, 3).map((log, i) => (
-             <p key={i} className={`text-[8px] uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>
+             <p key={i} className={`text-xs uppercase truncate font-black ${i === 0 ? 'text-xmr-green' : 'text-xmr-dim opacity-60'}`}>
                {'>'} {log.msg}
              </p>
            ))}
@@ -137,7 +137,7 @@ export function AuthForm({
         </button>
         
         {!isProcessing && step !== 'AUTH' && (
-           <button type="button" onClick={() => setStep('MODE')} className="w-full text-[9px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back_To_Strategy</button>
+           <button type="button" onClick={() => setStep('MODE')} className="w-full text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back_To_Strategy</button>
         )}
       </div>
     </form>

@@ -243,7 +243,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
           <div className="absolute inset-0 z-10 bg-xmr-surface/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 animate-in fade-in duration-200">
             <Lock size={36} className="text-xmr-accent mb-4" />
             <h4 className="text-sm font-black uppercase text-xmr-accent tracking-widest mb-1">Authorization Required</h4>
-            <p className="text-[9px] text-xmr-dim uppercase tracking-wider mb-6">Enter vault password to authorize transaction</p>
+            <p className="text-[11px] text-xmr-dim uppercase tracking-wider mb-6">Enter vault password to authorize transaction</p>
             <input
               autoFocus type="password" value={password}
               onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
@@ -251,10 +251,10 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
               placeholder="••••••••••••"
               className={`w-full max-w-xs bg-xmr-base border p-3 text-xl font-black text-xmr-green text-center focus:border-xmr-accent outline-none transition-all ${passwordError ? 'border-red-600' : 'border-xmr-border'}`}
             />
-            {passwordError && <div className="text-[9px] text-red-500 uppercase mt-2 animate-pulse">{passwordError}</div>}
+            {passwordError && <div className="text-[11px] text-red-500 uppercase mt-2 animate-pulse">{passwordError}</div>}
             <div className="flex gap-3 mt-6 w-full max-w-xs">
-              <button onClick={() => setShowPasswordGate(false)} className="flex-1 py-2.5 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[9px] cursor-pointer hover:border-xmr-accent transition-colors">Cancel</button>
-              <button onClick={verifyAndExecute} disabled={!password || isVerifying} className="flex-1 py-2.5 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[9px] cursor-pointer hover:bg-xmr-green transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              <button onClick={() => setShowPasswordGate(false)} className="flex-1 py-2.5 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[11px] cursor-pointer hover:border-xmr-accent transition-colors">Cancel</button>
+              <button onClick={verifyAndExecute} disabled={!password || isVerifying} className="flex-1 py-2.5 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[11px] cursor-pointer hover:bg-xmr-green transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                 {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <Lock size={12} />}
                 {isVerifying ? 'Verifying...' : 'Authorize'}
               </button>
@@ -266,7 +266,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
         <div className="flex items-center justify-between px-6 py-4 border-b border-xmr-border/40">
           <div>
             <h3 className="text-lg font-black italic uppercase text-xmr-accent tracking-tight">Dispatch_Sequence</h3>
-            <p className="text-[9px] text-xmr-dim uppercase tracking-widest mt-0.5">
+            <p className="text-[11px] text-xmr-dim uppercase tracking-widest mt-0.5">
               {sourceSubaddressIndex !== undefined ? `Source: Subaddress #${sourceSubaddressIndex}` : 'Outbound transfer'}
             </p>
           </div>
@@ -280,7 +280,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
             { id: 'ghost' as const, label: 'Ghost Send', icon: <Ghost size={12} /> },
           ]).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 tab === t.id ? 'text-xmr-accent border-b-2 border-xmr-accent bg-xmr-accent/5' : 'text-xmr-dim hover:text-xmr-accent/70'
               }`}
             >{t.icon} {t.label}</button>
@@ -296,9 +296,9 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
               <div className="py-12 flex flex-col items-center gap-4 text-center">
                 <CheckCircle2 size={48} className="text-xmr-green" />
                 <div className="text-sm uppercase text-xmr-green font-black">Transaction Dispatched</div>
-                {directTxHash && <div className="text-[9px] font-mono text-xmr-dim break-all max-w-sm">{directTxHash}</div>}
-                {sendMode === 'multi' && <div className="text-[9px] text-xmr-dim">{parsed.destinations.length} recipients • {multiTotal.toFixed(4)} XMR total</div>}
-                <button onClick={onClose} className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-[10px] uppercase tracking-widest cursor-pointer">Close</button>
+                {directTxHash && <div className="text-[11px] font-mono text-xmr-dim break-all max-w-sm">{directTxHash}</div>}
+                {sendMode === 'multi' && <div className="text-[11px] text-xmr-dim">{parsed.destinations.length} recipients • {multiTotal.toFixed(4)} XMR total</div>}
+                <button onClick={onClose} className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-xs uppercase tracking-widest cursor-pointer">Close</button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -306,7 +306,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                   <div className="flex gap-2">
                     {(['single', 'multi'] as const).map(m => (
                       <button key={m} onClick={() => setSendMode(m)}
-                        className={`flex-1 py-1.5 text-[8px] font-black uppercase tracking-widest border transition-all cursor-pointer ${sendMode === m ? 'border-xmr-accent text-xmr-accent bg-xmr-accent/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-accent/50'
+                        className={`flex-1 py-1.5 text-xs font-black uppercase tracking-widest border transition-all cursor-pointer ${sendMode === m ? 'border-xmr-accent text-xmr-accent bg-xmr-accent/5' : 'border-xmr-border text-xmr-dim hover:border-xmr-accent/50'
                           }`}
                       >{m === 'single' ? 'Single Send' : 'Multi-Send'}</button>
                     ))}
@@ -316,15 +316,15 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                     <>
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Destination</label>
-                          {isBanned && <span className="text-[8px] text-red-500 animate-pulse uppercase">Intercepted</span>}
+                          <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Destination</label>
+                          {isBanned && <span className="text-xs text-red-500 animate-pulse uppercase">Intercepted</span>}
                         </div>
                         <input type="text" value={destAddr} onChange={(e) => setDestAddr(e.target.value)} placeholder="4... / 8..."
-                          className={`w-full bg-xmr-base border p-3 text-[10px] text-xmr-green focus:border-xmr-accent outline-none transition-colors ${isBanned ? 'border-red-600' : 'border-xmr-border'}`}
+                          className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${isBanned ? 'border-red-600' : 'border-xmr-border'}`}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><DollarSign size={10} /> Amount (XMR)</label>
+                        <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><DollarSign size={10} /> Amount (XMR)</label>
                         <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00"
                           className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none"
                         />
@@ -332,21 +332,21 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                     </>
                   ) : (
                     <div className="space-y-1.5">
-                      <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Send size={10} /> Recipients (address, amount per line)</label>
+                      <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Send size={10} /> Recipients (address, amount per line)</label>
                       <textarea
                         value={multiText} onChange={(e) => setMultiText(e.target.value)}
                         placeholder={"4...address1, 0.5\n8...address2, 1.2\n4...address3, 0.05"}
                         rows={5}
-                        className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-accent outline-none font-mono resize-y"
+                        className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none font-mono resize-y"
                       />
                       {parsed.destinations.length > 0 && (
-                        <div className="flex justify-between text-[8px] uppercase">
+                        <div className="flex justify-between text-xs uppercase">
                           <span className="text-xmr-green">{parsed.destinations.length} recipient(s)</span>
                           <span className="text-xmr-accent">Total: {multiTotal.toFixed(6)} XMR</span>
                         </div>
                       )}
                       {parsed.errors.length > 0 && (
-                        <div className="text-[8px] text-red-500 space-y-0.5">{parsed.errors.map((e, i) => <div key={i}>{e}</div>)}</div>
+                        <div className="text-xs text-red-500 space-y-0.5">{parsed.errors.map((e, i) => <div key={i}>{e}</div>)}</div>
                       )}
                     </div>
                   )}
@@ -354,7 +354,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                   {/* ── Advanced Coin Control ── */}
                   <div className="border border-xmr-border/30 rounded-sm overflow-hidden">
                     <button onClick={() => setShowCoinControl(!showCoinControl)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-[8px] text-xmr-dim uppercase tracking-widest hover:bg-xmr-green/5 transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-xmr-dim uppercase tracking-widest hover:bg-xmr-green/5 transition-colors cursor-pointer"
                     >
                       <span className="flex items-center gap-1.5"><Coins size={10} /> Coin Control {selectedOutputs.size > 0 && `(${selectedOutputs.size} selected)`}</span>
                       {showCoinControl ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -362,9 +362,9 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                     {showCoinControl && (
                       <div className="border-t border-xmr-border/20 max-h-[150px] overflow-y-auto custom-scrollbar">
                         {availableOutputs.length === 0 ? (
-                          <div className="px-3 py-4 text-[8px] text-xmr-dim text-center uppercase">No unlocked outputs available</div>
+                          <div className="px-3 py-4 text-xs text-xmr-dim text-center uppercase">No unlocked outputs available</div>
                         ) : (
-                          <table className="w-full text-[8px]">
+                          <table className="w-full text-xs">
                             <tbody>
                               {availableOutputs.map((o: any, i: number) => (
                                 <tr key={i} onClick={() => toggleOutput(o.keyImage)}
@@ -383,7 +383,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                           </table>
                         )}
                         {selectedOutputs.size > 0 && (
-                          <div className="px-3 py-1.5 border-t border-xmr-border/20 text-[8px] flex justify-between text-xmr-accent uppercase">
+                          <div className="px-3 py-1.5 border-t border-xmr-border/20 text-xs flex justify-between text-xmr-accent uppercase">
                             <span>Selected: {selectedOutputs.size} coins</span>
                             <span>{selectedTotal.toFixed(6)} XMR</span>
                           </div>
@@ -412,25 +412,25 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
             <>
               {ghostPhase === 'configure' && (
                 <div className="space-y-4">
-                  <div className="bg-xmr-green/5 border border-xmr-green/20 p-3 text-[9px] text-xmr-green/80 uppercase tracking-wider">
+                  <div className="bg-xmr-green/5 border border-xmr-green/20 p-3 text-[11px] text-xmr-green/80 uppercase tracking-wider">
                     You send XMR • Receiver gets their chosen asset • No identity link
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Ghost size={10} /> Receiver's Asset</label>
+                    <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Ghost size={10} /> Receiver's Asset</label>
                     {ghostCurrency && <CurrencySelector selected={ghostCurrency} onSelect={setGhostCurrency} label="" currencies={currencies} />}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Receiver's Address</label>
+                    <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Receiver's Address</label>
                     <input type="text" value={ghostReceiverAddr} onChange={(e) => setGhostReceiverAddr(e.target.value)}
                       placeholder={`${ghostCurrency?.ticker.toUpperCase() || 'Asset'} address`}
-                      className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-accent outline-none"
+                      className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><DollarSign size={10} /> XMR to Spend</label>
+                    <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><DollarSign size={10} /> XMR to Spend</label>
                     <input type="number" value={ghostXmrAmount} onChange={(e) => setGhostXmrAmount(e.target.value)} placeholder="0.00"
                       className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none"
                     />
@@ -442,7 +442,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                   <button
                     disabled={!ghostReceiverAddr || !ghostXmrAmount || parseFloat(ghostXmrAmount) <= 0}
                     onClick={handleGetQuote}
-                    className="w-full py-3 bg-xmr-accent/20 border border-xmr-accent/40 text-xmr-accent font-black uppercase tracking-widest text-[10px] transition-all hover:bg-xmr-accent/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-xmr-accent/20 border border-xmr-accent/40 text-xmr-accent font-black uppercase tracking-widest text-xs transition-all hover:bg-xmr-accent/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                   ><ArrowRight size={14} /> Get Quote</button>
                 </div>
               )}
@@ -450,33 +450,33 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
               {ghostPhase === 'quoting' && (
                 <div className="py-16 flex flex-col items-center gap-3 text-xmr-accent/60 animate-pulse">
                   <Loader2 size={32} className="animate-spin" />
-                  <span className="text-[9px] uppercase font-mono tracking-widest">Fetching best rate...</span>
+                  <span className="text-[11px] uppercase font-mono tracking-widest">Fetching best rate...</span>
                 </div>
               )}
 
               {ghostPhase === 'quoted' && quote && (
                 <div className="space-y-5">
                   <div className="bg-xmr-base border border-xmr-border p-4 space-y-3">
-                    <div className="text-[9px] text-xmr-dim uppercase tracking-widest">Quote Summary</div>
+                    <div className="text-[11px] text-xmr-dim uppercase tracking-widest">Quote Summary</div>
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-lg font-black text-xmr-accent">{quote.amount_from} XMR</div>
-                        <div className="text-[8px] text-xmr-dim uppercase">You send</div>
+                        <div className="text-xs text-xmr-dim uppercase">You send</div>
                       </div>
                       <ArrowRight size={20} className="text-xmr-dim" />
                       <div className="text-right">
                         <div className="text-lg font-black text-xmr-green">{quote.amount_to.toFixed(6)} {ghostCurrency?.ticker.toUpperCase()}</div>
-                        <div className="text-[8px] text-xmr-dim uppercase">Receiver gets</div>
+                        <div className="text-xs text-xmr-dim uppercase">Receiver gets</div>
                       </div>
                     </div>
-                    <div className="flex justify-between text-[8px] text-xmr-dim uppercase pt-2 border-t border-xmr-border/20">
+                    <div className="flex justify-between text-xs text-xmr-dim uppercase pt-2 border-t border-xmr-border/20">
                       <span>Provider: {quote.routes?.[0]?.provider || quote.provider}</span>
                       <span>ETA: ~{quote.eta || quote.routes?.[0]?.eta || '?'} min</span>
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <button onClick={resetGhost} className="flex-1 py-3 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[9px] cursor-pointer hover:border-xmr-accent transition-colors">Revise</button>
-                    <button onClick={handleGhostExecute} className="flex-1 py-3 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[9px] cursor-pointer hover:bg-xmr-green transition-colors flex items-center justify-center gap-2">
+                    <button onClick={resetGhost} className="flex-1 py-3 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[11px] cursor-pointer hover:border-xmr-accent transition-colors">Revise</button>
+                    <button onClick={handleGhostExecute} className="flex-1 py-3 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[11px] cursor-pointer hover:bg-xmr-green transition-colors flex items-center justify-center gap-2">
                       <Ghost size={14} /> Execute Ghost Send
                     </button>
                   </div>
@@ -486,7 +486,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
               {(ghostPhase === 'creating' || ghostPhase === 'sending') && (
                 <div className="py-16 flex flex-col items-center gap-4 text-xmr-accent/60">
                   <Loader2 size={32} className="animate-spin" />
-                  <span className="text-[9px] uppercase font-mono tracking-widest animate-pulse">
+                  <span className="text-[11px] uppercase font-mono tracking-widest animate-pulse">
                     {ghostPhase === 'creating' ? 'Creating trade...' : 'Dispatching XMR to relay...'}
                   </span>
                 </div>
@@ -496,15 +496,15 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 <div className="py-8 flex flex-col items-center gap-4">
                   <RefreshCw size={32} className="text-xmr-accent animate-spin" />
                   <div className="text-sm uppercase text-xmr-accent font-black">Ghost Protocol Active</div>
-                  <div className="text-[9px] text-xmr-dim uppercase tracking-widest">Status: <span className="text-xmr-green">{tradeStatus}</span></div>
+                  <div className="text-[11px] text-xmr-dim uppercase tracking-widest">Status: <span className="text-xmr-green">{tradeStatus}</span></div>
                   {tradeResponse && (
-                    <div className="w-full bg-xmr-base border border-xmr-border p-3 mt-2 text-[8px] font-mono text-xmr-dim space-y-1">
+                    <div className="w-full bg-xmr-base border border-xmr-border p-3 mt-2 text-xs font-mono text-xmr-dim space-y-1">
                       <div>Trade ID: <span className="text-xmr-green">{tradeResponse.trade_id || tradeResponse.id}</span></div>
                       <div>Deposit: <span className="text-xmr-green">{tradeResponse.deposit_amount || tradeResponse.amount_from} XMR</span></div>
                       <div>Receiving: <span className="text-xmr-green">{tradeResponse.amount_to} {tradeResponse.ticker_to?.toUpperCase()}</span></div>
                     </div>
                   )}
-                  <div className="text-[8px] text-xmr-dim opacity-50 uppercase">Polling every 10s...</div>
+                  <div className="text-xs text-xmr-dim opacity-50 uppercase">Polling every 10s...</div>
                 </div>
               )}
 
@@ -512,8 +512,8 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 <div className="py-12 flex flex-col items-center gap-4 text-center">
                   <CheckCircle2 size={48} className="text-xmr-green" />
                   <div className="text-sm uppercase text-xmr-green font-black">Ghost Send Complete</div>
-                  <div className="text-[9px] text-xmr-dim uppercase">{tradeResponse?.amount_to} {tradeResponse?.ticker_to?.toUpperCase()} delivered</div>
-                  <button onClick={onClose} className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-[10px] uppercase tracking-widest cursor-pointer">Close</button>
+                  <div className="text-[11px] text-xmr-dim uppercase">{tradeResponse?.amount_to} {tradeResponse?.ticker_to?.toUpperCase()} delivered</div>
+                  <button onClick={onClose} className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-xs uppercase tracking-widest cursor-pointer">Close</button>
                 </div>
               )}
 
@@ -521,8 +521,8 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 <div className="py-12 flex flex-col items-center gap-4 text-center">
                   <AlertTriangle size={48} className="text-red-500" />
                   <div className="text-sm uppercase text-red-500 font-black">Ghost Send Failed</div>
-                  <div className="text-[9px] text-xmr-dim">{ghostError}</div>
-                  <button onClick={resetGhost} className="mt-4 px-6 py-2 border border-xmr-border text-xmr-dim text-[10px] uppercase tracking-widest cursor-pointer hover:border-xmr-accent">Retry</button>
+                  <div className="text-[11px] text-xmr-dim">{ghostError}</div>
+                  <button onClick={resetGhost} className="mt-4 px-6 py-2 border border-xmr-border text-xmr-dim text-xs uppercase tracking-widest cursor-pointer hover:border-xmr-accent">Retry</button>
                 </div>
               )}
             </>

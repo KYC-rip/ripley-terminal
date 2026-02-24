@@ -90,17 +90,17 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
           imageSettings={imgSrc ? { src: imgSrc, x: undefined, y: undefined, height: imgSize || 34, width: imgSize || 34, excavate: true } : undefined}
         />
       </div>
-      {sublabel && <div className="text-[9px] text-xmr-dim uppercase tracking-widest">{sublabel}</div>}
+      {sublabel && <div className="text-[11px] text-xmr-dim uppercase tracking-widest">{sublabel}</div>}
       <div
         onClick={onCopy}
-        className="w-full bg-xmr-base border border-xmr-border p-3 text-[9px] font-mono text-xmr-green break-all cursor-pointer hover:border-xmr-green transition-colors relative group"
+        className="w-full bg-xmr-base border border-xmr-border p-3 text-[11px] font-mono text-xmr-green break-all cursor-pointer hover:border-xmr-green transition-colors relative group"
       >
         {copyText}
         <span className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xmr-green">
           {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
         </span>
       </div>
-      {copied && <div className="text-[9px] text-xmr-green animate-pulse uppercase tracking-widest">Copied!</div>}
+      {copied && <div className="text-[11px] text-xmr-green animate-pulse uppercase tracking-widest">Copied!</div>}
     </div>
   );
 
@@ -114,7 +114,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
             <h3 className="text-lg font-black italic uppercase text-xmr-green tracking-tight">
               {existingAddress ? 'Address_Detail' : 'Incoming_Uplink'}
             </h3>
-            <p className="text-[9px] text-xmr-dim uppercase tracking-widest mt-0.5">
+            <p className="text-[11px] text-xmr-dim uppercase tracking-widest mt-0.5">
               {existingAddress ? `Subaddress #${existingAddress.index}` : 'One-time subaddress'} • {generatedAddress ? 'Ready' : 'Generating...'}
             </p>
           </div>
@@ -130,7 +130,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tab === t.id
+              className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tab === t.id
                   ? 'text-xmr-green border-b-2 border-xmr-green bg-xmr-green/5'
                   : 'text-xmr-dim hover:text-xmr-green/70'
                 }`}
@@ -146,13 +146,13 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
           {isGenerating ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-xmr-green/60 animate-pulse">
               <QrCode size={40} />
-              <span className="text-[9px] uppercase font-mono tracking-widest">Generating subaddress...</span>
+              <span className="text-[11px] uppercase font-mono tracking-widest">Generating subaddress...</span>
             </div>
           ) : (
             <>
               {/* Label */}
               <div className="space-y-1.5">
-                <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
+                <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
                   <Tag size={10} /> Label
                 </label>
                 <input
@@ -181,7 +181,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
               {tab === 'cross' && (
                 <div className="space-y-5">
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
+                    <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
                       <DollarSign size={10} /> Expected Amount <span className="opacity-50">(Optional)</span>
                     </label>
                     <input

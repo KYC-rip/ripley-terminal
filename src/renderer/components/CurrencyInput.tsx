@@ -43,7 +43,7 @@ const TokenRow = ({ token, isActive, onClick }: { token: Currency, isActive: boo
         <div className={`font-bold text-sm ${isActive ? 'text-xmr-green' : 'text-xmr-dim'}`}>
           {token.ticker.toUpperCase()}
         </div>
-        <div className="text-[10px] text-xmr-dim/70 uppercase font-bold tracking-wider flex items-center gap-2">
+        <div className="text-xs text-xmr-dim/70 uppercase font-bold tracking-wider flex items-center gap-2">
           {token.name}
           <span className="bg-xmr-surface border border-xmr-border px-1 rounded opacity-80">{token.network}</span>
         </div>
@@ -186,7 +186,7 @@ export function CurrencyInput({
 
             <div className="flex flex-col items-center justify-center h-48 space-y-2">
               <div className="w-6 h-6 border-2 border-xmr-green border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-[10px] text-xmr-dim animate-pulse">LOADING_ASSETS...</span>
+              <span className="text-xs text-xmr-dim animate-pulse">LOADING_ASSETS...</span>
             </div>
           ) : (
             <>
@@ -203,7 +203,7 @@ export function CurrencyInput({
               ))}
 
               {tokenList.length > 100 && searchTerm && (
-                <div className="text-center py-3 text-[10px] text-xmr-dim/50 border-t border-dashed border-xmr-border mt-2">
+                <div className="text-center py-3 text-xs text-xmr-dim/50 border-t border-dashed border-xmr-border mt-2">
                   ... AND MORE
                 </div>
               )}
@@ -218,7 +218,7 @@ export function CurrencyInput({
         </div>
 
         {/* Footer Status */}
-        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-[10px] text-xmr-dim flex justify-between rounded-b-lg font-mono">
+        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-xs text-xmr-dim flex justify-between rounded-b-lg font-mono">
           <span>STATUS: {isListReady ? 'ONLINE' : 'SYNCING'}</span>
           <span>{tokenList.length} ASSETS</span>
         </div>
@@ -229,7 +229,7 @@ export function CurrencyInput({
   return (
     <div className={`w-full font-mono transition-opacity duration-200 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
 
-      <div className="flex justify-between text-[10px] md:text-xs mb-2 px-1 uppercase tracking-widest text-xmr-dim">
+      <div className="flex justify-between text-xs md:text-xs mb-2 px-1 uppercase tracking-widest text-xmr-dim">
         <label className="font-bold">{label}</label>
         {currency?.balance && (
           <span
@@ -289,13 +289,13 @@ export function CurrencyInput({
           >
             {currency ? (
               <>
-                <div className="w-6 h-6 rounded-full bg-xmr-base border border-xmr-border flex items-center justify-center text-[10px] font-bold text-xmr-green overflow-hidden">
+                <div className="w-6 h-6 rounded-full bg-xmr-base border border-xmr-border flex items-center justify-center text-xs font-bold text-xmr-green overflow-hidden">
                   {currency.image ? <img src={currency.image} className="w-full h-full object-cover" /> : currency.ticker[0]}
                 </div>
 
                 <div className="flex flex-col items-start mr-1">
                   <span className="text-sm font-bold text-xmr-dim leading-none">{currency.ticker.toUpperCase()}</span>
-                  <span className="text-[9px] text-xmr-dim uppercase font-bold">{currency.network}</span>
+                  <span className="text-[11px] text-xmr-dim uppercase font-bold">{currency.network}</span>
                 </div>
               </>
             ) : (
@@ -308,14 +308,14 @@ export function CurrencyInput({
         </div>
 
         {usdValue && (
-          <div className="absolute -bottom-5 left-1 text-[9px] font-mono text-xmr-dim flex items-center gap-1">
+          <div className="absolute -bottom-5 left-1 text-[11px] font-mono text-xmr-dim flex items-center gap-1">
             ≈ ${usdValue} <span className="opacity-50">USD</span>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="text-red-500 text-[10px] mt-2 pl-1 font-bold animate-pulse flex items-center gap-1">
+        <div className="text-red-500 text-xs mt-2 pl-1 font-bold animate-pulse flex items-center gap-1">
           !!! {error}
         </div>
       )}

@@ -55,12 +55,12 @@ export function ComplianceSelector({
 
     // ✅ Modification 1: Responsive Padding (py-3 mobile, py-2 desktop) for touch-friendliness
     // ✅ Modification 2: Responsive Gap (gap-1 mobile, gap-2 desktop) to prevent wrapping on small screens
-    const baseBtn = "relative flex items-center justify-center gap-1.5 md:gap-2 py-3 md:py-2 px-1 md:px-3 rounded-sm border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex-1 font-mono text-[9px] font-bold tracking-wider";
+    const baseBtn = "relative flex items-center justify-center gap-1.5 md:gap-2 py-3 md:py-2 px-1 md:px-3 rounded-sm border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex-1 font-mono text-[11px] font-bold tracking-wider";
     const inactiveBtn = "bg-xmr-base border-xmr-border text-xmr-dim opacity-60 hover:opacity-100 hover:border-xmr-dim/50 hover:bg-xmr-surface";
 
     return (
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-xmr-dim/70 font-mono px-0.5">
+        <div className="flex items-center justify-between text-xs uppercase tracking-wider text-xmr-dim/70 font-mono px-0.5">
            <span className="flex items-center gap-2">{icon} {label}</span>
            <div className="flex gap-1">
               <div className={`h-1.5 w-1.5 rounded-full transition-colors ${currentLevel === 'ANY' ? 'bg-xmr-accent' : 'bg-xmr-border'}`} />
@@ -104,7 +104,7 @@ export function ComplianceSelector({
 
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
            {/* Summary Badge */}
-           <div className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-mono font-bold whitespace-nowrap ${summary.color} ${summary.bg}`}>
+           <div className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-mono font-bold whitespace-nowrap ${summary.color} ${summary.bg}`}>
               {summary.label === 'MAX PRIVACY' && <Lock size={10} className="shrink-0" />}
               {summary.label === 'BEST RATE (RISK)' && <Zap size={10} className="shrink-0" />}
               {summary.label === 'BALANCED' && <ShieldCheck size={10} className="shrink-0" />}
@@ -128,7 +128,7 @@ export function ComplianceSelector({
           
           {renderRow('log', value.log, (l) => onChange({ ...value, log: l }))}
 
-          <div className="text-[9px] font-mono text-center pt-1 min-h-[16px] text-xmr-dim flex flex-wrap items-center justify-center gap-2 opacity-80">
+          <div className="text-[11px] font-mono text-center pt-1 min-h-[16px] text-xmr-dim flex flex-wrap items-center justify-center gap-2 opacity-80">
              <Activity size={10} />
              <span>
                 API_FILTER :: 

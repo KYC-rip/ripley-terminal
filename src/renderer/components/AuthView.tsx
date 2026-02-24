@@ -117,7 +117,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           <h1 className="text-2xl font-black italic uppercase text-xmr-green tracking-tighter">
             {step === 'RESTORE' ? 'Identity_Recovery' : step === 'NEW_PASSWORD' ? 'Initialize_Vault' : (identities.length === 0 || step === 'LABEL') ? 'New_Tactical_ID' : 'Vault_Authorization'}
           </h1>
-          <div className="flex items-center justify-center gap-2 text-[9px] text-xmr-dim uppercase tracking-widest">
+          <div className="flex items-center justify-center gap-2 text-[11px] text-xmr-dim uppercase tracking-widest">
             <Users size={10} />
             <span>Active_ID: <span className="text-xmr-green font-black">{newName || activeIdentity?.name || 'INITIALIZING'}</span></span>
           </div>
@@ -155,12 +155,12 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             <div className="mt-6 pt-4 border-t border-xmr-border/10 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 {routingMode === 'tor' ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
-                <span className="text-[8px] font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
+                <span className="text-xs font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
               </div>
               <button
                 type="button"
                 onClick={toggleNetwork}
-                className={`px-2 py-0.5 rounded border text-[8px] font-black transition-all cursor-pointer ${routingMode === 'tor'
+                className={`px-2 py-0.5 rounded border text-xs font-black transition-all cursor-pointer ${routingMode === 'tor'
                   ? 'border-xmr-green/50 text-xmr-green hover:bg-xmr-green/10'
                   : 'border-xmr-accent/50 text-xmr-accent hover:bg-xmr-accent/10'
                   }`}
@@ -173,7 +173,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
         {/* FOOTER */}
         <div className="text-center space-y-4 pt-4">
-          <p className="text-[8px] text-xmr-dim uppercase leading-relaxed max-w-md mx-auto opacity-60 italic">
+          <p className="text-xs text-xmr-dim uppercase leading-relaxed max-w-md mx-auto opacity-60 italic">
             IMPORTANT: Local password is the only key to decrypt your vault file. <br />
             Zero-knowledge isolation active.
           </p>

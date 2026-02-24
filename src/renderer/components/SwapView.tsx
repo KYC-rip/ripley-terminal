@@ -96,12 +96,12 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
            <div className="text-center space-y-4 mb-8">
               <div className="flex justify-center"><div className="p-4 bg-xmr-accent/20 rounded-full text-xmr-accent animate-pulse"><Zap size={32} /></div></div>
               <h3 className="text-2xl font-black italic uppercase text-xmr-green">Awaiting_Deposit</h3>
-              <p className="text-[10px] text-xmr-dim uppercase tracking-widest">Send funds to the tactical relay address below</p>
+              <p className="text-xs text-xmr-dim uppercase tracking-widest">Send funds to the tactical relay address below</p>
            </div>
 
            <div className="space-y-6">
               <div className="p-4 bg-xmr-base border border-xmr-accent/30 rounded-sm space-y-3">
-                 <div className="flex justify-between items-center text-[9px] font-bold text-xmr-dim uppercase">
+                 <div className="flex justify-between items-center text-[11px] font-bold text-xmr-dim uppercase">
                     <span>Deposit_Amount</span>
                     <span className="text-xmr-accent">{activeTrade.amount_from} {activeTrade.ticker_from}</span>
                  </div>
@@ -113,7 +113,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
                  </div>
               </div>
 
-              <div className="flex items-center gap-4 justify-between text-[10px] font-bold uppercase tracking-tighter">
+              <div className="flex items-center gap-4 justify-between text-xs font-bold uppercase tracking-tighter">
                  <div className="flex flex-col gap-1">
                     <span className="text-xmr-dim">YOU_SEND</span>
                     <span className="text-xmr-green opacity-90">{activeTrade.amount_from} {activeTrade.ticker_from}</span>
@@ -126,10 +126,10 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
               </div>
 
               <div className="pt-6 border-t border-xmr-border/20 flex flex-col items-center gap-4">
-                 <div className="flex items-center gap-2 text-[9px] text-xmr-green animate-pulse font-black uppercase tracking-widest">
+                 <div className="flex items-center gap-2 text-[11px] text-xmr-green animate-pulse font-black uppercase tracking-widest">
                     <RefreshCw size={12} className="animate-spin" /> Monitoring_Blockchain_For_Deposit...
                  </div>
-                 <p className="text-[8px] text-xmr-dim text-center uppercase leading-relaxed max-w-xs mx-auto">
+                 <p className="text-xs text-xmr-dim text-center uppercase leading-relaxed max-w-xs mx-auto">
                     Once detected, the kyc.rip aggregator will route your assets through an anonymous dark pool and deliver XMR to your local vault.
                  </p>
               </div>
@@ -143,7 +143,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
     <div className="max-w-xl mx-auto py-10 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
       <div className="text-center space-y-2 mb-10">
         <h2 className="text-3xl font-black italic uppercase text-xmr-accent">Ghost_Swap</h2>
-        <p className="text-[10px] text-xmr-dim uppercase tracking-[0.2em]">Aggregated Dark-Pool Routing via kyc.rip</p>
+        <p className="text-xs text-xmr-dim uppercase tracking-[0.2em]">Aggregated Dark-Pool Routing via kyc.rip</p>
       </div>
 
       <Card className="p-6 bg-xmr-surface border-xmr-accent/30 relative overflow-hidden shadow-xl shadow-black/20">
@@ -153,7 +153,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
 
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-[9px] font-bold text-xmr-dim uppercase ml-1">You_Send</label>
+            <label className="text-[11px] font-bold text-xmr-dim uppercase ml-1">You_Send</label>
             <div className="flex gap-2 bg-xmr-base border border-xmr-border/30 p-2 rounded-sm transition-colors focus-within:border-xmr-accent/50">
               <CurrencySelector 
                 label=''
@@ -177,7 +177,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[9px] font-bold text-xmr-dim uppercase ml-1">You_Receive_Anonymously</label>
+            <label className="text-[11px] font-bold text-xmr-dim uppercase ml-1">You_Receive_Anonymously</label>
             <div className="flex gap-2 bg-xmr-base border border-xmr-border/30 p-2 rounded-sm opacity-80">
               <div className="w-32 p-2 flex items-center gap-2 font-bold text-xs uppercase text-xmr-green">
                 <Shield size={14} className="text-xmr-green" /> XMR
@@ -192,11 +192,11 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
         <div className="mt-8 pt-6 border-t border-xmr-border/20 space-y-4">
           <div className="space-y-1">
             <div className="flex justify-between">
-              <label className="text-[9px] font-bold text-xmr-dim uppercase ml-1">Recipient_Address (Local_Vault)</label>
-              <span className="text-[8px] text-xmr-green font-bold uppercase tracking-widest">[ AUTO_SYNCED ]</span>
+              <label className="text-[11px] font-bold text-xmr-dim uppercase ml-1">Recipient_Address (Local_Vault)</label>
+              <span className="text-xs text-xmr-green font-bold uppercase tracking-widest">[ AUTO_SYNCED ]</span>
             </div>
             <div className="mt-1 p-3 bg-xmr-green/5 border border-xmr-green/20 rounded-sm overflow-hidden">
-              <AddressDisplay address={localXmrAddress} className="text-[9px] text-xmr-green opacity-80" />
+              <AddressDisplay address={localXmrAddress} className="text-[11px] text-xmr-green opacity-80" />
             </div>
           </div>
 
@@ -213,7 +213,7 @@ export function SwapView({ localXmrAddress }: SwapViewProps) {
 
       <div className="p-4 bg-xmr-accent/5 border border-xmr-accent/20 rounded-sm flex gap-3">
         <AlertCircle size={16} className="text-xmr-accent shrink-0 mt-0.5" />
-        <p className="text-[9px] text-xmr-accent opacity-80 leading-relaxed uppercase">
+        <p className="text-[11px] text-xmr-accent opacity-80 leading-relaxed uppercase">
           WARNING: This operation will bridge clear-net assets into your private vault. 
           The kyc.rip aggregator will ensure zero linkability between source and destination.
         </p>

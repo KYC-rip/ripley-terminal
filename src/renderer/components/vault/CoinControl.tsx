@@ -26,13 +26,13 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
 
   return (
     <Card noPadding className="h-[400px] flex flex-col">
-      <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[9px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+      <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2"><Coins size={12}/> <span>Deterministic_Outputs (UTXOs)</span></div>
         <span className="opacity-40">{outputs?.length || 0} Coins</span>
       </div>
       <div className="flex-grow overflow-y-auto custom-scrollbar">
         <table className="w-full text-left border-collapse">
-          <thead className="text-[8px] text-xmr-dim border-b border-xmr-border/10 sticky top-0 bg-xmr-surface uppercase">
+          <thead className="text-xs text-xmr-dim border-b border-xmr-border/10 sticky top-0 bg-xmr-surface uppercase">
             <tr>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2 text-right">Amount</th>
@@ -40,7 +40,7 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
               <th className="px-4 py-2 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="text-[10px] font-black divide-y divide-xmr-border/5">
+          <tbody className="text-xs font-black divide-y divide-xmr-border/5">
             {outputs.map((o: any, i: number) => {
               const isProcessing = vanishingId === o.keyImage;
 
@@ -54,7 +54,7 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
                   )}
                 </td>
                   <td className="px-4 py-3 text-right text-xmr-green">{o.amount} XMR</td>
-                  <td className="px-4 py-3 text-right font-mono text-[8px] opacity-40 uppercase">{o.keyImage?.substring(0, 24)}...</td>
+                  <td className="px-4 py-3 text-right font-mono text-xs opacity-40 uppercase">{o.keyImage?.substring(0, 24)}...</td>
                 <td className="px-4 py-3 text-right">
                     <div className="flex items-center gap-1.5 justify-end">
                       {onSendFromCoin && (
@@ -62,7 +62,7 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
                           onClick={() => onSendFromCoin(o.keyImage, o.amount)}
                           disabled={!o.isUnlocked || isSyncing}
                           title={!o.isUnlocked ? 'Coin is frozen' : 'Send using this specific coin'}
-                          className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 cursor-pointer ${o.isUnlocked
+                          className={`text-xs px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 cursor-pointer ${o.isUnlocked
                               ? 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10 hover:border-xmr-accent'
                               : 'border-xmr-border text-xmr-dim opacity-40 cursor-not-allowed'
                             }`}
@@ -78,7 +78,7 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
                           !o.isUnlocked ? "Coin is frozen and cannot be vanished." :
                             "Vanish: Sweeps this individual coin back to your primary address."
                       }
-                        className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 min-w-[60px] cursor-pointer ${o.isUnlocked
+                        className={`text-xs px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 min-w-[60px] cursor-pointer ${o.isUnlocked
                             ? 'border-xmr-green/40 text-xmr-green hover:bg-xmr-green/10 hover:border-xmr-green'
                             : 'border-xmr-border text-xmr-dim opacity-30 cursor-not-allowed'
                           }`}

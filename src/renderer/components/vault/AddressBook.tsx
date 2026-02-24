@@ -17,7 +17,7 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
   return (
     <>
       <Card noPadding className="h-[400px] flex flex-col">
-        <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[9px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+        <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
           <span>Address_Book</span>
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-xmr-green hover:underline cursor-pointer">
             <PlusCircle size={10}/> ADD_NEW
@@ -38,10 +38,10 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
                     <Book size={14} className="text-xmr-green"/>
                     <span className="text-xs font-black text-xmr-green uppercase">{c.name}</span>
                   </div>
-                  <code className="text-[9px] opacity-40 break-all leading-tight italic">{c.address}</code>
+                  <code className="text-[11px] opacity-40 break-all leading-tight italic">{c.address}</code>
                   <div className="flex gap-2">
-                    <button onClick={() => handleCopy(c.address)} className="flex-1 py-1.5 border border-xmr-border/30 text-[8px] hover:bg-xmr-green/10 transition-all uppercase cursor-pointer">Copy</button>
-                    <button onClick={() => onDispatch(c.address)} className="flex-1 py-1.5 bg-xmr-green/10 border border-xmr-green/30 text-xmr-green text-[8px] hover:bg-xmr-green/20 transition-all uppercase cursor-pointer">Dispatch</button>
+                    <button onClick={() => handleCopy(c.address)} className="flex-1 py-1.5 border border-xmr-border/30 text-xs hover:bg-xmr-green/10 transition-all uppercase cursor-pointer">Copy</button>
+                    <button onClick={() => onDispatch(c.address)} className="flex-1 py-1.5 bg-xmr-green/10 border border-xmr-green/30 text-xmr-green text-xs hover:bg-xmr-green/20 transition-all uppercase cursor-pointer">Dispatch</button>
                   </div>
                 </div>
               ))}
@@ -49,7 +49,7 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-4 opacity-20">
               <Book size={48} />
-              <span className="text-[10px] font-black uppercase">Your address book is empty</span>
+              <span className="text-xs font-black uppercase">Your address book is empty</span>
             </div>
           )}
         </div>
@@ -62,7 +62,7 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
             <h3 className="text-xl font-black text-xmr-green uppercase italic text-center">New_Contact_Archived</h3>
             <Card className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Alias_Name</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Alias_Name</label>
                 <input 
                   type="text" 
                   value={newContact.name} 
@@ -72,7 +72,7 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Monero_Address</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Monero_Address</label>
                 <input 
                   type="text" 
                   value={newContact.address} 
@@ -82,10 +82,10 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
                 />
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowAdd(false)} className="flex-1 py-3 border border-xmr-border text-xmr-dim text-[10px] font-black uppercase cursor-pointer">Cancel</button>
+                <button onClick={() => setShowAdd(false)} className="flex-1 py-3 border border-xmr-border text-xmr-dim text-xs font-black uppercase cursor-pointer">Cancel</button>
                 <button 
                   onClick={() => { onAddContact(newContact); setNewContact({name:'', address:''}); setShowAdd(false); }} 
-                  className="flex-[2] py-3 bg-xmr-green text-xmr-base text-[10px] font-black uppercase cursor-pointer"
+                  className="flex-[2] py-3 bg-xmr-green text-xmr-base text-xs font-black uppercase cursor-pointer"
                 >
                   Save_Contact
                 </button>

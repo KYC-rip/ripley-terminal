@@ -150,7 +150,7 @@ function MainApp() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-10 relative overflow-hidden">
         <Shield size={48} className="animate-pulse mb-6 text-xmr-green" />
-        <div className="text-[10px] text-xmr-dim uppercase tracking-[0.4em] animate-pulse">Establishing_Uplink...</div>
+        <div className="text-xs text-xmr-dim uppercase tracking-[0.4em] animate-pulse">Establishing_Uplink...</div>
       </div>
     );
   }
@@ -183,7 +183,7 @@ function MainApp() {
         <span className="text-[11px] font-black uppercase tracking-[0.2em]">{label}</span>
       </div>
       {badge && (
-        <span className="text-[8px] font-black bg-xmr-green/10 px-1.5 py-0.5 rounded border border-xmr-green/20 animate-pulse">
+        <span className="text-xs font-black bg-xmr-green/10 px-1.5 py-0.5 rounded border border-xmr-green/20 animate-pulse">
           {badge}
         </span>
       )}
@@ -236,7 +236,7 @@ function MainApp() {
           </div>
           <div className="text-center">
             <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
-            <div className="text-[7px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">
+            <div className="text-[11px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">
               {activeIdentity?.name || 'TACTICAL_UPLINK'}
             </div>
           </div>
@@ -260,7 +260,7 @@ function MainApp() {
             <div className="flex gap-2 mb-4">
               <button
                 onClick={lock}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-[10px] font-black"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-xs font-black"
               >
                 <Lock size={14} className="group-hover:scale-110 transition-transform" />
                 LOCK_VAULT
@@ -276,7 +276,7 @@ function MainApp() {
 
             <div className="space-y-2">
               {/* 👤 Current identity and switching entry point */}
-              <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+              <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
                 <span className="text-xmr-dim">ACTIVE_ID</span>
                 <button
                   onClick={() => setView('settings')}
@@ -287,7 +287,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
               <span className="text-xmr-dim">THEME_MODE</span>
               <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
                 {mode === 'dark' && <Moon size={10} />}
@@ -296,7 +296,7 @@ function MainApp() {
                 {mode.toUpperCase()}
               </button>
             </div>
-            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
               <span className="text-xmr-dim">NETWORK_MODE</span>
               <button
                 onClick={toggleTor}
@@ -305,11 +305,11 @@ function MainApp() {
                 {appConfig.routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET'}
               </button>
             </div>
-            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
               <span className="text-xmr-dim">SESSION_TIME</span>
               <span className="text-xmr-green opacity-80">{uptime}</span>
             </div>
-            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
               <span className="text-xmr-dim">UPLINK_STATUS</span>
               <span className={`flex items-center gap-1 font-black ${status === 'SYNCING' || status === 'READY' ? 'text-xmr-accent' : 'text-xmr-green'}`}>
                 <div className={`w-1 h-1 rounded-full ${status === 'SYNCING' || status === 'READY' ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
@@ -318,7 +318,7 @@ function MainApp() {
             </div>
           </div>
           <div className="mt-2 border-t border-xmr-border/10 justify-end absolute bottom-2 left-6">
-            <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic ">
+            <div className="text-[11px] text-xmr-dim leading-relaxed uppercase italic ">
               Uplink: {uplink || 'Scanning...'}
             </div>
           </div>
@@ -327,7 +327,7 @@ function MainApp() {
 
       <div className="flex-grow flex flex-col min-w-0 bg-xmr-base relative">
         <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
-          <div className="flex gap-6 text-[8px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <div className="flex gap-6 text-xs font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
@@ -345,7 +345,7 @@ function MainApp() {
               </div>
               <div className="text-center space-y-2">
                 <h3 className="text-sm font-black uppercase tracking-[0.3em] text-xmr-green">Waking_Stealth_Engine</h3>
-                <p className="text-[9px] text-xmr-dim uppercase tracking-widest leading-relaxed">
+                <p className="text-[11px] text-xmr-dim uppercase tracking-widest leading-relaxed">
                   Decrypting vault keys and preparing Wasm runtime...<br />
                   <span className="opacity-50 italic">This may take a moment for large wallets.</span>
                 </p>
@@ -362,14 +362,14 @@ function MainApp() {
                     <div className="flex items-center gap-3">
                       <Zap size={16} className="text-xmr-accent animate-pulse" />
                       <div>
-                        <div className="text-[10px] font-black uppercase text-xmr-accent tracking-widest">Update_Detected</div>
-                        <div className="text-[9px] text-xmr-dim uppercase font-mono mt-0.5">Version {updateBanner.version} is available for deployment.</div>
+                        <div className="text-xs font-black uppercase text-xmr-accent tracking-widest">Update_Detected</div>
+                        <div className="text-[11px] text-xmr-dim uppercase font-mono mt-0.5">Version {updateBanner.version} is available for deployment.</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => window.open(updateBanner.url)}
-                        className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[9px] uppercase hover:bg-white transition-all cursor-pointer flex items-center gap-2"
+                        className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[11px] uppercase hover:bg-white transition-all cursor-pointer flex items-center gap-2"
                       >
                         <Download size={12} /> Init_Download
                       </button>
@@ -396,13 +396,13 @@ function MainApp() {
             <div className="fixed inset-0 z-50 bg-black/5" onClick={() => setShowConsole(false)} />
             <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
               <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
-                <div className="flex items-center gap-2 text-[9px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
+                <div className="flex items-center gap-2 text-[11px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
                 <div className="flex items-center gap-4">
-                  <span className="text-[7px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
+                  <span className="text-[11px] text-xmr-dim uppercase font-black opacity-50">[ PRESS ESC TO CLOSE ]</span>
                   <button onClick={() => setShowConsole(false)} className="text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={14} /></button>
                 </div>
               </div>
-              <div className="flex-grow overflow-y-auto p-4 font-mono text-[9px] space-y-1.5 custom-scrollbar">
+              <div className="flex-grow overflow-y-auto p-4 font-mono text-[11px] space-y-1.5 custom-scrollbar">
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-3 group">
                     <span className="text-xmr-dim opacity-85 shrink-0 hidden">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
@@ -421,7 +421,7 @@ function MainApp() {
           </>
         )}
 
-        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[7px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
+        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[11px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
           <div className="flex items-center gap-4">
             <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
             <span className="opacity-20">|</span>
