@@ -70,7 +70,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
   const [tradeResponse, setTradeResponse] = useState<ExchangeResponse | null>(null);
   const [tradeStatus, setTradeStatus] = useState('');
   const [ghostError, setGhostError] = useState('');
-  const [compliance, setCompliance] = useState<ComplianceState>({ kyc: 'STRICT', log: 'STRICT' });
+  const [compliance, setCompliance] = useState<ComplianceState>({ kyc: 'STANDARD', log: 'STANDARD' });
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ban check (single mode)
