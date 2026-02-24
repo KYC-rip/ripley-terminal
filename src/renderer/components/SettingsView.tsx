@@ -285,13 +285,13 @@ export function SettingsView() {
               </button>
             </div>
 
-            {/* Custom Front Proxy */}
+            {/* System Proxy */}
             <div className="flex items-center justify-between p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-xmr-green font-black uppercase">Frontend_Proxy</span>
+                  <span className="text-[10px] text-xmr-green font-black uppercase">Follow_OS_Proxy</span>
                 </div>
-                <p className="text-[8px] text-xmr-dim uppercase font-black">Route_Through_Local_Proxy (e.g., Clash)</p>
+                <p className="text-[8px] text-xmr-dim uppercase font-black">Inherit_System_Network_Settings</p>
               </div>
               <button
                 onClick={() => setLocalSettings({ ...localSettings, useSystemProxy: !localSettings.useSystemProxy })}
@@ -301,15 +301,15 @@ export function SettingsView() {
               </button>
             </div>
 
-            {localSettings.useSystemProxy && (
+            {!localSettings.useSystemProxy && (
               <div className="space-y-2 mt-2">
-                <label className="text-[9px] font-black text-xmr-green uppercase">Proxy_Address</label>
+                <label className="text-[9px] font-black text-xmr-dim uppercase border-l-2 border-xmr-border pl-2">Manual_Proxy_Override (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g., socks5://127.0.0.1:7890"
                   value={localSettings.systemProxyAddress}
                   onChange={(e) => setLocalSettings({ ...localSettings, systemProxyAddress: e.target.value })}
-                  className="w-full bg-xmr-base border border-xmr-green/50 p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
+                  className="w-full bg-xmr-base border border-xmr-border focus:border-xmr-green/50 hover:border-xmr-green/30 p-3 text-[10px] text-xmr-green outline-none font-black transition-colors"
                 />
               </div>
             )}

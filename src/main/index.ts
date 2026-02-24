@@ -9,27 +9,13 @@ import { SyncWatcher } from './SyncWatcher';
 import { AppConfig } from './types';
 import { registerIdentityHandlers } from './handlers/IdentityHandler'; // ⬅️ Imported the rebuilt manager
 
-function detectSystemProxy(): string {
-  const proxyEnv = process.env.https_proxy || process.env.http_proxy || process.env.all_proxy ||
-    process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY;
-  if (!proxyEnv) return '';
-  try {
-    const url = new URL(proxyEnv);
-    if (url.hostname && url.port) return `${url.hostname}:${url.port}`;
-    return proxyEnv;
-  } catch (e) {
-    return proxyEnv.replace(/^(http:\/\/|https:\/\/|socks5:\/\/|socks:\/\/)/i, '');
-  }
-}
-
-const autoDetectedProxy = detectSystemProxy();
 const Store = require('electron-store').default;
 const store = new Store({
   clearInvalidConfig: true,
   defaults: {
     routingMode: 'tor',
-    useSystemProxy: autoDetectedProxy !== "",
-    systemProxyAddress: autoDetectedProxy || '127.0.0.1:7890',
+    useSystemProxy: false,
+    systemProxyAddress: '', // Only fallback for explicit manual UI overrides
     network: 'mainnet',
     customNodeAddress: '',
     show_scanlines: true,
@@ -256,23 +242,24 @@ app.whenReady().then(async () => {
 });
 
 async function applyGlobalNetworkRouting(config: AppConfig, torSocksPort: number) {
-  let activeProxyUrl = '';
   const useTor = config.routingMode === 'tor' ||
     (!!config.customNodeAddress && config.customNodeAddress.includes('.onion'));
 
   if (useTor) {
-    activeProxyUrl = `socks5://127.0.0.1:${torSocksPort}`;
-  } else if (config.useSystemProxy && config.systemProxyAddress) {
-    activeProxyUrl = config.systemProxyAddress.includes('://')
+    const activeProxyUrl = `socks5://127.0.0.1:${torSocksPort}`;
+    await session.defaultSession.setProxy({ proxyRules: activeProxyUrl, proxyBypassRules: '127.0.0.1, localhost' });
+    console.log(`[Network] 🛡️ Traffic sealed. Route: ${activeProxyUrl}`);
+  } else if (config.useSystemProxy) {
+    await session.defaultSession.setProxy({ mode: 'system' });
+    console.log(`[Network] 📡 OS System Proxy Mode Engaged`);
+  } else if (config.systemProxyAddress) {
+    const activeProxyUrl = config.systemProxyAddress.includes('://')
       ? config.systemProxyAddress
       : `socks5://${config.systemProxyAddress}`;
-  }
-
-  if (activeProxyUrl) {
     await session.defaultSession.setProxy({ proxyRules: activeProxyUrl, proxyBypassRules: '127.0.0.1, localhost' });
     console.log(`[Network] 🛡️ Traffic sealed. Route: ${activeProxyUrl}`);
   } else {
-    await session.defaultSession.setProxy({ proxyRules: 'direct://', proxyBypassRules: '127.0.0.1, localhost' });
+    await session.defaultSession.setProxy({ mode: 'direct' });
     console.log(`[Network] ⚠️ Traffic on Clearnet (Direct)`);
   }
 }
@@ -311,8 +298,26 @@ async function reloadEngine(forceRestart = false) {
       (!!config.customNodeAddress && config.customNodeAddress.includes('.onion'));
 
     if (useTor) {
-      const torFrontProxy = (config.useSystemProxy && config.systemProxyAddress)
-        ? config.systemProxyAddress : undefined;
+      let torFrontProxy: string | undefined = undefined;
+
+      if (config.useSystemProxy) {
+        // Temporarily put Chromium in system mode to resolve OS level proxies
+        await session.defaultSession.setProxy({ mode: 'system' });
+        const resolvedProxy = await session.defaultSession.resolveProxy("https://check.torproject.org");
+        if (resolvedProxy && resolvedProxy !== 'DIRECT') {
+          const match = resolvedProxy.match(/(PROXY|SOCKS5|SOCKS|HTTP|HTTPS) ([\w.:]+)/i);
+          if (match) {
+            torFrontProxy = match[1].toUpperCase().startsWith('SOCKS')
+              ? `socks5://${match[2]}`
+              : `http://${match[2]}`;
+          }
+        }
+      } else if (config.systemProxyAddress) {
+        torFrontProxy = config.systemProxyAddress.includes('://')
+          ? config.systemProxyAddress
+          : `socks5://${config.systemProxyAddress}`;
+      }
+
       await daemonEngine.startTor(torFrontProxy);
     }
 
