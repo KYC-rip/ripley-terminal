@@ -24,6 +24,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Identity Switcher**: Secure hot-swapping between identities via the tactical authorization screen.
 - [x] **Identity Ledger**: High-density transaction history with flow analysis, block heights, network fees, and destination decoding.
 - [x] **Expandable Histories**: Deep dive into individual transactions to view exact confirmations, recipient address splits, payment IDs, and robust privacy-protected fallbacks.
+- [x] **Subaddress Recognition**: Transaction ledger automatically maps incoming and outgoing transactions to known subaddresses, replacing raw hashes with friendly labels.
 
 ## 📊 Tactical Interface
 - [x] **Sidebar Navigation**: Professional layout for rapid access to Vault, Swap, and Intelligence tools.
@@ -31,6 +32,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Local Intel Feed**: Real-time XMR market data and network pulse (Hashrate, Fees, Mempool).
 - [x] **Local Chart Rendering**: Integrated `lightweight-charts` engine for theme-aware, interactive market analysis.
 - [x] **Address Detail Modal**: Click any subaddress row to open a full-featured modal showing QR code, address, and payment link.
+- [x] **Tactical Action Modals**: Dedicated interface overlays for executing sensitive on-chain actions like UTXO Churns and Splinters without cluttering the main UI.
 
 ## 💸 Asset Bridging
 - [x] **Ghost_Swap Integration**: Quote and execute non-custodial asset swaps directly into your private vault via kyc.rip routing.
@@ -38,6 +40,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Ghost Send**: Send XMR from your vault — receiver gets BTC, USDT, ETH, or any supported asset. Quote, confirm, and auto-dispatch through the kyc.rip swap engine with zero identity link.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
 - [x] **Send From Subaddress**: Dispatch XMR or execute Ghost Sends scoped to a specific subaddress for granular coin control.
+- [x] **xmr.bio Resolver**: Send funds instantly to Twitter handles—automatically fetching Monero addresses from `api.xmr.bio` and displaying beautiful profile cards inline.
 
 ## 📦 Deployment & Execution
 - [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).

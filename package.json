@@ -1,6 +1,6 @@
 {
   "name": "ghost-terminal",
-  "version": "1.0.0",
+  "version": "1.0.10",
   "description": "KYC.RIP Tactical Desktop Terminal",
   "repository": {
     "type": "git",
@@ -38,7 +38,8 @@
       "icon": "public/icon.png"
     },
     "linux": {
-      "icon": "public/icon.png"
+      "icon": "public/icon.png",
+      "target": ["AppImage"]
     },
     "extraResources": [
       {
