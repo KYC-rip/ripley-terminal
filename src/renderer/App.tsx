@@ -294,7 +294,7 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">THEME_MODE</span>
               <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
                 {mode === 'dark' && <Moon size={10} />}
@@ -303,7 +303,7 @@ function MainApp() {
                 {mode.toUpperCase()}
               </button>
             </div>
-            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">NETWORK_MODE</span>
               <button
                 onClick={toggleTor}
@@ -312,11 +312,11 @@ function MainApp() {
                 {appConfig.routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET'}
               </button>
             </div>
-            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">SESSION_TIME</span>
               <span className="text-xmr-green opacity-80">{uptime}</span>
             </div>
-            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
               <span className="text-xmr-dim">UPLINK_STATUS</span>
               <span className={`flex items-center gap-1 font-black ${status === 'SYNCING' || status === 'READY' ? 'text-xmr-accent' : 'text-xmr-green'}`}>
                 <div className={`w-1 h-1 rounded-full ${status === 'SYNCING' || status === 'READY' ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
@@ -325,7 +325,7 @@ function MainApp() {
             </div>
           </div>
           <div className="mt-2 border-t border-xmr-border/10 justify-end absolute bottom-2 left-6">
-            <div className="text-[11px] text-xmr-dim leading-relaxed uppercase italic ">
+            <div className="text-[10px] text-xmr-dim leading-relaxed uppercase italic ">
               Uplink: {uplink || 'Scanning...'}
             </div>
           </div>
@@ -334,7 +334,7 @@ function MainApp() {
 
       <div className="flex-grow flex flex-col min-w-0 bg-xmr-base relative">
         <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
-          <div className="flex gap-6 text-xs font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
@@ -369,8 +369,8 @@ function MainApp() {
                     <div className="flex items-center gap-3">
                       <Zap size={16} className="text-xmr-accent animate-pulse" />
                       <div>
-                        <div className="text-xs font-black uppercase text-xmr-accent tracking-widest">Update_Detected</div>
-                        <div className="text-[11px] text-xmr-dim uppercase font-mono mt-0.5">Version {updateBanner.version} is available for deployment.</div>
+                        <div className="text-[10px] font-black uppercase text-xmr-accent tracking-widest">Update_Detected</div>
+                        <div className="text-[10px] text-xmr-dim uppercase font-mono mt-0.5">Version {updateBanner.version} is available for deployment.</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -428,7 +428,7 @@ function MainApp() {
           </>
         )}
 
-        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[11px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
+        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[10px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
           <div className="flex items-center gap-4">
             <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
             <span className="opacity-20">|</span>
