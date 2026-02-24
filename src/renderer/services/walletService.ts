@@ -10,6 +10,13 @@ export interface Transaction {
   confirmations: number;
   subaddr_index?: { major: number; minor: number };
   accountIndex?: number;
+  fee?: string;
+  height?: number;
+  paymentId?: string;
+  note?: string;
+  unlockTime?: number;
+  doubleSpendSeen?: boolean;
+  destinations?: Array<{ address: string; amount: string }>;
 }
 
 export const WalletService = {
@@ -123,9 +130,21 @@ export const WalletService = {
       amount: RpcClient.formatXmr(tx.amount),
       type,
       timestamp: tx.timestamp * 1000,
-      address: tx.address,
+      address: tx.address || '',
       confirmations: tx.confirmations || 0,
-      subaddr_index: tx.subaddr_index // Preserve for account filtering
+      subaddr_index: tx.subaddr_index,
+      fee: tx.fee ? RpcClient.formatXmr(tx.fee) : undefined,
+      height: tx.height,
+      paymentId: tx.payment_id !== '0000000000000000' ? tx.payment_id : undefined,
+      note: tx.note,
+      unlockTime: tx.unlock_time,
+      doubleSpendSeen: tx.double_spend_seen,
+      destinations: tx.destinations && tx.destinations.length > 0
+        ? tx.destinations.map((d: any) => ({
+          address: d.address,
+          amount: RpcClient.formatXmr(d.amount)
+        }))
+        : undefined
     });
 
     return [
@@ -219,5 +238,23 @@ export const WalletService = {
     });
 
     return tx.tx_hash;
+  },
+
+  /**
+   * Vanish Coin: Sweeps a single output (identified by its key_image) back to the main account address.
+   */
+  async vanishCoin(keyImage: string, accountIndex: number = 0) {
+    // 1. Get the primary address for this account to sweep back to
+    const addressRes = await RpcClient.call('get_address', { account_index: accountIndex, address_index: [0] });
+    const primaryAddress = addressRes.address;
+
+    // 2. Perform the single sweep
+    const tx = await RpcClient.call('sweep_single', {
+      address: primaryAddress,
+      key_image: keyImage,
+      ring_size: 16
+    });
+
+    return tx.tx_hash_list?.[0] || tx.tx_hash;
   }
 };

@@ -179,22 +179,33 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
                 </div>
                 {usdValue && (
                   <div className="text-sm font-black text-xmr-dim uppercase tracking-widest mt-2 px-1">
-                    ≈ {usdValue} USD
+                    {usdValue} USD
                   </div>
                 )}
               </div>
             </div>
-            <button
-              disabled={isSyncing || isChurning || parseFloat(balance.unlocked) <= 0}
-              onClick={handleChurn}
-              className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${isChurning ? 'animate-pulse' : ''}`}
+            <div
+              className="relative group/tooltip"
+              title={
+                isSyncing ? "Wait for vault to fully sync before churning." :
+                  parseFloat(currentAcc?.unlockedBalance || '0') <= 0 ? "You need an unlocked XMR balance to churn." :
+                    "Churning sweeps all your unlocked XMR back to yourself. This improves privacy and merges fragmented outputs, but costs a standard network fee."
+              }
             >
-              <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
-              <span className="text-[8px] font-black uppercase tracking-widest">Churn_All</span>
-            </button>
+              <button
+                disabled={isSyncing || isChurning || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
+                onClick={handleChurn}
+                className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${isChurning ? 'animate-pulse' : ''}`}
+              >
+                <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
+                <span className="text-[8px] font-black uppercase tracking-widest">
+                  {isChurning ? 'Churning...' : 'Churn_All'}
+                </span>
+              </button>
+            </div>
           </div>
           <div className="flex gap-12 border-t border-xmr-border/20 pt-6 uppercase font-black">
-            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Unlocked</span><div className="text-2xl font-black text-xmr-green">{parseFloat(balance.unlocked).toFixed(4)}</div></div>
+            <div><span className="text-[10px] font-black text-xmr-dim uppercase">Unlocked</span><div className="text-2xl font-black text-xmr-green">{parseFloat(currentAcc?.unlockedBalance || '0').toFixed(4)}</div></div>
             <div><span className="text-[10px] font-black text-xmr-dim uppercase">Active_Outputs</span><div className="text-2xl font-black opacity-40 text-xmr-green">{outputs?.length || 0}</div></div>
           </div>
         </Card>

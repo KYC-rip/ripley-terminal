@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { WalletService } from '../services/walletService';
+import { WalletService, Transaction } from '../services/walletService';
 
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
@@ -20,7 +20,7 @@ export interface VaultContextType {
   subaddresses: SubaddressInfo[];
   status: string;
   logs: LogEntry[];
-  txs: any[];
+  txs: Transaction[];
   currentHeight: number;
   totalHeight: number;
   syncPercent: number;
@@ -45,6 +45,7 @@ export interface VaultContextType {
   renameIdentity: (id: string, name: string) => Promise<void>;
   renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
   churn: () => Promise<void>;
+  vanishCoin: (keyImage: string) => Promise<void>;
   setSubaddressLabel: (index: number, label: string) => Promise<void>;
   rescan: (height: number) => Promise<void>;
 }
@@ -57,7 +58,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState({ total: '0.0000', unlocked: '0.0000' });
   const [address, setAddress] = useState('');
   const [subaddresses, setSubaddresses] = useState<SubaddressInfo[]>([]);
-  const [txs, setTxs] = useState<any[]>([]);
+  const [txs, setTxs] = useState<Transaction[]>([]);
   const [currentHeight, setCurrentHeight] = useState<number>(0);
   const [totalHeight, setTotalHeight] = useState<number>(0);
   const [status, setStatus] = useState<string>('READY');
@@ -432,11 +433,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       await refresh();
     },
     churn: async (accountIndex?: number) => {
-      await WalletService.churn(accountIndex || 0);
+      await WalletService.churn(accountIndex || selectedAccountIndex);
+      await refresh();
+    },
+    vanishCoin: async (keyImage: string) => {
+      // 1. Trigger the single UTXO sweep
+      const txHash = await WalletService.vanishCoin(keyImage, selectedAccountIndex);
+      if (txHash) {
+        // 2. Add a success log
+        addLog(`✅ Single UTXO vanished! TXID: ${txHash}`, 'success');
+      }
+    // 3. Refresh the wallet state to update outputs table and balance
       await refresh();
     },
     setSubaddressLabel: async (index: number, label: string, accountIndex?: number) => {
-      await WalletService.setSubaddressLabel(index, label, accountIndex || 0);
+      await WalletService.setSubaddressLabel(index, label, accountIndex || selectedAccountIndex);
       await refresh();
     },
     switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),

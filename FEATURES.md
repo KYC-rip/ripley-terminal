@@ -10,19 +10,22 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Hardware Isolation**: Local environment execution with zero reliance on centralized database servers.
 
 ## 🌪️ On-Chain Privacy (Tactical)
-- [x] **One-Click Churn**: Sweep entire balance back to self via fresh subaddresses to break deterministic links and increase hops.
+- [x] **One-Click Churn**: Sweep entire unlocked balance back to self via fresh subaddresses to break deterministic links.
+- [x] **Individual Coin Vanishing**: Selectively sweep individual UTXOs (Deterministic Outputs) back to the primary address using `sweep_single` to isolate trailing transactions.
 - [x] **Coin Control (UTXO)**: Detailed list of every deterministic output (unspent) with unlock status and Key Image tracking.
 - [x] **Forced Subaddressing**: Mandatory new subaddress generation for every receive request to prevent metadata leakage via address reuse.
 - [x] **Identity Labeling**: Attach purpose-driven labels to subaddresses for precise ledger management.
 
 ## 🆔 Identity Management
 - [x] **Multi-Identity Support**: Create and manage multiple isolated cryptographic vaults with distinct passwords and files.
+- [x] **Account Indexing**: Create and switch between multiple deterministic accounts within the same cryptographic identity.
 - [x] **Identity Switcher**: Secure hot-swapping between identities via the tactical authorization screen.
-- [x] **Identity Ledger**: High-density transaction history with flow analysis and confirmation tracking.
+- [x] **Identity Ledger**: High-density transaction history with flow analysis, block heights, network fees, and destination decoding.
+- [x] **Expandable Histories**: Deep dive into individual transactions to view exact confirmations, recipient address splits, payment IDs, and robust privacy-protected fallbacks.
 
 ## 📊 Tactical Interface
 - [x] **Sidebar Navigation**: Professional layout for rapid access to Vault, Swap, and Intelligence tools.
-- [x] **Global Theme Support**: Semantic Dark (Tactical), Light (Financial), and System modes.
+- [x] **Global Theme Support**: Semantic Dark (Tactical), Light (Financial), and System modes with optimized contrast rendering.
 - [x] **Local Intel Feed**: Real-time XMR market data and network pulse (Hashrate, Fees, Mempool).
 - [x] **Local Chart Rendering**: Integrated `lightweight-charts` engine for theme-aware, interactive market analysis.
 
@@ -30,5 +33,9 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Ghost_Swap Integration**: Quote and execute non-custodial asset swaps directly into your private vault via kyc.rip routing.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
 
+## 📦 Deployment & Execution
+- [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).
+- [x] **Secure Subtree CI/CD**: Custom deployment scripts that scrub the Git git-history for anonymity and push to a clean, public-facing repository natively.
+
 ---
-*Last Updated: 2026-02-17*
+*Last Updated: 2026-02-24*
