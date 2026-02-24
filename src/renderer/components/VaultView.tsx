@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Skull, RefreshCw, Key, Send, Download, Wind, Loader2, Edit2 } from 'lucide-react';
+import { Skull, RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Dices } from 'lucide-react';
 import { Card } from './Card';
 import { AddressBook } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';
@@ -134,6 +134,14 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2>
         </div>
         <div className="flex gap-2 font-black">
+          <button
+            onClick={handleChurn}
+            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
+            className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent text-[11px] hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black disabled:opacity-50"
+            title="Consolidate UTXOs / Break Heuristics"
+          >
+            <Dices size={10} className={isChurning ? 'animate-spin' : ''} /> {isChurning ? 'Sweeping...' : 'Churn_UTXOs'}
+          </button>
           <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[11px] hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
           <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[11px] hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black">
             <RefreshCw size={10} className={isSyncing || isSending ? 'animate-spin' : ''} /> Sync_Ledger

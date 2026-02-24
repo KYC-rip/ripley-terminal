@@ -117,16 +117,16 @@ export const WalletService = {
   },
 
   /**
-   * Churn: Sweeps all available balance back to self to refresh privacy or unify fragments
+   * Churn: Sweeps all available balance back to a fresh subaddress to refresh privacy and break heuristic links
    */
   async churn(accountIndex: number) {
-    const { primary } = await this.getAddress(accountIndex);
+    const newAddr = await this.createSubaddress('Churn_Target', accountIndex);
     const res = await RpcClient.call('sweep_all', {
-      address: primary,
+      address: newAddr,
       account_index: accountIndex,
       ring_size: 16
     });
-    return res.tx_hash_list[0];
+    return res.tx_hash_list?.[0] || res.tx_hash;
   },
 
   /**
