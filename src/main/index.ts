@@ -13,8 +13,8 @@ const Store = require('electron-store').default;
 const store = new Store({
   clearInvalidConfig: true,
   defaults: {
-    routingMode: 'tor',
-    useSystemProxy: false,
+    routingMode: 'clearnet',
+    useSystemProxy: true,
     systemProxyAddress: '', // Only fallback for explicit manual UI overrides
     network: 'mainnet',
     customNodeAddress: '',
@@ -250,8 +250,29 @@ async function applyGlobalNetworkRouting(config: AppConfig, torSocksPort: number
     await session.defaultSession.setProxy({ proxyRules: activeProxyUrl, proxyBypassRules: '127.0.0.1, localhost' });
     console.log(`[Network] 🛡️ Traffic sealed. Route: ${activeProxyUrl}`);
   } else if (config.useSystemProxy) {
+    // macOS bypasses custom ports (18089/18081) in 'system' mode natively. We must explicitly extract the proxy URL 
+    // from a standard port and then forcefully apply it globally via proxyRules.
     await session.defaultSession.setProxy({ mode: 'system' });
-    console.log(`[Network] 📡 OS System Proxy Mode Engaged`);
+    const resolvedProxy = await session.defaultSession.resolveProxy("https://check.torproject.org");
+
+    if (resolvedProxy && resolvedProxy !== 'DIRECT') {
+      const match = resolvedProxy.match(/(PROXY|SOCKS5|SOCKS|HTTP|HTTPS) ([\w.:]+)/i);
+      if (match) {
+        const type = match[1].toUpperCase();
+        const hostInfo = match[2];
+        let forceUrl = '';
+        if (type.startsWith('SOCKS5')) forceUrl = `socks5://${hostInfo}`;
+        else if (type.startsWith('SOCKS')) forceUrl = `socks://${hostInfo}`;
+        else forceUrl = `http://${hostInfo}`; // Fallback to HTTP CONNECT
+
+        await session.defaultSession.setProxy({ proxyRules: forceUrl, proxyBypassRules: '127.0.0.1, localhost' });
+        console.log(`[Network] 📡 OS Proxy extracted & forced universally: ${forceUrl}`);
+        return;
+      }
+    }
+    // If no proxy found or DIRECT, fall back to direct
+    await session.defaultSession.setProxy({ mode: 'direct' });
+    console.log(`[Network] 📡 OS Proxy resolved to DIRECT (Clearnet)`);
   } else if (config.systemProxyAddress) {
     const activeProxyUrl = config.systemProxyAddress.includes('://')
       ? config.systemProxyAddress
