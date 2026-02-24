@@ -137,6 +137,42 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
+  ipcMain.handle('get-app-info', () => {
+    return {
+      version: app.getVersion(),
+      appDataPath: app.getPath('userData'),
+      walletsPath: join(app.getPath('userData'), 'wallets'),
+      platform: process.platform
+    };
+  });
+
+  ipcMain.handle('open-path', async (_, targetPath: string) => {
+    // shell.openPath returns a string error message if it fails, or empty string if it succeeds
+    const error = await require('electron').shell.openPath(targetPath);
+    return { success: !error, error };
+  });
+
+  ipcMain.handle('check-for-updates', async () => {
+    try {
+      const response = await net.fetch('https://api.github.com/repos/JoeanSteinbock/kyc-rip/releases/latest');
+      if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+      const release = await response.json() as any;
+      const latestVersion = release.tag_name.replace(/^v/, '');
+      const currentVersion = app.getVersion();
+      const hasUpdate = latestVersion !== currentVersion;
+      return {
+        success: true,
+        hasUpdate,
+        latestVersion,
+        releaseUrl: release.html_url,
+        body: release.body,
+        publishedAt: release.published_at
+      };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
   ipcMain.handle('proxy-request', async (_, payload: { method: string; params: any }) => {
     try {
       const response = await net.fetch('http://127.0.0.1:18082/json_rpc', {

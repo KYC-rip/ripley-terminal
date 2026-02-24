@@ -38,6 +38,10 @@ const api = {
   },
   proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
 
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 }
 

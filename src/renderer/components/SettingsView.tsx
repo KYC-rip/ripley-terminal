@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2 } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 
@@ -25,6 +25,19 @@ export function SettingsView() {
   const [targetHeight, setTargetHeight] = useState<string>('');
   const [isRescanning, setIsRescaning] = useState(false);
 
+  // 📦 App Info & Updates state
+  const [appInfo, setAppInfo] = useState<{ version: string; appDataPath: string; walletsPath: string; platform: string } | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{
+    checked: boolean;
+    hasUpdate?: boolean;
+    latestVersion?: string;
+    releaseUrl?: string;
+    body?: string;
+    error?: string;
+  }>({ checked: false });
+  const [showChangelog, setShowChangelog] = useState(false);
+
   const currentIdentity = identities.find(i => i.id === activeId);
 
   // 1. Initialization: Load full configuration
@@ -42,9 +55,42 @@ export function SettingsView() {
         useSystemProxy: fullConfig.useSystemProxy || false,
         systemProxyAddress: fullConfig.systemProxyAddress || ''
       });
+
+      const info = await window.api.getAppInfo();
+      setAppInfo(info as any);
     };
     loadInitialConfig();
   }, [currentIdentity]);
+
+  // --- Update Checker ---
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateResult({ checked: false });
+    setShowChangelog(false);
+    try {
+      const res = await window.api.checkForUpdates();
+      if (res.success) {
+        setUpdateResult({
+          checked: true,
+          hasUpdate: res.hasUpdate,
+          latestVersion: res.latestVersion,
+          releaseUrl: res.releaseUrl,
+          body: res.body
+        });
+      } else {
+        setUpdateResult({ checked: true, error: res.error });
+      }
+    } catch (e: any) {
+      setUpdateResult({ checked: true, error: e.message });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleReveal = async (path: string) => {
+    const res = await window.api.openPath(path);
+    if (!res.success) alert(`Failed to open path: ${res.error}`);
+  };
 
   // 2. Save: One-time submission to backend
   const handleSave = async () => {
@@ -142,6 +188,61 @@ export function SettingsView() {
                 className="w-full bg-xmr-base border border-xmr-border p-3 text-[10px] text-xmr-green focus:border-xmr-green outline-none font-black"
               />
             </div>
+          </Card>
+        </section>
+
+        {/* 📦 Version & Updates Section */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><Download size={14} /> System_Updates</h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="text-[10px] font-black text-xmr-dim uppercase">Current_Version</div>
+                <div className="text-xl text-xmr-green font-mono">v{appInfo?.version || '...'}</div>
+              </div>
+              <button
+                onClick={handleCheckUpdate}
+                disabled={isCheckingUpdate}
+                className="px-4 py-2 border border-xmr-green text-xmr-green text-[10px] uppercase font-black tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isCheckingUpdate ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                {isCheckingUpdate ? 'Checking...' : 'Check_For_Updates'}
+              </button>
+            </div>
+
+            {updateResult.checked && (
+              <div className={`mt-4 p-4 border rounded-sm text-[10px] ${updateResult.error ? 'border-red-500/50 bg-red-500/10 text-red-400' : updateResult.hasUpdate ? 'border-xmr-accent/50 bg-xmr-accent/10 text-xmr-accent' : 'border-xmr-border bg-xmr-base text-xmr-dim'}`}>
+                {updateResult.error ? (
+                  <div className="flex items-center gap-2"><ShieldAlert size={14} /> Update check failed: {updateResult.error}</div>
+                ) : updateResult.hasUpdate ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-black uppercase text-xs">
+                        <Zap size={14} className="animate-pulse" /> Update Available: v{updateResult.latestVersion}
+                      </div>
+                      <button onClick={() => updateResult.releaseUrl && window.open(updateResult.releaseUrl)} className="flex items-center gap-1.5 px-3 py-1.5 bg-xmr-accent text-xmr-base hover:bg-white transition-colors cursor-pointer font-black uppercase">
+                        <Download size={10} /> Download Release
+                      </button>
+                    </div>
+                    {updateResult.body && (
+                      <div className="mt-2 text-xmr-green border border-xmr-border/50 bg-xmr-base">
+                        <button onClick={() => setShowChangelog(!showChangelog)} className="w-full flex items-center justify-between p-2 hover:bg-xmr-surface transition-colors cursor-pointer text-[9px] uppercase tracking-widest text-xmr-dim">
+                          <span>View Changelog</span>
+                          <span className="opacity-50 text-[16px] leading-none">{showChangelog ? '−' : '+'}</span>
+                        </button>
+                        {showChangelog && (
+                          <div className="p-3 border-t border-xmr-border/50 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar text-[9px]">
+                            {updateResult.body}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 uppercase font-black"><Check size={14} className="text-xmr-green" /> System is up to date</div>
+                )}
+              </div>
+            )}
           </Card>
         </section>
 
@@ -252,6 +353,38 @@ export function SettingsView() {
                 >
                   {isRescanning ? 'Scanning...' : 'Trigger_Rescan'}
                 </button>
+              </div>
+            </div>
+          </Card>
+        </section>
+
+        {/* 📁 Storage Paths Section */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><FolderOpen size={14} /> Data_Storage</h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+            <div className="space-y-4">
+              {/* App Data Path */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-black text-xmr-dim uppercase">
+                  <span>Application_Data</span>
+                  <button onClick={() => appInfo?.appDataPath && handleReveal(appInfo.appDataPath)} className="flex items-center gap-1 hover:text-xmr-accent transition-colors cursor-pointer"><ExternalLink size={10} /> Reveal</button>
+                </div>
+                <div className="w-full bg-xmr-base border border-xmr-border p-2 text-[9px] text-xmr-green opacity-70 font-mono select-all overflow-x-auto whitespace-nowrap custom-scrollbar">
+                  {appInfo?.appDataPath || 'Loading...'}
+                </div>
+                <p className="text-[8px] text-xmr-dim uppercase opacity-60">Contains configuration, node lists, and Tor runtime data.</p>
+              </div>
+
+              {/* Wallets Path */}
+              <div className="space-y-1.5 pt-2 border-t border-xmr-border/20">
+                <div className="flex items-center justify-between text-[10px] font-black text-xmr-dim uppercase">
+                  <span>Encrypted_Vault_Storage</span>
+                  <button onClick={() => appInfo?.walletsPath && handleReveal(appInfo.walletsPath)} className="flex items-center gap-1 hover:text-xmr-accent transition-colors cursor-pointer"><ExternalLink size={10} /> Reveal</button>
+                </div>
+                <div className="w-full bg-xmr-base border border-red-900/30 p-2 text-[9px] text-xmr-green opacity-70 font-mono select-all overflow-x-auto whitespace-nowrap custom-scrollbar">
+                  {appInfo?.walletsPath || 'Loading...'}
+                </div>
+                <p className="text-[8px] text-red-500/60 uppercase font-black flex items-center gap-1"><ShieldAlert size={8} /> Never share or modify these files manually. Backup regularly.</p>
               </div>
             </div>
           </Card>
