@@ -5,6 +5,7 @@ import { CurrencySelector } from '../CurrencySelector';
 import { ComplianceSelector } from '../ComplianceSelector';
 import { useCurrencies, Currency } from '../../hooks/useCurrencies';
 import { fetchQuote, createTrade, getTradeStatus, ExchangeQuote, ExchangeResponse, type ComplianceState } from '../../services/swap';
+import { useAddressValidator } from '../../hooks/useAddressValidator';
 
 interface DispatchModalProps {
   onClose: () => void;
@@ -125,6 +126,12 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
   const [ghostError, setGhostError] = useState('');
   const [compliance, setCompliance] = useState<ComplianceState>({ kyc: 'STANDARD', log: 'STANDARD' });
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { isValid: isGhostAddrValid, isValidating: isGhostAddrValidating, error: ghostAddrError } = useAddressValidator(
+    ghostCurrency?.ticker || '',
+    ghostCurrency?.network || 'Mainnet',
+    ghostReceiverAddr
+  );
 
   // Ban check (single mode)
   useEffect(() => {
@@ -521,10 +528,20 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Receiver's Address</label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
+                        <Wallet size={10} /> Receiver's Address
+                        {isGhostAddrValidating && <Loader2 size={10} className="animate-spin text-xmr-accent ml-1" />}
+                      </label>
+                      {ghostReceiverAddr.length > 0 && !isGhostAddrValidating && (
+                        <span className={`text-xs uppercase tracking-widest ${isGhostAddrValid ? 'text-xmr-green' : 'text-red-500 animate-pulse'}`}>
+                          {isGhostAddrValid ? 'Valid Format' : (ghostAddrError || 'Invalid Format')}
+                        </span>
+                      )}
+                    </div>
                     <input type="text" value={ghostReceiverAddr} onChange={(e) => setGhostReceiverAddr(e.target.value)}
                       placeholder={`${ghostCurrency?.ticker.toUpperCase() || 'Asset'} address`}
-                      className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none"
+                      className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${ghostReceiverAddr.length > 0 && isGhostAddrValid === false ? 'border-red-600' : 'border-xmr-border'}`}
                     />
                   </div>
 
@@ -539,7 +556,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                   <ComplianceSelector value={compliance} onChange={setCompliance} variant="ghost" />
 
                   <button
-                    disabled={!ghostReceiverAddr || !ghostXmrAmount || parseFloat(ghostXmrAmount) <= 0}
+                    disabled={!ghostReceiverAddr || !ghostXmrAmount || parseFloat(ghostXmrAmount) <= 0 || isGhostAddrValid === false}
                     onClick={handleGetQuote}
                     className="w-full py-3 bg-xmr-accent/20 border border-xmr-accent/40 text-xmr-accent font-black uppercase tracking-widest text-xs transition-all hover:bg-xmr-accent/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                   ><ArrowRight size={14} /> Get Quote</button>
