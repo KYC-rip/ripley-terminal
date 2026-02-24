@@ -65,8 +65,8 @@ export default function SpreadChart() {
 
         const result = await response.json();
         
-        if (active && result && Array.isArray(result.data)) {
-          const cleanData = result.data
+        if (active && Array.isArray(result)) {
+          const cleanData = result
             .filter((d: any) => d.timestamp && !isNaN(d.timestamp))
             .sort((a: any, b: any) => a.timestamp - b.timestamp)
             .filter((item: any, index: number, self: any[]) => 
