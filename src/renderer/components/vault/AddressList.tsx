@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Edit2, Check, X, Wind } from 'lucide-react';
+import { Copy, Edit2, Check, X, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
 import { AddressDisplay } from '../common/AddressDisplay';
 
@@ -9,10 +9,11 @@ interface AddressListProps {
   onUpdateLabel: (index: number, label: string) => void;
   onRowClick: (sub: any) => void;
   onVanishSubaddress: (index: number) => Promise<void>;
+  onSendFrom: (subaddressIndex: number) => void;
   isSyncing: boolean;
 }
 
-export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClick, onVanishSubaddress, isSyncing }: AddressListProps) {
+export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClick, onVanishSubaddress, onSendFrom, isSyncing }: AddressListProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [vanishingIndex, setVanishingIndex] = useState<number | null>(null);
@@ -112,17 +113,28 @@ export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClic
                   </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     {s.index > 0 ? (
-                      <button
-                        onClick={(e) => handleVanish(e, s.index)}
-                        disabled={!hasBalance || isSyncing || vanishingIndex !== null}
-                        title={!hasBalance ? 'No balance to sweep' : 'Sweep all outputs from this subaddress to a fresh one'}
-                        className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 min-w-[60px] ml-auto cursor-pointer ${hasBalance
+                      <div className="flex items-center gap-1.5 justify-end">
+                        {hasBalance && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onSendFrom(s.index); }}
+                            title="Send from this subaddress"
+                            className="text-[8px] px-2.5 py-1 border border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10 hover:border-xmr-accent transition-all uppercase flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Send size={8} /> Send
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleVanish(e, s.index)}
+                          disabled={!hasBalance || isSyncing || vanishingIndex !== null}
+                          title={!hasBalance ? 'No balance to sweep' : 'Sweep all outputs from this subaddress to a fresh one'}
+                          className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 min-w-[60px] cursor-pointer ${hasBalance
                             ? 'border-xmr-green/40 text-xmr-green hover:bg-xmr-green/10 hover:border-xmr-green'
                             : 'border-xmr-border text-xmr-dim opacity-40 cursor-not-allowed'
-                          }`}
-                      >
-                        {isVanishing ? <Wind size={10} className="animate-spin" /> : 'Vanish'}
-                      </button>
+                            }`}
+                        >
+                          {isVanishing ? <Wind size={10} className="animate-spin" /> : 'Vanish'}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-[8px] text-xmr-dim opacity-30 uppercase">Primary</span>
                     )}

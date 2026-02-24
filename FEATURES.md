@@ -35,7 +35,9 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 ## 💸 Asset Bridging
 - [x] **Ghost_Swap Integration**: Quote and execute non-custodial asset swaps directly into your private vault via kyc.rip routing.
 - [x] **Cross-Chain Payment Links**: Generate shareable `kyc.rip/swap?source=pay` links that let external payers choose any asset — funds settle automatically into your XMR subaddress.
+- [x] **Ghost Send**: Send XMR from your vault — receiver gets BTC, USDT, ETH, or any supported asset. Quote, confirm, and auto-dispatch through the kyc.rip swap engine with zero identity link.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
+- [x] **Send From Subaddress**: Dispatch XMR or execute Ghost Sends scoped to a specific subaddress for granular coin control.
 
 ## 📦 Deployment & Execution
 - [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).

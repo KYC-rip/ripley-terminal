@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldAlert, Key, Tag, PlusCircle, Send, Skull } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Card } from '../Card';
+import { X, ShieldAlert } from 'lucide-react';
 import { ReceiveModal } from './ReceiveModal';
+import { DispatchModal } from './DispatchModal';
 
 interface VaultModalsProps {
   // Seed Modal
@@ -22,31 +21,15 @@ interface VaultModalsProps {
   onSend: (address: string, amount: number) => void;
   isSending: boolean;
   initialAddr?: string;
+  sourceSubaddressIndex?: number;
 }
 
 export function VaultModals({ 
   showSeed, onCloseSeed, mnemonic,
   showReceive, onCloseReceive, onCreateSub, selectedSubaddress,
   showSend, onCloseSend, onSend, isSending,
-  initialAddr = ''
+  initialAddr = '', sourceSubaddressIndex
 }: VaultModalsProps) {
-
-  // Send Modal Local State
-  const [destAddr, setDestAddr] = useState(initialAddr);
-  const [sendAmount, setAmount] = useState('');
-  const [isBanned, setIsBanned] = useState(false);
-
-  useEffect(() => { if (showSend) setDestAddr(initialAddr); }, [showSend, initialAddr]);
-
-  // Ban check logic
-  useEffect(() => {
-    if (destAddr.length > 30) {
-      fetch(`https://api.kyc.rip/v1/tools/ban-list?address=${destAddr}`)
-        .then(res => res.json())
-        .then((data: any) => setIsBanned(data.results && data.results.length > 0))
-        .catch(() => setIsBanned(false));
-    } else setIsBanned(false);
-  }, [destAddr]);
 
   return (
     <>
@@ -72,31 +55,13 @@ export function VaultModals({
         />
       )}
 
-      {/* SEND MODAL */}
+      {/* DISPATCH MODAL */}
       {showSend && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-          <div className="w-full max-w-lg bg-xmr-surface border border-xmr-accent/50 p-8 space-y-6 relative font-black">
-            <button onClick={onCloseSend} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-green cursor-pointer"><X size={24} /></button>
-            <div className="text-center space-y-2 mb-4 font-black">
-              <h3 className="text-2xl font-black italic uppercase text-xmr-accent">Dispatch_Sequence</h3>
-              <p className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Constructing outbound transaction</p>
-            </div>
-            <div className="space-y-4 font-black">
-              <div className="space-y-1 font-black">
-                 <div className="flex justify-between items-center font-black">
-                    <label className="text-[9px] font-black text-xmr-dim uppercase font-black">Destination_Address</label>
-                    {isBanned && <span className="text-[8px] text-red-500 font-black animate-pulse uppercase tracking-tighter">Intercepted</span>}
-                 </div>
-                 <input type="text" placeholder="4... / 8..." value={destAddr} onChange={(e) => setDestAddr(e.target.value)} className={`w-full bg-xmr-base border p-3 text-[10px] text-xmr-green focus:border-xmr-accent outline-none font-black transition-colors ${isBanned ? 'border-red-600' : 'border-xmr-border'}`} />
-              </div>
-              <div className="space-y-1 font-black">
-                 <label className="text-[9px] font-black text-xmr-dim uppercase font-black">Amount (XMR)</label>
-                 <input type="number" placeholder="0.00" value={sendAmount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none font-black" />
-              </div>
-              <button disabled={isSending || isBanned} onClick={() => onSend(destAddr, parseFloat(sendAmount))} className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-4 font-black cursor-pointer ${isBanned ? 'bg-red-950 text-red-500 cursor-not-allowed' : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base'}`}><Send size={18} /> {isSending ? 'DISPATCHING...' : isBanned ? 'MISSION_ABORTED' : 'CONFIRM_DISPATCH'}</button>
-            </div>
-          </div>
-        </div>
+        <DispatchModal
+          onClose={onCloseSend}
+          initialAddress={initialAddr}
+          sourceSubaddressIndex={sourceSubaddressIndex}
+        />
       )}
     </>
   );

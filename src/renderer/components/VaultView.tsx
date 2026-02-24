@@ -32,6 +32,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
   const [contacts, setContacts] = useState<any[]>([]);
   const [dispatchAddr, setDispatchAddr] = useState('');
   const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
+  const [dispatchSubIndex, setDispatchSubIndex] = useState<number | undefined>(undefined);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
@@ -265,6 +266,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           onUpdateLabel={setSubaddressLabel}
           onRowClick={(s) => { setSelectedSubaddress(s); setModals(prev => ({ ...prev, receive: true })); }}
           onVanishSubaddress={vanishSubaddress}
+          onSendFrom={(idx) => { setDispatchSubIndex(idx); setModals(prev => ({ ...prev, send: true })); }}
           isSyncing={status === 'SYNCING'}
         />}
         {tab === 'contacts' && <AddressBook
@@ -286,10 +288,11 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         onCreateSub={createSubaddress}
         selectedSubaddress={selectedSubaddress}
         showSend={modals.send}
-        onCloseSend={() => setModals(prev => ({ ...prev, send: false }))}
+        onCloseSend={() => { setModals(prev => ({ ...prev, send: false })); setDispatchSubIndex(undefined); }}
         onSend={sendXmr}
         isSending={isSending}
         initialAddr={dispatchAddr}
+        sourceSubaddressIndex={dispatchSubIndex}
       />
 
       {/* 6. ACCOUNT SELECTOR DRAWER */}
