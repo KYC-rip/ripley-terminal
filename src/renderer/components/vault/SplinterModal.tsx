@@ -36,7 +36,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
           <X size={24} />
         </button>
         
-        <div className="space-y-6 font-black">
+        <div className="space-y-6 font-normal">
           <div className="flex items-center gap-3 text-xmr-accent font-black">
             <Scissors size={32} />
             <h3 className="text-2xl font-black uppercase tracking-tighter">Tactical_Splinter</h3>

@@ -31,7 +31,7 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
           <X size={24} />
         </button>
         
-        <div className="space-y-6 font-black">
+        <div className="space-y-6 font-normal">
           <div className="flex items-center gap-3 text-xmr-green font-black">
             <Wind size={32} />
             <h3 className="text-2xl font-black uppercase tracking-tighter">UTXO_Churn_Protocol</h3>

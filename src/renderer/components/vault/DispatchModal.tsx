@@ -60,6 +60,59 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
   const [selectedOutputs, setSelectedOutputs] = useState<Set<string>>(new Set());
   const availableOutputs = outputs.filter((o: any) => o.isUnlocked);
 
+  // --- xmr.bio Resolver ---
+  const [bioProfile, setBioProfile] = useState<any>(null);
+  const [isResolvingBio, setIsResolvingBio] = useState(false);
+  const [bioError, setBioError] = useState('');
+
+  const resolveBioRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (sendMode !== 'single') {
+      setBioProfile(null);
+      setBioError('');
+      return;
+    }
+
+    const val = destAddr.trim();
+    // Only attempt resolution if it looks like a handle (short, no spaces, doesn't start with 4 or 8)
+    if (val.length > 0 && val.length < 50 && !val.includes(' ') && !/^[48]/.test(val)) {
+      if (resolveBioRef.current) clearTimeout(resolveBioRef.current);
+
+      setIsResolvingBio(true);
+      setBioError('');
+      setBioProfile(null);
+
+      // Remove @ if user typed it
+      const handle = val.startsWith('@') ? val.substring(1) : val;
+
+      resolveBioRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://api.xmr.bio/${handle}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.address) {
+              setBioProfile(data);
+            } else {
+              setBioError('No address found for this user.');
+            }
+          } else {
+            setBioError('User not found on xmr.bio');
+          }
+        } catch (e) {
+          setBioError('Failed to contact xmr.bio');
+        } finally {
+          setIsResolvingBio(false);
+        }
+      }, 600); // 600ms debounce
+    } else {
+      setBioProfile(null);
+      setBioError('');
+      setIsResolvingBio(false);
+      if (resolveBioRef.current) clearTimeout(resolveBioRef.current);
+    }
+  }, [destAddr, sendMode]);
+
   // --- Ghost Send State ---
   const { currencies } = useCurrencies();
   const [ghostCurrency, setGhostCurrency] = useState<Currency | null>(null);
@@ -316,12 +369,48 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                     <>
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><Wallet size={10} /> Destination</label>
+                          <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
+                            <Wallet size={10} /> Destination
+                            {isResolvingBio && <Loader2 size={10} className="animate-spin text-xmr-accent ml-1" />}
+                          </label>
                           {isBanned && <span className="text-xs text-red-500 animate-pulse uppercase">Intercepted</span>}
                         </div>
-                        <input type="text" value={destAddr} onChange={(e) => setDestAddr(e.target.value)} placeholder="4... / 8..."
+                        <input type="text" value={destAddr} onChange={(e) => setDestAddr(e.target.value)} placeholder="4... / 8... / @xbtoshi"
                           className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${isBanned ? 'border-red-600' : 'border-xmr-border'}`}
                         />
+
+                        {/* xmr.bio Profile Card */}
+                        {bioProfile && (
+                          <div className="mt-2 p-3 border border-xmr-green/30 bg-xmr-green/5 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center gap-3">
+                                {bioProfile.avatar && (
+                                  <img src={bioProfile.avatar} alt="Avatar" className="w-10 h-10 rounded bg-black object-cover border border-xmr-green/30" />
+                                )}
+                                <div>
+                                  <div className="text-xs font-black text-xmr-green flex items-center gap-2">
+                                    {bioProfile.display_name}
+                                  </div>
+                                  <div className="text-[10px] text-xmr-dim uppercase font-mono tracking-widest">@{bioProfile.handle}</div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setDestAddr(bioProfile.address);
+                                  setBioProfile(null);
+                                }}
+                                className="px-3 py-1.5 bg-xmr-green text-xmr-base text-[10px] font-black uppercase hover:bg-xmr-green/80 transition-colors cursor-pointer"
+                              >
+                                Use_Address
+                              </button>
+                            </div>
+                            {bioProfile.bio && (
+                              <div className="text-[10px] text-xmr-green/80 italic font-mono border-l-2 border-xmr-green/50 pl-2 leading-relaxed">
+                                {bioProfile.bio}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5"><DollarSign size={10} /> Amount (XMR)</label>
@@ -390,9 +479,19 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                         )}
                       </div>
                     )}
-                </div>
+                  </div>
 
-                <button
+                  <div className="flex justify-end pt-2">
+                    <a
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); window.api.openPath('https://xmr.bio'); }}
+                      className="text-[10px] text-xmr-dim hover:text-xmr-green underline transition-colors font-black tracking-widest"
+                    >
+                      CLAIM_XMR_BIO_PAGE
+                    </a>
+                  </div>
+
+                  <button
                     disabled={isSending || (sendMode === 'single' ? (isBanned || !destAddr || !sendAmount) : (parsed.destinations.length === 0 || parsed.errors.length > 0))}
                   onClick={handleDirectSend}
                     className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer ${isBanned && sendMode === 'single' ? 'bg-red-950 text-red-500 cursor-not-allowed'

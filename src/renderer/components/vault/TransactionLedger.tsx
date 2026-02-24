@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, Copy, ExternalLink, Info } from 'lucide-react';
 import { Card } from '../Card';
 import { AddressDisplay } from '../common/AddressDisplay';
+import { SubaddressInfo } from '../../contexts/VaultContext';
 
 interface Transaction {
   id: string;
@@ -21,6 +22,7 @@ interface Transaction {
 
 interface TransactionLedgerProps {
   txs: Transaction[];
+  subaddresses?: SubaddressInfo[];
 }
 
 function getRelativeTime(timestamp: number) {
@@ -37,8 +39,13 @@ function getRelativeTime(timestamp: number) {
   return `${Math.floor(diffInDays / 365)}y ago`;
 }
 
-export function TransactionLedger({ txs }: TransactionLedgerProps) {
+export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerProps) {
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+
+  const getSubaddressLabel = (addr: string) => {
+    const match = subaddresses.find(s => s.address === addr);
+    return match?.label || null;
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedTxId(expandedTxId === id ? null : id);
@@ -156,12 +163,22 @@ export function TransactionLedger({ txs }: TransactionLedgerProps) {
                           <label className="text-xs text-xmr-dim uppercase font-black tracking-widest block">Outbound_To</label>
                           {tx.destinations && tx.destinations.length > 0 ? (
                             <div className="space-y-2">
-                              {tx.destinations.map((dest, idx) => (
-                                <div key={idx} className="flex justify-between items-start gap-4">
-                                  <AddressDisplay address={dest.address} className="text-xs flex-grow" />
-                                  <span className="text-xs font-black text-xmr-accent whitespace-nowrap">-{dest.amount} XMR</span>
-                                </div>
-                              ))}
+                              {tx.destinations.map((dest, idx) => {
+                                const label = getSubaddressLabel(dest.address);
+                                return (
+                                  <div key={idx} className="flex justify-between items-start gap-4">
+                                    <div className="flex-grow flex flex-col">
+                                      {label && (
+                                        <span className="text-xs font-black text-xmr-green uppercase tracking-widest bg-xmr-green/10 self-start px-1.5 py-0.5 rounded-sm mb-1">
+                                          {label}
+                                        </span>
+                                      )}
+                                      <AddressDisplay address={dest.address} className="text-[11px]" />
+                                    </div>
+                                    <span className="text-xs font-black text-xmr-accent whitespace-nowrap mt-0.5">-{dest.amount} XMR</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-xs font-mono text-xmr-dim opacity-60 flex items-center gap-2">
@@ -176,7 +193,14 @@ export function TransactionLedger({ txs }: TransactionLedgerProps) {
                       {isIncoming && tx.address && (
                         <div className="space-y-2 border-t border-xmr-green/5 pt-3">
                           <label className="text-xs text-xmr-dim uppercase font-black tracking-widest block">Inbound_To</label>
-                          <AddressDisplay address={tx.address} className="text-xmr-green" />
+                          <div className="flex flex-col">
+                            {getSubaddressLabel(tx.address) && (
+                              <span className="text-xs font-black text-xmr-green uppercase tracking-widest bg-xmr-green/10 self-start px-1.5 py-0.5 rounded-sm mb-1">
+                                {getSubaddressLabel(tx.address)}
+                              </span>
+                            )}
+                            <AddressDisplay address={tx.address} className="text-xmr-green text-[11px]" />
+                          </div>
                         </div>
                       )}
                     </div>
