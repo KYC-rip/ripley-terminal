@@ -236,8 +236,15 @@ function MainApp() {
           </div>
           <div className="text-center">
             <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
-            <div className="text-[11px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1">
-              {activeIdentity?.name || 'TACTICAL_UPLINK'}
+            <div
+              className="text-[10px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1 cursor-help"
+              title={activeIdentity?.name || 'TACTICAL_UPLINK'}
+            >
+              {activeIdentity?.name
+                ? activeIdentity.name.length > 15
+                  ? `${activeIdentity.name.substring(0, 15)}...`
+                  : activeIdentity.name
+                : 'TACTICAL_UPLINK'}
             </div>
           </div>
         </div>
@@ -276,7 +283,7 @@ function MainApp() {
 
             <div className="space-y-2">
               {/* 👤 Current identity and switching entry point */}
-              <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest">
+              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
                 <span className="text-xmr-dim">ACTIVE_ID</span>
                 <button
                   onClick={() => setView('settings')}
