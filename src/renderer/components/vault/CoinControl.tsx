@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Coins, Shield, Lock as LockIcon, Wind } from 'lucide-react';
+import { Coins, Shield, Lock as LockIcon, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
 import { useVault } from '../../contexts/VaultContext';
 
 interface CoinControlProps {
   outputs: any[];
+  onSendFromCoin?: (keyImage: string, amount: string) => void;
 }
 
-export function CoinControl({ outputs }: CoinControlProps) {
+export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
   const { vanishCoin, status } = useVault();
   const isSyncing = status === 'SYNCING';
   const [vanishingId, setVanishingId] = useState<string | null>(null);
@@ -55,18 +56,32 @@ export function CoinControl({ outputs }: CoinControlProps) {
                   <td className="px-4 py-3 text-right text-xmr-green">{o.amount} XMR</td>
                   <td className="px-4 py-3 text-right font-mono text-[8px] opacity-40 uppercase">{o.keyImage?.substring(0, 24)}...</td>
                 <td className="px-4 py-3 text-right">
-                    <div
-                      className="inline-block relative group/tooltip"
-                      title={
-                        isSyncing ? "Wait for vault to sync before vanishing." :
-                          !o.isUnlocked ? "Coin is frozen and cannot be vanished." :
-                            "Vanish: Sweeps this individual coin back to your primary address to isolate it and improve privacy."
-                      }
-                    >
+                    <div className="flex items-center gap-1.5 justify-end">
+                      {onSendFromCoin && (
+                        <button
+                          onClick={() => onSendFromCoin(o.keyImage, o.amount)}
+                          disabled={!o.isUnlocked || isSyncing}
+                          title={!o.isUnlocked ? 'Coin is frozen' : 'Send using this specific coin'}
+                          className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 cursor-pointer ${o.isUnlocked
+                              ? 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10 hover:border-xmr-accent'
+                              : 'border-xmr-border text-xmr-dim opacity-40 cursor-not-allowed'
+                            }`}
+                        >
+                          <Send size={8} /> Send
+                        </button>
+                      )}
                       <button
                         onClick={() => handleVanish(o.keyImage)}
                         disabled={!o.isUnlocked || isSyncing || vanishingId !== null}
-                        className="text-[8px] px-2 py-1 border border-xmr-border hover:bg-xmr-green/10 hover:border-xmr-green/50 transition-all uppercase disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1 min-w-[60px]"
+                      title={
+                        isSyncing ? "Wait for vault to sync before vanishing." :
+                          !o.isUnlocked ? "Coin is frozen and cannot be vanished." :
+                            "Vanish: Sweeps this individual coin back to your primary address."
+                      }
+                        className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 min-w-[60px] cursor-pointer ${o.isUnlocked
+                            ? 'border-xmr-green/40 text-xmr-green hover:bg-xmr-green/10 hover:border-xmr-green'
+                            : 'border-xmr-border text-xmr-dim opacity-30 cursor-not-allowed'
+                          }`}
                       >
                         {isProcessing ? <Wind size={10} className="animate-spin" /> : 'Vanish'}
                       </button>
@@ -81,3 +96,4 @@ export function CoinControl({ outputs }: CoinControlProps) {
     </Card>
   );
 }
+

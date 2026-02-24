@@ -259,7 +259,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       {/* 4. TAB CONTENT */}
       <div className="min-h-[400px]">
         {tab === 'ledger' && <TransactionLedger txs={txs} />}
-        {tab === 'coins' && <CoinControl outputs={outputs} />}
+        {tab === 'coins' && <CoinControl outputs={outputs} onSendFromCoin={(_keyImage, _amount) => { setModals(prev => ({ ...prev, send: true })); }} />}
         {tab === 'addresses' && <AddressList
           subaddresses={subaddresses}
           handleCopy={handleCopy}

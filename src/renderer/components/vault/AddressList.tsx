@@ -112,19 +112,19 @@ export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClic
                     {hasBalance ? s.balance : '--'}
                   </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    {s.index > 0 ? (
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onSendFrom(s.index); }}
-                          disabled={!hasBalance}
-                          title={hasBalance ? 'Send from this subaddress' : 'No balance to send'}
-                          className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 cursor-pointer ${hasBalance
-                            ? 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10 hover:border-xmr-accent'
-                            : 'border-xmr-border text-xmr-dim opacity-40 cursor-not-allowed'
-                            }`}
-                        >
-                          <Send size={8} /> Send
-                        </button>
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSendFrom(s.index); }}
+                        disabled={!hasBalance}
+                        title={hasBalance ? 'Send from this subaddress' : 'No balance to send'}
+                        className={`text-[8px] px-2.5 py-1 border transition-all uppercase flex items-center justify-center gap-1 cursor-pointer ${hasBalance
+                          ? 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10 hover:border-xmr-accent'
+                          : 'border-xmr-border text-xmr-dim opacity-40 cursor-not-allowed'
+                          }`}
+                      >
+                        <Send size={8} /> Send
+                      </button>
+                      {s.index > 0 && (
                         <button
                           onClick={(e) => handleVanish(e, s.index)}
                           disabled={!hasBalance || isSyncing || vanishingIndex !== null}
@@ -136,10 +136,8 @@ export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClic
                         >
                           {isVanishing ? <Wind size={10} className="animate-spin" /> : 'Vanish'}
                         </button>
-                      </div>
-                    ) : (
-                      <span className="text-[8px] text-xmr-dim opacity-30 uppercase">Primary</span>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
