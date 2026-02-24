@@ -196,7 +196,7 @@ function MainApp() {
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
       <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
-        <div className="p-8 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <div className="p-8 mt-4 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
             <svg
               viewBox="0 0 100 100"

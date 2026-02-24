@@ -390,9 +390,9 @@ export function SettingsView() {
           </Card>
         </section>
 
-        {/* 👁️ Visuals Section */}
+        {/* 👁️ Visuals & UI Section */}
         <section className="space-y-4">
-          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><EyeOff size={14} /> Countermeasures</h3>
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><EyeOff size={14} /> Countermeasures & UI</h3>
           <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1"><span className="text-xs text-xmr-green font-black uppercase">CRT_Visual_Scanlines</span><p className="text-xs text-xmr-dim uppercase font-black">Overlay_Effect</p></div>
@@ -417,6 +417,23 @@ export function SettingsView() {
                   className="w-20 bg-xmr-base border border-xmr-border p-2 text-right text-xs text-xmr-green outline-none font-black"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-xmr-border/10 pt-6">
+              <div className="space-y-1">
+                <span className="text-xs text-xmr-green font-black uppercase">Reset_Context_Tooltips</span>
+                <p className="text-xs text-xmr-dim uppercase font-black">Restore all dismissed 'How It Works' banners</p>
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('hide_explainer_vault_churn');
+                  localStorage.removeItem('hide_explainer_vault_splinter');
+                  alert("CONTEXT_RESET: Educational banners will reappear.");
+                }}
+                className="px-3 py-1.5 border border-xmr-border text-[10px] uppercase font-black hover:border-xmr-green hover:text-xmr-green transition-all cursor-pointer"
+              >
+                Restore_Banners
+              </button>
             </div>
           </Card>
         </section>

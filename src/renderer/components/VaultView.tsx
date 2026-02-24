@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Skull, RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Dices, Scissors } from 'lucide-react';
 import { Card } from './Card';
+import { ExplainerCard } from './common/ExplainerCard';
 import { AddressBook } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';
 import { CoinControl } from './vault/CoinControl';
@@ -154,28 +155,6 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           <button onClick={() => setView('home')} className="text-xs text-xmr-dim hover:text-xmr-green mb-1 flex items-center gap-1 cursor-pointer font-black transition-all uppercase tracking-widest">[ DASHBOARD ]</button>
           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2>
         </div>
-        <div className="flex gap-2 font-black">
-          <button
-            onClick={handleSplinter}
-            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0 || isSplintering}
-            className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent text-[11px] hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black disabled:opacity-50"
-            title="Shatter UTXOs / Fragment Balance"
-          >
-            <Scissors size={10} className={isSplintering ? 'animate-pulse' : ''} /> {isSplintering ? 'Processing...' : 'Splinter'}
-          </button>
-          <button
-            onClick={handleChurn}
-            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0 || isChurning}
-            className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent text-[11px] hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black disabled:opacity-50"
-            title="Consolidate UTXOs / Break Heuristics"
-          >
-            <Dices size={10} className={isChurning ? 'animate-spin' : ''} /> {isChurning ? 'Sweeping...' : 'Churn_UTXOs'}
-          </button>
-          <button onClick={handleBurn} className="px-3 py-1.5 border border-red-900/50 text-red-500 text-[11px] hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black"><Skull size={10} /> Burn_ID</button>
-          <button onClick={refresh} className="px-3 py-1.5 border border-xmr-border text-[11px] hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black">
-            <RefreshCw size={10} className={isSyncing || isSending ? 'animate-spin' : ''} /> Sync_Ledger
-          </button>
-        </div>
       </div>
 
       {/* SYNC STATUS BANNER */}
@@ -189,6 +168,75 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
           </span>
         </div>
       )}
+
+      {/* TACTICAL EXPLAINERS */}
+      <div className="flex flex-col gap-2 relative z-10 font-black w-full">
+        <ExplainerCard
+          title="TACTICAL_SPLINTER_ENGINE"
+          storageKey="vault_splinter"
+          description={
+            <>
+              <strong>Splintering</strong> protects your privacy by algorithmically shattering your entire unlocked XMR balance
+              into multiple smaller UTXOs (Unspent Transaction Outputs) across newly generated stealth addresses.
+              <br /><br />
+              Why use it? If you have a massive XMR balance sitting in a single UTXO, sending even a tiny amount
+              forces you to expose and spend that massive UTXO as an input, creating "toxic change" that could
+              temporarily reveal your net-worth or expose your spending patterns to advanced timing analysis.
+              Splintering breaks your balance down, ensuring you always spend appropriately sized chunks instead of huge payloads.
+            </>
+          }
+        >
+          {/* Animated illustration of a large coin breaking into smaller ones */}
+          <div className="flex items-center gap-4 text-xmr-accent p-6 opacity-80">
+            <div className="w-16 h-16 rounded-full border-4 border border-xmr-accent bg-xmr-accent/20 flex items-center justify-center animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.4)]">
+              <span className="font-mono font-black text-sm">100</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="h-0.5 w-12 bg-xmr-accent/50"></div>
+              <div className="h-0.5 w-12 bg-xmr-accent/50"></div>
+              <div className="h-0.5 w-12 bg-xmr-accent/50"></div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-accent bg-xmr-accent/10 flex items-center justify-center"><span className="text-[10px]">33</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-accent bg-xmr-accent/10 flex items-center justify-center"><span className="text-[10px]">33</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-accent bg-xmr-accent/10 flex items-center justify-center"><span className="text-[10px]">34</span></div>
+            </div>
+          </div>
+        </ExplainerCard>
+
+        <ExplainerCard
+          title="UTXO_CHURN_PROTOCOL"
+          storageKey="vault_churn"
+          description={
+            <>
+              <strong>Churning</strong> is the defensive counter-part to Splintering. It sweeps your entire unlocked XMR
+              balance into a single, newly generated subaddress.
+              <br /><br />
+              Why use it? If you receive Monero from many different untrusted sources, or receive "dust attacks" with tiny outputs,
+              connecting all those distinct UTXOs together in a single standard transaction could form a heuristic linkage of your identity.
+              By Churning them first, you consolidate everything behind a fresh ring-signature payload. It essentially launders your local
+              funds back to yourself, resetting the heuristic depth.
+            </>
+          }
+        >
+          {/* Animated illustration of small coins merging into one */}
+          <div className="flex items-center gap-4 text-xmr-green p-6 opacity-80">
+            <div className="flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="h-0.5 w-12 bg-xmr-green/50"></div>
+              <div className="h-0.5 w-12 bg-xmr-green/50"></div>
+              <div className="h-0.5 w-12 bg-xmr-green/50"></div>
+            </div>
+            <div className="w-16 h-16 rounded-full border-4 border border-xmr-green bg-xmr-green/20 flex items-center justify-center animate-pulse shadow-[0_0_15px_rgba(0,255,0,0.4)]">
+              <span className="font-mono font-black text-sm">30</span>
+            </div>
+          </div>
+        </ExplainerCard>
+      </div>
 
       {/* 2. TOP GRID (Balances & ID) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 font-black font-mono">
@@ -224,24 +272,48 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
                 )}
               </div>
             </div>
-            <div
-              className="relative group/tooltip"
-              title={
-                isSyncing ? "Wait for vault to fully sync before churning." :
-                  parseFloat(currentAcc?.unlockedBalance || '0') <= 0 ? "You need an unlocked XMR balance to churn." :
-                    "Churning sweeps all your unlocked XMR back to yourself. This improves privacy and merges fragmented outputs, but costs a standard network fee."
-              }
-            >
-              <button
-                disabled={isSyncing || isChurning || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
-                onClick={handleChurn}
-                className={`flex flex-col items-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${isChurning ? 'animate-pulse' : ''}`}
+            <div className="flex gap-2 h-full">
+              {/* Splinter Action Block */}
+              <div
+                className="relative group/tooltip h-full"
+                title={
+                  isSyncing ? "Wait for vault to fully sync before splintering." :
+                    parseFloat(currentAcc?.unlockedBalance || '0') <= 0 ? "You need an unlocked XMR balance to splinter." :
+                      "Splintering shatters your balance into multiple smaller UTXOs across new subaddresses."
+                }
               >
-                <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
-                <span className="text-xs font-black uppercase tracking-widest">
-                  {isChurning ? 'Churning...' : 'Churn_All'}
-                </span>
-              </button>
+                <button
+                  disabled={isSyncing || isSplintering || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
+                  onClick={handleSplinter}
+                  className={`flex flex-col items-center justify-center gap-2 p-4 border border-xmr-accent/20 hover:bg-xmr-accent/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed h-full min-w-[120px] ${isSplintering ? 'animate-pulse' : ''}`}
+                >
+                  <Scissors size={24} className={isSplintering ? 'animate-spin text-xmr-accent' : 'text-xmr-accent group-hover:scale-110 transition-transform duration-300'} />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-xmr-accent mt-1">
+                    {isSplintering ? 'Splintering...' : 'Splinter'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Churn Action Block */}
+              <div
+                className="relative group/tooltip h-full"
+                title={
+                  isSyncing ? "Wait for vault to fully sync before churning." :
+                    parseFloat(currentAcc?.unlockedBalance || '0') <= 0 ? "You need an unlocked XMR balance to churn." :
+                      "Churning sweeps all your unlocked XMR back to yourself. This improves privacy and merges fragmented outputs, but costs a standard network fee."
+                }
+              >
+                <button
+                  disabled={isSyncing || isChurning || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
+                  onClick={handleChurn}
+                  className={`flex flex-col items-center justify-center gap-2 p-4 border border-xmr-green/20 hover:bg-xmr-green/5 transition-all group cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed h-full min-w-[120px] ${isChurning ? 'animate-pulse' : ''}`}
+                >
+                  <Wind size={24} className={isChurning ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
+                  <span className="text-[10px] font-black uppercase tracking-widest mt-1">
+                    {isChurning ? 'Churning...' : 'Churn_All'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex gap-12 border-t border-xmr-border/20 pt-6 uppercase font-black">
