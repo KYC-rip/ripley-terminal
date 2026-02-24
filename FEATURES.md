@@ -29,6 +29,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 ## 📊 Tactical Interface
 - [x] **Sidebar Navigation**: Professional layout for rapid access to Vault, Swap, and Intelligence tools.
 - [x] **Global Theme Support**: Semantic Dark (Tactical), Light (Financial), and System modes with optimized contrast rendering.
+- [x] **Custom Background Skins**: Upload custom local images (JPG/PNG/GIF) with opacity and position controls to personalize the terminal interface.
 - [x] **Local Intel Feed**: Real-time XMR market data and network pulse (Hashrate, Fees, Mempool).
 - [x] **Local Chart Rendering**: Integrated `lightweight-charts` engine for theme-aware, interactive market analysis.
 - [x] **Address Detail Modal**: Click any subaddress row to open a full-featured modal showing QR code, address, and payment link.

@@ -70,8 +70,21 @@ export class DaemonManager {
       ];
 
       if (systemProxy) {
-        console.log(`[TOR] Mounting system proxy: ${systemProxy}`);
-        torArgs.push('--Socks5Proxy', systemProxy);
+        let proxyType = '--Socks5Proxy';
+        let cleanProxy = systemProxy;
+
+        if (systemProxy.startsWith('socks5://')) {
+          cleanProxy = systemProxy.replace('socks5://', '');
+        } else if (systemProxy.startsWith('http://')) {
+          proxyType = '--HTTPSProxy';
+          cleanProxy = systemProxy.replace('http://', '');
+        } else if (systemProxy.startsWith('https://')) {
+          proxyType = '--HTTPSProxy';
+          cleanProxy = systemProxy.replace('https://', '');
+        }
+
+        console.log(`[TOR] Mounting system proxy: ${proxyType} ${cleanProxy}`);
+        torArgs.push(proxyType, cleanProxy);
       }
 
       const env = Object.assign({}, process.env);
