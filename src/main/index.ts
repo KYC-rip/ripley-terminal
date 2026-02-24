@@ -154,7 +154,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('check-for-updates', async () => {
     try {
-      const response = await net.fetch('https://api.github.com/repos/JoeanSteinbock/kyc-rip/releases/latest');
+      const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases/latest');
       if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
       const release = await response.json() as any;
       const latestVersion = release.tag_name.replace(/^v/, '');
@@ -265,7 +265,7 @@ async function applyGlobalNetworkRouting(config: AppConfig, torSocksPort: number
   } else if (config.useSystemProxy && config.systemProxyAddress) {
     activeProxyUrl = config.systemProxyAddress.includes('://')
       ? config.systemProxyAddress
-      : `http://${config.systemProxyAddress}`;
+      : `socks5://${config.systemProxyAddress}`;
   }
 
   if (activeProxyUrl) {
