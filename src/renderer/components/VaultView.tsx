@@ -300,7 +300,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div
             ref={dropdownRef}
-            className="w-[450px] max-w-[90vw] h-full bg-[#0A0A0A] border-l border-xmr-border/50 shadow-2xl flex flex-col font-mono animate-in slide-in-from-right duration-300"
+            className="w-[450px] max-w-[90vw] h-full bg-xmr-base border-l border-xmr-border/50 shadow-2xl flex flex-col font-mono animate-in slide-in-from-right duration-300"
           >
             <div className="flex justify-between items-center p-6 border-b border-xmr-border/20 relative">
               <h3 className="text-lg font-black uppercase text-xmr-green tracking-widest">Account_Manager</h3>
