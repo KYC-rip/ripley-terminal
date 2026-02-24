@@ -6,7 +6,7 @@ import { Card } from './Card';
 const SpreadChart = React.lazy(() => import('./SpreadChart'));
 
 interface HomeViewProps {
-  setView: (v: 'home' | 'vault' | 'swap' | 'settings') => void;
+   setView: (v: 'home' | 'vault' | 'settings') => void;
   stats: any;
   loading: boolean;
 }
@@ -113,11 +113,11 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
             </Card>
          </button>
 
-         <button onClick={() => setView('swap')} className="group text-left cursor-pointer">
+           <button onClick={() => setView('vault')} className="group text-left cursor-pointer">
             <Card topGradientAccentColor="xmr-accent" className="hover:bg-xmr-accent/5 transition-all relative overflow-hidden h-full">
                <Ghost size={20} className="mb-4 text-xmr-accent" />
-               <h4 className="text-xs font-black uppercase text-xmr-accent mb-1">Ghost_Swap</h4>
-               <p className="text-[8px] text-xmr-dim uppercase leading-tight">Aggregated dark-routing for anonymous asset bridging.</p>
+                 <h4 className="text-xs font-black uppercase text-xmr-accent mb-1">Ghost_Send</h4>
+                 <p className="text-[8px] text-xmr-dim uppercase leading-tight">Send XMR — receiver gets any asset. Zero identity link.</p>
                <div className="absolute -bottom-2 -right-2 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity"><Ghost size={80}/></div>
             </Card>
          </button>

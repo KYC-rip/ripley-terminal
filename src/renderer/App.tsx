@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Zap, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
+import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
-import { SwapView } from './components/SwapView';
+
 import { SettingsView } from './components/SettingsView';
 import { HomeView } from './components/HomeView';
 import { VaultView } from './components/VaultView';
@@ -12,7 +12,7 @@ import { AddressDisplay } from './components/common/AddressDisplay';
 import { VaultProvider } from './contexts/VaultContext';
 
 function MainApp() {
-  const [view, setView] = useState<'home' | 'vault' | 'swap' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'vault' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
 
   const [appConfig, setAppConfig] = useState<any>(null);
@@ -229,7 +229,7 @@ function MainApp() {
             icon={Shield}
             badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null}
           />
-          <NavButton id="swap" label="Vanish_Swap" icon={Zap} />
+
           <NavButton id="settings" label="Config_System" icon={Settings} />
         </nav>
 
@@ -337,7 +337,7 @@ function MainApp() {
             <>
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
               <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
-              <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView localXmrAddress={address} /></div>
+
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
             </>
           )}
