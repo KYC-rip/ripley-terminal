@@ -32,13 +32,13 @@
       }
     ],
     "mac": {
-      "icon": "public/web-app-manifest-512x512.png"
+      "icon": "public/icon.png"
     },
     "win": {
-      "icon": "public/web-app-manifest-512x512.png"
+      "icon": "public/icon.png"
     },
     "linux": {
-      "icon": "public/web-app-manifest-512x512.png"
+      "icon": "public/icon.png"
     },
     "extraResources": [
       {
