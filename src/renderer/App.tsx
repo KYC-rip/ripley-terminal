@@ -296,8 +296,8 @@ function MainApp() {
               </span>
             </div>
           </div>
-          <div className="pt-2 border-t border-xmr-border/10">
-            <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic">
+          <div className="mt-2 border-t border-xmr-border/10 justify-end absolute bottom-2 left-6">
+            <div className="text-[7px] text-xmr-dim leading-relaxed uppercase italic ">
               Uplink: {uplink || 'Scanning...'}
             </div>
           </div>

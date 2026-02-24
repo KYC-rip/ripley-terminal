@@ -7,7 +7,7 @@
   --color-xmr-dim: var(--text-dim);
   --color-xmr-accent: var(--text-accent);
   --color-xmr-border: var(--border-color);
-  
+
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 }
 
@@ -52,13 +52,16 @@
     width: 6px;
     height: 6px;
   }
+
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+
   ::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 10px;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: var(--brand-color);
   }
@@ -69,12 +72,28 @@
 }
 
 @keyframes progress-indeterminate {
-  0% { transform: translateX(-100%) scaleX(0.2); }
-  50% { transform: translateX(0%) scaleX(0.5); }
-  100% { transform: translateX(100%) scaleX(0.2); }
+  0% {
+      transform: translateX(-100%) scaleX(0.2);
+    }
+  
+    50% {
+      transform: translateX(0%) scaleX(0.5);
+    }
+  
+    100% {
+      transform: translateX(100%) scaleX(0.2);
+    }
 }
 
 .animate-progress-indeterminate {
   animation: progress-indeterminate 2s infinite linear;
   transform-origin: left;
+}
+
+#root {
+  margin: 0 auto;
+
+  padding: 0;
+
+  text-align: left;
 }
