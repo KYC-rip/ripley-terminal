@@ -11,6 +11,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 
 ## 🌪️ On-Chain Privacy (Tactical)
 - [x] **One-Click Churn**: Sweep entire unlocked balance back to self via fresh subaddresses to break deterministic links.
+- [x] **Tactical Splinter**: Shatter large UTXOs into multiple smaller fragments across new stealth addresses to prevent "toxic change" and net-worth leakage.
 - [x] **Individual Coin Vanishing**: Selectively sweep individual UTXOs (Deterministic Outputs) back to the primary address using `sweep_single` to isolate trailing transactions.
 - [x] **Subaddress Vanishing**: Sweep all outputs from a specific subaddress to a freshly generated one using `sweep_all` with `subaddr_indices`, breaking on-chain linkability at the subaddress level.
 - [x] **Coin Control (UTXO)**: Detailed list of every deterministic output (unspent) with unlock status and Key Image tracking.
@@ -48,4 +49,4 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Secure Subtree CI/CD**: Custom deployment scripts that scrub the Git git-history for anonymity and push to a clean, public-facing repository natively.
 
 ---
-*Last Updated: 2026-02-24*
+*Last Updated: 2026-02-25*
