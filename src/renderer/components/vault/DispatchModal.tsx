@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Ghost, ArrowRight, DollarSign, Loader2, CheckCircle2, AlertTriangle, Wallet, RefreshCw } from 'lucide-react';
+import { X, Send, Ghost, ArrowRight, DollarSign, Loader2, CheckCircle2, AlertTriangle, Wallet, RefreshCw, Lock } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { CurrencySelector } from '../CurrencySelector';
 import { useCurrencies, Currency } from '../../hooks/useCurrencies';
@@ -15,8 +15,15 @@ type Tab = 'direct' | 'ghost';
 type GhostPhase = 'configure' | 'quoting' | 'quoted' | 'creating' | 'sending' | 'tracking' | 'complete' | 'error';
 
 export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIndex }: DispatchModalProps) {
-  const { sendXmr, isSending, address: primaryAddress } = useVault();
+  const { sendXmr, isSending, activeId } = useVault();
   const [tab, setTab] = useState<Tab>('direct');
+
+  // --- Password Confirmation ---
+  const [showPasswordGate, setShowPasswordGate] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const pendingActionRef = useRef<(() => Promise<void>) | null>(null);
 
   // --- Direct Send State ---
   const [destAddr, setDestAddr] = useState(initialAddress);
@@ -49,26 +56,49 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
 
   // Default ghost currency
   useEffect(() => {
-    if (currencies.length > 0 && !ghostCurrency) {
+    if (currencies.length > 0 && !ghostCurrency)
       setGhostCurrency(currencies.find(c => c.ticker === 'usdt' && c.network === 'TRC20') || currencies[0]);
-    }
   }, [currencies, ghostCurrency]);
 
   // Cleanup polling on unmount
   useEffect(() => () => { if (pollingRef.current) clearInterval(pollingRef.current); }, []);
 
+  // --- Password Gate ---
+  const requirePassword = (action: () => Promise<void>) => {
+    pendingActionRef.current = action;
+    setPassword('');
+    setPasswordError('');
+    setShowPasswordGate(true);
+  };
+
+  const verifyAndExecute = async () => {
+    if (!password) return;
+    setIsVerifying(true);
+    setPasswordError('');
+    try {
+      // Verify password by reopening the wallet (safe — it's already open)
+      const res = await window.api.walletAction('open', { name: activeId, pwd: password });
+      if (!res.success) throw new Error(res.error || 'Invalid password');
+      // Password verified — execute the pending action
+      setShowPasswordGate(false);
+      if (pendingActionRef.current) await pendingActionRef.current();
+    } catch (e: any) {
+      setPasswordError(e.message?.includes('invalid password') ? 'WRONG_PASSWORD' : (e.message || 'Verification failed'));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   // --- Direct Send ---
   const handleDirectSend = async () => {
     if (!destAddr || !sendAmount || isBanned) return;
-    try {
+    requirePassword(async () => {
       const txHash = await sendXmr(destAddr, parseFloat(sendAmount));
       if (txHash) {
         setDirectTxHash(txHash);
         setDirectSent(true);
       }
-    } catch (e: any) {
-      console.error("Direct send failed:", e);
-    }
+    });
   };
 
   // --- Ghost Send: Get Quote ---
@@ -90,60 +120,57 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
     }
   };
 
-  // --- Ghost Send: Execute ---
-  const handleGhostExecute = async () => {
+  // --- Ghost Send: Execute (password-gated) ---
+  const handleGhostExecute = () => {
     if (!quote || !ghostCurrency || !ghostReceiverAddr) return;
-    setGhostPhase('creating');
-    setGhostError('');
+    requirePassword(async () => {
+      setGhostPhase('creating');
+      setGhostError('');
+      try {
+        const route = quote.routes?.[0];
+        const trade = await createTrade({
+          id: quote.id,
+          amountFrom: quote.amount_from,
+          amountTo: quote.amount_to,
+          fromTicker: 'xmr',
+          fromNetwork: 'Mainnet',
+          toTicker: ghostCurrency!.ticker,
+          toNetwork: ghostCurrency!.network || 'Mainnet',
+          destinationAddress: ghostReceiverAddr,
+          provider: route?.provider || quote.provider,
+          source: 'ghost'
+        });
+        setTradeResponse(trade);
 
-    try {
-      // 1. Create the trade
-      const route = quote.routes?.[0];
-      const trade = await createTrade({
-        id: quote.id,
-        amountFrom: quote.amount_from,
-        amountTo: quote.amount_to,
-        fromTicker: 'xmr',
-        fromNetwork: 'Mainnet',
-        toTicker: ghostCurrency.ticker,
-        toNetwork: ghostCurrency.network || 'Mainnet',
-        destinationAddress: ghostReceiverAddr,
-        provider: route?.provider || quote.provider,
-        source: 'ghost'
-      });
-      setTradeResponse(trade);
+        setGhostPhase('sending');
+        const depositAddr = trade.deposit_address || trade.address_provider;
+        const depositAmt = trade.deposit_amount || trade.amount_from;
+        await sendXmr(depositAddr, depositAmt);
 
-      // 2. Auto-send XMR to the deposit address
-      setGhostPhase('sending');
-      const depositAddr = trade.deposit_address || trade.address_provider;
-      const depositAmt = trade.deposit_amount || trade.amount_from;
-      await sendXmr(depositAddr, depositAmt);
+        setGhostPhase('tracking');
+        setTradeStatus('WAITING');
+        const tradeId = trade.trade_id || trade.id || '';
 
-      // 3. Start tracking
-      setGhostPhase('tracking');
-      setTradeStatus('WAITING');
-      const tradeId = trade.trade_id || trade.id || '';
-
-      pollingRef.current = setInterval(async () => {
-        try {
-          const status = await getTradeStatus(tradeId);
-          const s = (status as any)?.status?.toUpperCase() || 'WAITING';
-          setTradeStatus(s);
-          if (['FINISHED', 'COMPLETE', 'COMPLETED'].includes(s)) {
-            setGhostPhase('complete');
-            if (pollingRef.current) clearInterval(pollingRef.current);
-          } else if (['FAILED', 'REFUNDED', 'EXPIRED'].includes(s)) {
-            setGhostError(`Trade ${s.toLowerCase()}`);
-            setGhostPhase('error');
-            if (pollingRef.current) clearInterval(pollingRef.current);
-          }
-        } catch { /* swallow polling errors */ }
-      }, 10000);
-
-    } catch (e: any) {
-      setGhostError(e.message || 'Ghost send failed');
-      setGhostPhase('error');
-    }
+        pollingRef.current = setInterval(async () => {
+          try {
+            const status = await getTradeStatus(tradeId);
+            const s = (status as any)?.status?.toUpperCase() || 'WAITING';
+            setTradeStatus(s);
+            if (['FINISHED', 'COMPLETE', 'COMPLETED'].includes(s)) {
+              setGhostPhase('complete');
+              if (pollingRef.current) clearInterval(pollingRef.current);
+            } else if (['FAILED', 'REFUNDED', 'EXPIRED'].includes(s)) {
+              setGhostError(`Trade ${s.toLowerCase()}`);
+              setGhostPhase('error');
+              if (pollingRef.current) clearInterval(pollingRef.current);
+            }
+          } catch { /* swallow polling errors */ }
+        }, 10000);
+      } catch (e: any) {
+        setGhostError(e.message || 'Ghost send failed');
+        setGhostPhase('error');
+      }
+    });
   };
 
   const resetGhost = () => {
@@ -158,6 +185,43 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
       <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden">
+
+        {/* ══ PASSWORD CONFIRMATION OVERLAY ══ */}
+        {showPasswordGate && (
+          <div className="absolute inset-0 z-10 bg-xmr-surface/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 animate-in fade-in duration-200">
+            <Lock size={36} className="text-xmr-accent mb-4" />
+            <h4 className="text-sm font-black uppercase text-xmr-accent tracking-widest mb-1">Authorization Required</h4>
+            <p className="text-[9px] text-xmr-dim uppercase tracking-wider mb-6">Enter vault password to authorize transaction</p>
+            <input
+              autoFocus
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') verifyAndExecute(); if (e.key === 'Escape') setShowPasswordGate(false); }}
+              placeholder="••••••••••••"
+              className={`w-full max-w-xs bg-xmr-base border p-3 text-xl font-black text-xmr-green text-center focus:border-xmr-accent outline-none transition-all ${passwordError ? 'border-red-600' : 'border-xmr-border'}`}
+            />
+            {passwordError && (
+              <div className="text-[9px] text-red-500 uppercase mt-2 animate-pulse">{passwordError}</div>
+            )}
+            <div className="flex gap-3 mt-6 w-full max-w-xs">
+              <button
+                onClick={() => setShowPasswordGate(false)}
+                className="flex-1 py-2.5 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[9px] cursor-pointer hover:border-xmr-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={verifyAndExecute}
+                disabled={!password || isVerifying}
+                className="flex-1 py-2.5 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[9px] cursor-pointer hover:bg-xmr-green transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <Lock size={12} />}
+                {isVerifying ? 'Verifying...' : 'Authorize'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-xmr-border/40">
@@ -249,7 +313,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
           {/* ════════ GHOST SEND ════════ */}
           {tab === 'ghost' && (
             <>
-              {/* Phase: Configure */}
               {ghostPhase === 'configure' && (
                 <div className="space-y-4">
                   <div className="bg-xmr-green/5 border border-xmr-green/20 p-3 text-[9px] text-xmr-green/80 uppercase tracking-wider">
@@ -299,7 +362,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Quoting */}
               {ghostPhase === 'quoting' && (
                 <div className="py-16 flex flex-col items-center gap-3 text-xmr-accent/60 animate-pulse">
                   <Loader2 size={32} className="animate-spin" />
@@ -307,7 +369,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Quoted — Show quote and confirm */}
               {ghostPhase === 'quoted' && quote && (
                 <div className="space-y-5">
                   <div className="bg-xmr-base border border-xmr-border p-4 space-y-3">
@@ -346,7 +407,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Creating / Sending */}
               {(ghostPhase === 'creating' || ghostPhase === 'sending') && (
                 <div className="py-16 flex flex-col items-center gap-4 text-xmr-accent/60">
                   <Loader2 size={32} className="animate-spin" />
@@ -356,7 +416,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Tracking */}
               {ghostPhase === 'tracking' && (
                 <div className="py-8 flex flex-col items-center gap-4">
                   <RefreshCw size={32} className="text-xmr-accent animate-spin" />
@@ -375,7 +434,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Complete */}
               {ghostPhase === 'complete' && (
                 <div className="py-12 flex flex-col items-center gap-4 text-center">
                   <CheckCircle2 size={48} className="text-xmr-green" />
@@ -387,7 +445,6 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
                 </div>
               )}
 
-              {/* Phase: Error */}
               {ghostPhase === 'error' && (
                 <div className="py-12 flex flex-col items-center gap-4 text-center">
                   <AlertTriangle size={48} className="text-red-500" />
