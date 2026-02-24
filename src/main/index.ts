@@ -179,6 +179,15 @@ app.whenReady().then(async () => {
     return { success: !error, error };
   });
 
+  ipcMain.handle('open-external', async (_, url: string) => {
+    try {
+      await require('electron').shell.openExternal(url);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('select-background-image', async () => {
     const { dialog } = require('electron');
     const fs = require('fs');

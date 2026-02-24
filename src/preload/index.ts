@@ -40,6 +40,7 @@ const api = {
 
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   selectBackgroundImage: () => ipcRenderer.invoke('select-background-image'),
 

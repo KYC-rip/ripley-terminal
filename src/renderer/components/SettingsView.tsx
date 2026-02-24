@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 
@@ -477,6 +477,12 @@ export function SettingsView() {
                     <Trash2 size={12} /> Clear
                   </button>
                 )}
+
+                <button
+                  onClick={() => window.api.openExternal('https://x.com/search?q=%23GhostTerminalSkin')}
+                  className="px-4 py-2 bg-xmr-base border border-xmr-border hover:border-xmr-accent text-xmr-green text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2">
+                  <ExternalLink size={12} /> Find more on <X size={14} />
+                </button>
               </div>
 
               {localSettings.skin_background && (

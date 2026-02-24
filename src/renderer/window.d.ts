@@ -69,6 +69,7 @@ export interface IApi {
   // --- App Info & Updates ---
   getAppInfo: () => Promise<{ version: string; appDataPath: string; walletsPath: string; platform: NodeJS.Platform }>;
   openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   checkForUpdates: () => Promise<{ success: boolean; hasUpdate?: boolean; latestVersion?: string; releaseUrl?: string; body?: string; publishedAt?: string; error?: string }>;
   selectBackgroundImage: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
