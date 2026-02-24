@@ -91,6 +91,32 @@ export const WalletService = {
   },
 
   /**
+   * Multi-destination transfer with optional coin control
+   */
+  async sendMulti(
+    destinations: { address: string; amount: number }[],
+    accountIndex: number,
+    subaddrIndices?: number[]
+  ) {
+    const rpcDest = destinations.map(d => ({
+      destination: d.address,
+      amount: RpcClient.toAtomic(d.amount)
+    }));
+
+    const params: any = {
+      destinations: rpcDest,
+      account_index: accountIndex,
+      priority: 1
+    };
+
+    if (subaddrIndices && subaddrIndices.length > 0) {
+      params.subaddr_indices = subaddrIndices;
+    }
+
+    return await RpcClient.call('transfer', params);
+  },
+
+  /**
    * Churn: Sweeps all available balance back to self to refresh privacy or unify fragments
    */
   async churn(accountIndex: number) {

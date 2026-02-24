@@ -38,6 +38,7 @@ export interface VaultContextType {
   unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
   lock: () => void;
   sendXmr: (address: string, amount: number) => Promise<string | undefined>;
+  sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[]) => Promise<void>;
   purgeIdentity: (id: string) => Promise<void>;
   switchIdentity: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -459,7 +460,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       await refresh();
     },
     switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
-    createAccount
+    createAccount,
+    sendMulti: async (destinations: { address: string; amount: number }[], subaddrIndices?: number[]) => {
+      await WalletService.sendMulti(destinations, selectedAccountIndex, subaddrIndices);
+      addLog(`✅ Multi-send dispatched: ${destinations.length} recipient(s)`, 'success');
+      await refresh();
+    }
   };
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
