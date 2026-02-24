@@ -1,5 +1,6 @@
 {
   "name": "ghost-terminal",
+  "productName": "Ghost Terminal",
   "version": "1.0.14",
   "description": "KYC.RIP Tactical Monero Desktop Wallet",
   "repository": {
