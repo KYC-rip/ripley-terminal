@@ -130,6 +130,44 @@ export const WalletService = {
   },
 
   /**
+   * Splinter: Shatters the unlocked balance into N smaller UTXOs distributed across new subaddresses.
+   */
+  async splinter(accountIndex: number, fragments: number) {
+    if (fragments < 2 || fragments > 10) {
+      throw new Error("Splinter fragments must be between 2 and 10.");
+    }
+    const balRes = await RpcClient.call('getbalance', { account_index: accountIndex });
+    const availablePico = balRes.unlocked_balance || 0;
+
+    // Safety check: leave 0.0005 XMR (500,000,000 pico) buffer for fees
+    const feeBuffer = 500000000;
+    const splinterableAmount = availablePico - feeBuffer;
+
+    if (splinterableAmount <= 0) {
+      throw new Error("Balance too small after reserving fee buffer.");
+    }
+
+    const amountPerFragment = Math.floor(splinterableAmount / fragments);
+
+    const destinations = [];
+    for (let i = 0; i < fragments; i++) {
+      const newAddr = await this.createSubaddress(`Fragment_${Math.random().toString(36).substring(2, 6)}`, accountIndex);
+      destinations.push({
+        address: newAddr,
+        amount: amountPerFragment
+      });
+    }
+
+    const res = await RpcClient.call('transfer', {
+      destinations,
+      account_index: accountIndex,
+      ring_size: 16
+    });
+
+    return res.tx_hash_list?.[0] || res.tx_hash;
+  },
+
+  /**
    * Sweep All: Extinguish all wallet funds to a specific address
    */
   async sweepAll(destination: string, accountIndex: number) {

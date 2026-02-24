@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Skull, RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Dices } from 'lucide-react';
+import { Skull, RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Dices, Scissors } from 'lucide-react';
 import { Card } from './Card';
 import { AddressBook } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';
@@ -22,13 +22,14 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
     accounts, selectedAccountIndex, setSelectedAccountIndex,
     balance, address, subaddresses, outputs, refresh,
     status, isSending, sendXmr, createSubaddress,
-    churn, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel,
+    churn, splinter, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel,
     vanishSubaddress
   } = vault;
   const [tab, setTab] = useState<'ledger' | 'addresses' | 'coins' | 'contacts'>('ledger');
   const [modals, setModals] = useState({ seed: false, receive: false, send: false });
   const [mnemonic, setMnemonic] = useState('');
   const [isChurning, setIsChurning] = useState(false);
+  const [isSplintering, setIsSplintering] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [dispatchAddr, setDispatchAddr] = useState('');
   const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
@@ -83,6 +84,26 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
     finally { setIsChurning(false); }
   };
 
+  const handleSplinter = async () => {
+    const raw = prompt("SPLINTER_BALANCE: Enter number of fragments to shatter your balance into (2-10).", "5");
+    if (!raw) return;
+    const n = parseInt(raw, 10);
+    if (isNaN(n) || n < 2 || n > 10) {
+      alert("INVALID_INPUT: Fragments must be a number between 2 and 10.");
+      return;
+    }
+    if (!confirm(`CONFIRM_SPLINTER: Shatter current unlocked balance into ${n} new UTXOs?`)) return;
+
+    setIsSplintering(true);
+    try {
+      await splinter(n);
+    } catch (e: any) {
+      alert(`SPLINTER_FAILED: ${e.message}`);
+    } finally {
+      setIsSplintering(false);
+    }
+  };
+
   const handleOpenCreateModal = async () => {
     const label = prompt("ENTER_ACCOUNT_LABEL:", "Savings_Account");
 
@@ -135,8 +156,16 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         </div>
         <div className="flex gap-2 font-black">
           <button
+            onClick={handleSplinter}
+            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0 || isSplintering}
+            className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent text-[11px] hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black disabled:opacity-50"
+            title="Shatter UTXOs / Fragment Balance"
+          >
+            <Scissors size={10} className={isSplintering ? 'animate-pulse' : ''} /> {isSplintering ? 'Processing...' : 'Splinter'}
+          </button>
+          <button
             onClick={handleChurn}
-            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0}
+            disabled={isSyncing || isSending || parseFloat(currentAcc?.unlockedBalance || '0') <= 0 || isChurning}
             className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent text-[11px] hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer uppercase font-black disabled:opacity-50"
             title="Consolidate UTXOs / Break Heuristics"
           >

@@ -46,6 +46,7 @@ export interface VaultContextType {
   renameIdentity: (id: string, name: string) => Promise<void>;
   renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
   churn: () => Promise<void>;
+  splinter: (fragments: number) => Promise<void>;
   vanishCoin: (keyImage: string) => Promise<void>;
   vanishSubaddress: (subaddressIndex: number) => Promise<void>;
   setSubaddressLabel: (index: number, label: string) => Promise<void>;
@@ -436,7 +437,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     },
     churn: async (accountIndex?: number) => {
       await WalletService.churn(accountIndex || selectedAccountIndex);
-      await refresh();
+      refresh();
+    },
+    splinter: async (fragments: number) => {
+      await WalletService.splinter(selectedAccountIndex, fragments);
+      refresh();
     },
     vanishCoin: async (keyImage: string) => {
       // 1. Trigger the single UTXO sweep
