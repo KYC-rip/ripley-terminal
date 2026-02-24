@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2 } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 
@@ -18,7 +18,10 @@ export function SettingsView() {
     auto_lock_minutes: 10,
     identityName: '',
     useSystemProxy: false,
-    systemProxyAddress: ''
+    systemProxyAddress: '',
+    skin_background: '',
+    skin_opacity: 0.2,
+    skin_style: 'cover'
   });
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -53,7 +56,10 @@ export function SettingsView() {
         auto_lock_minutes: fullConfig.auto_lock_minutes || 10,
         identityName: currentIdentity?.name || '',
         useSystemProxy: fullConfig.useSystemProxy || false,
-        systemProxyAddress: fullConfig.systemProxyAddress || ''
+        systemProxyAddress: fullConfig.systemProxyAddress || '',
+        skin_background: fullConfig.skin_background || '',
+        skin_opacity: fullConfig.skin_opacity !== undefined ? fullConfig.skin_opacity : 0.2,
+        skin_style: fullConfig.skin_style || 'cover'
       });
 
       const info = await window.api.getAppInfo();
@@ -118,7 +124,10 @@ export function SettingsView() {
         useSystemProxy: localSettings.useSystemProxy,
         systemProxyAddress: localSettings.systemProxyAddress,
         show_scanlines: localSettings.show_scanlines,
-        auto_lock_minutes: localSettings.auto_lock_minutes
+        auto_lock_minutes: localSettings.auto_lock_minutes,
+        skin_background: localSettings.skin_background,
+        skin_opacity: localSettings.skin_opacity,
+        skin_style: localSettings.skin_style
       };
 
       if (needsPhysicalReload) {
@@ -435,13 +444,93 @@ export function SettingsView() {
                 Restore_Banners
               </button>
             </div>
+
+            {/* Custom Interface Skin */}
+            <div className="flex flex-col border-t border-xmr-border/10 pt-6 space-y-4">
+              <div className="space-y-1">
+                <span className="text-xs text-xmr-green font-black uppercase flex items-center gap-2">
+                  <ImageIcon size={12} /> Custom_Skin
+                </span>
+                <p className="text-xs text-xmr-dim uppercase font-black">Upload a local image (JPG/PNG/GIF) to use as background.</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    const res = await window.api.selectBackgroundImage?.();
+                    if (res?.success) {
+                      setLocalSettings({ ...localSettings, skin_background: res.data || '' });
+                    } else if (res?.error && res.error !== 'Cancelled') {
+                      alert(`Failed to load image: ${res.error}`);
+                    }
+                  }}
+                  className="px-4 py-2 bg-xmr-base border border-xmr-border hover:border-xmr-accent text-xmr-green text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
+                >
+                  <FolderOpen size={12} /> Select_Image
+                </button>
+
+                {localSettings.skin_background && (
+                  <button
+                    onClick={() => setLocalSettings({ ...localSettings, skin_background: '' })}
+                    className="px-4 py-2 bg-red-950/20 border border-red-900/30 hover:bg-red-900/50 text-red-500 text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Trash2 size={12} /> Clear
+                  </button>
+                )}
+              </div>
+
+              {localSettings.skin_background && (
+                <div className="grid grid-cols-2 gap-4 mt-2 p-4 bg-xmr-base border border-xmr-border/50">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-xmr-dim uppercase font-black block">Skin_Opacity ({Math.round(localSettings.skin_opacity * 100)}%)</label>
+                      <input
+                        type="range"
+                        min="0.05" max="1" step="0.05"
+                        value={localSettings.skin_opacity}
+                        onChange={(e) => setLocalSettings({ ...localSettings, skin_opacity: parseFloat(e.target.value) })}
+                        className="w-full accent-xmr-green cursor-ew-resize"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-xmr-dim uppercase font-black block">Skin_Position</label>
+                      <select
+                        value={localSettings.skin_style}
+                        onChange={(e) => setLocalSettings({ ...localSettings, skin_style: e.target.value as any })}
+                        className="w-full bg-xmr-surface border border-xmr-border/50 p-2 text-xs text-xmr-green uppercase outline-none focus:border-xmr-accent"
+                      >
+                        <option value="cover">Cover (Center)</option>
+                        <option value="contain">Contain (Fit)</option>
+                        <option value="tile">Tile (Repeat)</option>
+                        <option value="top-left">Top Left</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="border border-xmr-border/30 rounded overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
+                    <div
+                      className="absolute inset-0 z-0 pointer-events-none"
+                      style={{
+                        backgroundImage: `url(${localSettings.skin_background})`,
+                        opacity: localSettings.skin_opacity,
+                        backgroundSize: localSettings.skin_style === 'cover' || localSettings.skin_style === 'contain' ? localSettings.skin_style : localSettings.skin_style === 'tile' ? 'auto' : 'cover',
+                        backgroundPosition: localSettings.skin_style === 'top-left' ? 'top left' : 'center',
+                        backgroundRepeat: localSettings.skin_style === 'tile' ? 'repeat' : 'no-repeat'
+                      }}
+                    />
+                    <span className="text-[10px] text-white/50 z-10 font-bold mix-blend-difference drop-shadow-md">Preview</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
         </section>
 
         {/* ☢️ Danger Zone */}
         <section className="space-y-4 pt-4">
           <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
-          <Card className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
+          <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
             <div className="space-y-1"><span className="text-xs font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-xs text-red-500/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
             <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-red-600 text-red-500 text-xs font-black hover:bg-red-600 hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>

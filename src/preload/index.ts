@@ -41,6 +41,7 @@ const api = {
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  selectBackgroundImage: () => ipcRenderer.invoke('select-background-image'),
 
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 }

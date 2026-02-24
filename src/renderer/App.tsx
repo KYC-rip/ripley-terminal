@@ -11,6 +11,22 @@ import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
 import { VaultProvider } from './contexts/VaultContext';
 
+const SkinOverlay = ({ config }: { config: any }) => {
+  if (!config?.skin_background) return null;
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-0"
+      style={{
+        backgroundImage: `url(${config.skin_background})`,
+        opacity: config.skin_opacity !== undefined ? config.skin_opacity : 0.2,
+        backgroundSize: config.skin_style === 'cover' || config.skin_style === 'contain' ? config.skin_style : config.skin_style === 'tile' ? 'auto' : 'cover',
+        backgroundPosition: config.skin_style === 'top-left' ? 'top left' : 'center',
+        backgroundRepeat: config.skin_style === 'tile' ? 'repeat' : 'no-repeat'
+      }}
+    />
+  );
+};
+
 function MainApp() {
   const [view, setView] = useState<'home' | 'vault' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
@@ -28,7 +44,7 @@ function MainApp() {
 
   const activeIdentity = identities.find(i => i.id === activeId);
 
-  const [showScanlines, setShowScanlines] = useState(true);
+  const [showScanlines, setShowScanlines] = useState(resolvedTheme === 'dark');
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [uplink, setUplink] = useState<string>('SCANNING...');
   const [sessionStartTime] = useState(Date.now());
@@ -45,11 +61,11 @@ function MainApp() {
       setAppConfig(config);
 
       // Maintain compatibility with legacy single-setting logic
-      if (config.show_scanlines !== undefined) setShowScanlines(config.show_scanlines);
+      if (config.show_scanlines !== undefined) setShowScanlines(config.show_scanlines && resolvedTheme === 'dark');
       if (config.auto_lock_minutes !== undefined) setAutoLockMinutes(config.auto_lock_minutes);
     };
     loadConfig();
-  }, [view]); // Refresh configuration on view change
+  }, [view, resolvedTheme]); // Refresh configuration on view change
 
   // --- Auto Update Check on Boot ---
   useEffect(() => {
@@ -158,16 +174,21 @@ function MainApp() {
   // 2. Auth View: Visible whenever locked
   if (isLocked) {
     return (
-      <AuthView
-        onUnlock={unlock}
-        isInitialSetup={!hasVaultFile}
-        identities={identities}
-        activeId={activeId}
-        onSwitchIdentity={switchIdentity}
-        onCreateIdentity={(name) => unlock('', name, '', 0)}
-        onPurgeIdentity={purgeIdentity}
-        logs={logs}
-      />
+      <div className="relative min-h-screen bg-xmr-base text-xmr-green font-mono overflow-hidden">
+        <SkinOverlay config={appConfig} />
+        <div className="relative z-10 w-full h-full">
+          <AuthView
+            onUnlock={unlock}
+            isInitialSetup={!hasVaultFile}
+            identities={identities}
+            activeId={activeId}
+            onSwitchIdentity={switchIdentity}
+            onCreateIdentity={(name) => unlock('', name, '', 0)}
+            onPurgeIdentity={purgeIdentity}
+            logs={logs}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -192,6 +213,7 @@ function MainApp() {
 
   return (
     <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
+      <SkinOverlay config={appConfig} />
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
@@ -332,8 +354,8 @@ function MainApp() {
         </div>
       </aside>
 
-      <div className="flex-grow flex flex-col min-w-0 bg-xmr-base relative">
-        <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
+      <div className="flex-grow flex flex-col min-w-0 bg-transparent relative z-10">
+        <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface/80 backdrop-blur-md shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
           <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
@@ -428,7 +450,7 @@ function MainApp() {
           </>
         )}
 
-        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[10px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/50">
+        <footer className="h-8 border-t border-xmr-border/10 px-8 flex justify-between items-center text-[10px] font-black text-xmr-dim uppercase tracking-widest shrink-0 bg-xmr-surface/80 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <button onClick={() => setShowConsole(!showConsole)} className={`flex items-center gap-1.5 transition-all cursor-pointer ${showConsole ? 'text-xmr-green' : 'text-xmr-dim hover:text-xmr-green'}`}><TerminalIcon size={10} /><span className="font-mono font-black tracking-tighter">CONSOLE</span>{showConsole ? <ChevronDown size={10} /> : <ChevronUp size={10} />}</button>
             <span className="opacity-20">|</span>

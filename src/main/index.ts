@@ -138,6 +138,36 @@ app.whenReady().then(async () => {
     return { success: !error, error };
   });
 
+  ipcMain.handle('select-background-image', async () => {
+    const { dialog } = require('electron');
+    const fs = require('fs');
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Background Skin',
+      filters: [{ name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, error: 'Cancelled' };
+    }
+
+    const filePath = result.filePaths[0];
+    try {
+      const stats = fs.statSync(filePath);
+      if (stats.size > 5 * 1024 * 1024) {
+        return { success: false, error: 'Image exceeds 5MB size limit.' };
+      }
+      const fileData = fs.readFileSync(filePath);
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      const mimeType = ext === 'jpg' ? 'jpeg' : ext;
+      const base64Str = `data:image/${mimeType};base64,` + fileData.toString('base64');
+      return { success: true, data: base64Str };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
   ipcMain.handle('check-for-updates', async () => {
     try {
       const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases/latest');

@@ -6,7 +6,10 @@ export interface AppConfig {
   network: 'mainnet' | 'stagenet' | 'testnet';
   customNodeAddress: string;
   show_scanlines?: boolean;
-  auto_lock_minutes?: number
+  auto_lock_minutes?: number;
+  skin_background?: string;
+  skin_opacity?: number;
+  skin_style?: 'cover' | 'contain' | 'tile' | 'top-left';
 }
 
 export interface EngineStatus {
@@ -67,6 +70,7 @@ export interface IApi {
   getAppInfo: () => Promise<{ version: string; appDataPath: string; walletsPath: string; platform: NodeJS.Platform }>;
   openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>;
   checkForUpdates: () => Promise<{ success: boolean; hasUpdate?: boolean; latestVersion?: string; releaseUrl?: string; body?: string; publishedAt?: string; error?: string }>;
+  selectBackgroundImage: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
 declare global {

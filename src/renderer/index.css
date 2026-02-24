@@ -7,6 +7,9 @@
   --color-xmr-dim: var(--text-dim);
   --color-xmr-accent: var(--text-accent);
   --color-xmr-border: var(--border-color);
+  --color-xmr-ghost: var(--color-ghost);
+    --color-xmr-warning: var(--warning-color);
+    --color-xmr-error: var(--error-color);
 
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 }
@@ -28,17 +31,59 @@
   --text-primary: #00ff41;
   --text-dim: #00661a;
   --text-accent: #ff6600;
+  --color-ghost: #a855f7;
   --border-color: #004d13;
+  --scanline-opacity: 0.15;
+    --vignette-opacity: 0.8;
+    --chart-line: #00ff41;
+    --chart-area-top: rgba(0, 255, 65, 0.25);
+    --chart-grid: rgba(20, 60, 20, 0.3);
+    --img-filter-idle: grayscale(100%) opacity(0.7) contrast(1.1);
+    --img-filter-hover: grayscale(0%) opacity(1) contrast(1);
+    --warning-color: #fbbf24;
+    /* Yellow 400 */
+    --error-color: #f87171;
+    /* Red 400 */
 }
 
 .light {
+  /* Background: Clean Slate */
   --bg-primary: #f8fafc;
   --bg-panel: #ffffff;
+  /* Brand: Deep Emerald (Money Green) */
   --brand-color: #047857;
+  /* Text */
   --text-primary: #0f172a;
+  /* Deep Blue-Black (Slate-900) */
   --text-dim: #64748b;
+  /* Cool Gray (Slate-500) */
+    --text-bg: #e2e8f0;
+    /* Slate-200 */
+  
+    --error-color: #ef4444;
+    /* Red 600 */
+  
+    /* Monero Orange */
   --text-accent: #ea580c;
+  --color-ghost: #7e22ce;
+    /* Purple 700 */
+    --warning-color: #d97706;
+    /* Amber 600 */
   --border-color: #cbd5e1;
+  /* Slate-300 for clearer definition */
+  
+    --scanline-opacity: 0.02;
+    --vignette-opacity: 0;
+  
+    /* Chart Colors (Light) */
+    --chart-line: #059669;
+    /* Emerald-600 */
+    --chart-area-top: rgba(5, 150, 105, 0.1);
+    --chart-grid: rgba(0, 0, 0, 0.05);
+  
+    --img-filter-idle: grayscale(20%) opacity(1);
+    --img-filter-hover: grayscale(0%) scale(1.05);
+    /* Slightly enlarge on hover for visual interest */
 }
 
 @layer base {
@@ -73,13 +118,13 @@
 
 @keyframes progress-indeterminate {
   0% {
-      transform: translateX(-100%) scaleX(0.2);
+    transform: translateX(-100%) scaleX(0.2);
     }
-  
+    
     50% {
       transform: translateX(0%) scaleX(0.5);
     }
-  
+    
     100% {
       transform: translateX(100%) scaleX(0.2);
     }
