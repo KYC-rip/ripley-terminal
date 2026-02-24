@@ -34,6 +34,17 @@ let currentEngineState = { status: 'DISCONNECTED', node: '', useTor: false, erro
 let isSafeToExit = false;
 
 app.whenReady().then(async () => {
+  const fs = require('fs');
+  const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
+  const currentB64 = store.get('skin_background');
+  if (currentB64) {
+    try {
+      fs.writeFileSync(skinPath, currentB64, 'utf8');
+      store.delete('skin_background');
+      console.log('[Config] Migrated skin_background out of config.json');
+    } catch (e) { }
+  }
+
   electronApp.setAppUserModelId('rip.kyc.terminal');
 
   session.defaultSession.setCertificateVerifyProc((_, callback) => {
@@ -105,10 +116,29 @@ app.whenReady().then(async () => {
   ipcMain.handle('get-uplink-status', () => currentEngineState);
   ipcMain.handle('retry-engine', () => reloadEngine(true));
 
-  ipcMain.handle('get-config', () => store.store);
+  ipcMain.handle('get-config', () => {
+    const config = { ...store.store } as any;
+    const fs = require('fs');
+    const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
+    if (fs.existsSync(skinPath)) {
+      try { config.skin_background = fs.readFileSync(skinPath, 'utf8'); } catch (e) { }
+    }
+    return config;
+  });
 
   ipcMain.handle('save-config-and-reload', async (_, newConfig: AppConfig) => {
-    store.set(newConfig);
+    const configToSave = { ...newConfig } as any;
+    if ('skin_background' in configToSave) {
+      const fs = require('fs');
+      const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
+      if (configToSave.skin_background) {
+        fs.writeFileSync(skinPath, configToSave.skin_background, 'utf8');
+      } else if (fs.existsSync(skinPath)) {
+        fs.unlinkSync(skinPath);
+      }
+      delete configToSave.skin_background;
+    }
+    store.set(configToSave);
     try {
       await reloadEngine();
       return { success: true };
@@ -118,7 +148,18 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('save-config-only', (_, newConfig: AppConfig) => {
-    store.set(newConfig);
+    const configToSave = { ...newConfig } as any;
+    if ('skin_background' in configToSave) {
+      const fs = require('fs');
+      const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
+      if (configToSave.skin_background) {
+        fs.writeFileSync(skinPath, configToSave.skin_background, 'utf8');
+      } else if (fs.existsSync(skinPath)) {
+        fs.unlinkSync(skinPath);
+      }
+      delete configToSave.skin_background;
+    }
+    store.set(configToSave);
     console.log('[Config] Logical settings updated (Scanlines/LockTime).');
     return { success: true };
   });
