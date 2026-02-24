@@ -1,8 +1,8 @@
 # GHOST_TERMINAL 🎭
 
-> **Tactical Desktop Terminal for the Monero Ecosystem.**
+> **Tactical Monero Desktop Wallet.**
 
-`ghost-terminal` is a privacy-first, security-hardened desktop application designed for sovereign wealth management. It serves as the local command center for the `kyc-rip` ecosystem, providing direct access to Monero's privacy features with a tactical, terminal-inspired interface.
+`ghost-terminal` is a privacy-first, security-hardened Monero desktop wallet designed for sovereign wealth management. It serves as the local command center for the `kyc-rip` ecosystem, providing direct access to Monero's untraceable privacy features with a precise, tactical, terminal-inspired interface.
 
 ## 🚀 Vision
 In an era of pervasive financial surveillance, `ghost-terminal` provides a local, hardware-agnostic encryption layer. It is built for those who demand absolute control over their digital assets and identity.
