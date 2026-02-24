@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw } from 'lucide-react';
+import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -34,6 +34,8 @@ function MainApp() {
   const [sessionStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState('00:00:00');
 
+  const [updateBanner, setUpdateBanner] = useState<{ show: boolean; version: string; url: string } | null>(null);
+
   const lastActivityRef = useRef(Date.now());
   const resetActivity = useCallback(() => { lastActivityRef.current = Date.now(); }, []);
 
@@ -48,6 +50,25 @@ function MainApp() {
     };
     loadConfig();
   }, [view]); // Refresh configuration on view change
+
+  // --- Auto Update Check on Boot ---
+  useEffect(() => {
+    if (isAppLoading || isInitializing || !appConfig) return;
+
+    const checkOnBoot = async () => {
+      try {
+        const res = await window.api.checkForUpdates();
+        if (res.success && res.hasUpdate && res.latestVersion && res.releaseUrl) {
+          setUpdateBanner({ show: true, version: res.latestVersion, url: res.releaseUrl });
+        }
+      } catch (e) { }
+    };
+
+    // Delay check slightly so it doesn't interrupt the user's initial orientation
+    const timer = setTimeout(checkOnBoot, 5000);
+    return () => clearTimeout(timer);
+  }, [isAppLoading, isInitializing, appConfig]);
+  // ---------------------------------
 
   const toggleTor = async () => {
     if (!appConfig) return;
@@ -335,6 +356,33 @@ function MainApp() {
             </div>
           ) : (
             <>
+                {/* Update Banner */}
+                {updateBanner?.show && (
+                  <div className="mb-6 p-4 border border-xmr-accent/30 bg-xmr-accent/5 rounded-sm flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-3">
+                      <Zap size={16} className="text-xmr-accent animate-pulse" />
+                      <div>
+                        <div className="text-[10px] font-black uppercase text-xmr-accent tracking-widest">Update_Detected</div>
+                        <div className="text-[9px] text-xmr-dim uppercase font-mono mt-0.5">Version {updateBanner.version} is available for deployment.</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => window.open(updateBanner.url)}
+                        className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[9px] uppercase hover:bg-white transition-all cursor-pointer flex items-center gap-2"
+                      >
+                        <Download size={12} /> Init_Download
+                      </button>
+                      <button
+                        onClick={() => setUpdateBanner(prev => prev ? { ...prev, show: false } : null)}
+                        className="p-2 text-xmr-dim hover:text-xmr-accent transition-colors cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
               <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
 
@@ -387,7 +435,7 @@ function MainApp() {
               <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
               {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
             </span>
-            <span className="opacity-40">© 2026 kyc.rip // tactical_terminal_v1.0</span>
+            <span className="opacity-75">© 2026 kyc.rip // tactical_terminal_v1.0</span>
           </div>
         </footer>
       </div>
