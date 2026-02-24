@@ -46,6 +46,7 @@ export interface VaultContextType {
   renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
   churn: () => Promise<void>;
   vanishCoin: (keyImage: string) => Promise<void>;
+  vanishSubaddress: (subaddressIndex: number) => Promise<void>;
   setSubaddressLabel: (index: number, label: string) => Promise<void>;
   rescan: (height: number) => Promise<void>;
 }
@@ -337,9 +338,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const createSubaddress = useCallback(async (label?: string, accountIndex?: number) => {
     try {
-      const res = await WalletService.createSubaddressWithLabel(label || '', accountIndex || 0);
+      const address = await WalletService.createSubaddress(label || '', accountIndex || 0);
       await refresh();
-      return res.address;
+      return address;
     } catch (e) { console.error(e); }
   }, [refresh]);
 
@@ -444,6 +445,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`✅ Single UTXO vanished! TXID: ${txHash}`, 'success');
       }
     // 3. Refresh the wallet state to update outputs table and balance
+      await refresh();
+    },
+    vanishSubaddress: async (subaddressIndex: number) => {
+      const result = await WalletService.vanishSubaddress(subaddressIndex, selectedAccountIndex);
+      if (result.txHash) {
+        addLog(`✅ Subaddress #${subaddressIndex} vanished → new address. TXID: ${result.txHash}`, 'success');
+      }
       await refresh();
     },
     setSubaddressLabel: async (index: number, label: string, accountIndex?: number) => {

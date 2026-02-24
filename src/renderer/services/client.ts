@@ -23,21 +23,21 @@ export const getApiBase = (pathPrefix = 'api') => {
   if (isOnion) {
     return `/${pathPrefix}`;
   }
-  return import.meta.env.VITE_API_URL || 'https://api.kyc.rip';
+  return (import.meta as any).env.VITE_API_URL || 'https://api.kyc.rip';
 };
 
 export const getMailApiBase = () => {
   if (isOnion) {
     return '/mail-api';
   }
-  return import.meta.env.VITE_MAIL_API_URL || 'https://mail-api.kyc.rip';
+  return (import.meta as any).env.VITE_MAIL_API_URL || 'https://mail-api.kyc.rip';
 };
 
 export const getBotApiBase = () => {
   if (isOnion) {
     return '/bot';
   }
-  return import.meta.env.VITE_BOT_API_URL || 'https://bot.kyc.rip';
+  return (import.meta as any).env.VITE_BOT_API_URL || 'https://bot.kyc.rip';
 };
 
 type APIType = "api" | "mail-api" | "bot-api";
@@ -99,7 +99,8 @@ async function client<T>(type: APIType, endpoint: string, { body, ...customConfi
       return await customResponseHandler(result);
     }
 
-    const { data, status } = await result.json();
+    const status = result.status;
+    const data = await result.json();
 
     if (status === 204) return {} as T;
 

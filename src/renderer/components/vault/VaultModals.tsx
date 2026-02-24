@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, Key, Tag, PlusCircle, Send, Skull } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card } from '../Card';
+import { ReceiveModal } from './ReceiveModal';
 
 interface VaultModalsProps {
   // Seed Modal
@@ -13,6 +14,7 @@ interface VaultModalsProps {
   showReceive: boolean;
   onCloseReceive: () => void;
   onCreateSub: (label: string) => void;
+  selectedSubaddress?: { address: string; label: string; index: number } | null;
   
   // Send Modal
   showSend: boolean;
@@ -24,13 +26,10 @@ interface VaultModalsProps {
 
 export function VaultModals({ 
   showSeed, onCloseSeed, mnemonic,
-  showReceive, onCloseReceive, onCreateSub,
+  showReceive, onCloseReceive, onCreateSub, selectedSubaddress,
   showSend, onCloseSend, onSend, isSending,
   initialAddr = ''
 }: VaultModalsProps) {
-  
-  // Receive Modal Local State
-  const [receiveLabel, setReceiveLabel] = useState('');
 
   // Send Modal Local State
   const [destAddr, setDestAddr] = useState(initialAddr);
@@ -67,22 +66,10 @@ export function VaultModals({
 
       {/* RECEIVE MODAL */}
       {showReceive && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-          <div className="w-full max-w-md bg-xmr-surface border border-xmr-border p-8 space-y-8 relative font-black">
-            <button onClick={onCloseReceive} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-green transition-all cursor-pointer"><X size={24} /></button>
-            <div className="text-center space-y-2">
-              <h3 className="text-2xl font-black italic uppercase text-xmr-green">Forced_Subaddress</h3>
-              <p className="text-[10px] text-xmr-dim uppercase tracking-widest font-black">Breaking linkability via fresh entropy</p>
-            </div>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                 <label className="text-[9px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Tag size={10}/> Metadata_Label</label>
-                 <input autoFocus type="text" value={receiveLabel} onChange={(e) => setReceiveLabel(e.target.value)} placeholder="e.g. From_Exchange_A" className="w-full bg-xmr-base border border-xmr-border p-3 text-[11px] text-xmr-green focus:border-xmr-green outline-none" />
-              </div>
-              <button onClick={() => { onCreateSub(receiveLabel); setReceiveLabel(''); }} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white transition-all flex items-center justify-center gap-2 font-black cursor-pointer"><PlusCircle size={16}/> Generate_One_Time_Uplink</button>
-            </div>
-          </div>
-        </div>
+        <ReceiveModal
+          onClose={onCloseReceive}
+          existingAddress={selectedSubaddress || undefined}
+        />
       )}
 
       {/* SEND MODAL */}

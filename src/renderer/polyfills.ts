@@ -1,7 +1,7 @@
 // Standard Polyfills
-window.global = window;
-if (!window.process) {
-  window.process = { env: { NODE_DEBUG: false }, versions: { electron: '1.0.0' }, nextTick: (cb: any) => setTimeout(cb, 0) };
+(window as any).global = window;
+if (!(window as any).process) {
+  (window as any).process = { env: { NODE_DEBUG: false }, versions: { electron: '1.0.0' }, nextTick: (cb: any) => setTimeout(cb, 0) };
 }
 
 // 🔥 Tactical FS Mock for monero-ts
@@ -22,7 +22,7 @@ const mockFs = {
   promises: mockFsPromises
 };
 
-window.fs = mockFs;
+(window as any).fs = mockFs;
 (globalThis as any).fs = mockFs;
 
 console.log("[Polyfills] Tactical FS injected to global scope.");

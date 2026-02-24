@@ -209,19 +209,37 @@ export const WalletService = {
   },
 
   /**
-   * Helper method: fetch full list of subaddresses and format them
+   * Helper method: fetch full list of subaddresses with real balances
    */
   async getSubaddresses(accountIndex: number) {
-    const res = await RpcClient.call('get_address', { account_index: accountIndex });
-    // res.addresses is an array
-    return (res.addresses || []).map((addr: any) => ({
-      index: addr.address_index,
-      address: addr.address,
-      label: addr.label || 'UNTITLED_RECIPIENT',
-      balance: RpcClient.formatXmr(addr.balance || 0),
-      unlockedBalance: RpcClient.formatXmr(addr.unlocked_balance || 0),
-      isUsed: addr.used || false
-    }));
+    // 1. Get address list (labels, addresses, used status)
+    const addrRes = await RpcClient.call('get_address', { account_index: accountIndex });
+
+    // 2. Get per-subaddress balances from getbalance
+    const balRes = await RpcClient.call('getbalance', { account_index: accountIndex });
+
+    // Build a lookup map: subaddress_index → { balance, unlocked_balance }
+    const balMap = new Map<number, { balance: number; unlocked: number }>();
+    if (balRes.per_subaddress) {
+      for (const sub of balRes.per_subaddress) {
+        balMap.set(sub.address_index, {
+          balance: sub.balance || 0,
+          unlocked: sub.unlocked_balance || 0
+        });
+      }
+    }
+
+    return (addrRes.addresses || []).map((addr: any) => {
+      const bal = balMap.get(addr.address_index);
+      return {
+        index: addr.address_index,
+        address: addr.address,
+        label: addr.label || 'UNTITLED_RECIPIENT',
+        balance: RpcClient.formatXmr(bal?.balance || 0),
+        unlockedBalance: RpcClient.formatXmr(bal?.unlocked || 0),
+        isUsed: addr.used || false
+      };
+    });
   },
 
   async createSubaddressWithLabel(label: string, accountIndex: number) {
@@ -256,5 +274,23 @@ export const WalletService = {
     });
 
     return tx.tx_hash_list?.[0] || tx.tx_hash;
+  },
+
+  /**
+   * Vanish Subaddress: Sweeps ALL outputs from a specific subaddress to a fresh new subaddress.
+   */
+  async vanishSubaddress(subaddressIndex: number, accountIndex: number = 0) {
+    // 1. Create a fresh destination subaddress
+    const newAddr = await this.createSubaddress('Vanish_Destination', accountIndex);
+
+    // 2. Sweep all outputs from the target subaddress to the new one
+    const tx = await RpcClient.call('sweep_all', {
+      address: newAddr,
+      account_index: accountIndex,
+      subaddr_indices: [subaddressIndex],
+      ring_size: 16
+    });
+
+    return { txHash: tx.tx_hash_list?.[0] || tx.tx_hash, destination: newAddr };
   }
 };

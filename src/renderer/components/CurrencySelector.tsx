@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Search, ChevronDown, Check, Coins } from "lucide-react";
 import type { Currency } from "../hooks/useCurrencies";
-import { apiClient } from "../services/client";
 
 type ThemeColor = 'xmr-green' | 'xmr-ghost' | 'xmr-accent' | 'xmr-warning' | 'xmr-error';
 
@@ -65,7 +64,8 @@ export function CurrencySelector({
   useEffect(() => {
     if (isOpen && _currencies.length === 0 && !externalCurrencies) {
       setLoading(true);
-      apiClient<Currency[]>("/v1/market/currencies")
+      fetch("https://api.kyc.rip/v1/market/currencies")
+        .then((res) => res.json())
         .then((data) => {
           setCurrencies(data);
           setLoading(false);

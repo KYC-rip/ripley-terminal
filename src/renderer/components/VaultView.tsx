@@ -22,7 +22,8 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
     accounts, selectedAccountIndex, setSelectedAccountIndex,
     balance, address, subaddresses, outputs, refresh,
     status, isSending, sendXmr, createSubaddress,
-    churn, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel
+    churn, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel,
+    vanishSubaddress
   } = vault;
   const [tab, setTab] = useState<'ledger' | 'addresses' | 'coins' | 'contacts'>('ledger');
   const [modals, setModals] = useState({ seed: false, receive: false, send: false });
@@ -30,6 +31,7 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
   const [isChurning, setIsChurning] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [dispatchAddr, setDispatchAddr] = useState('');
+  const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
@@ -257,7 +259,14 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
       <div className="min-h-[400px]">
         {tab === 'ledger' && <TransactionLedger txs={txs} />}
         {tab === 'coins' && <CoinControl outputs={outputs} />}
-        {tab === 'addresses' && <AddressList subaddresses={subaddresses} handleCopy={handleCopy} onUpdateLabel={setSubaddressLabel} />}
+        {tab === 'addresses' && <AddressList
+          subaddresses={subaddresses}
+          handleCopy={handleCopy}
+          onUpdateLabel={setSubaddressLabel}
+          onRowClick={(s) => { setSelectedSubaddress(s); setModals(prev => ({ ...prev, receive: true })); }}
+          onVanishSubaddress={vanishSubaddress}
+          isSyncing={status === 'SYNCING'}
+        />}
         {tab === 'contacts' && <AddressBook
           contacts={contacts}
           onAddContact={(c) => saveContacts([...contacts, c])}
@@ -273,8 +282,9 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         onCloseSeed={() => setModals(prev => ({ ...prev, seed: false }))}
         mnemonic={mnemonic}
         showReceive={modals.receive}
-        onCloseReceive={() => setModals(prev => ({ ...prev, receive: false }))}
+        onCloseReceive={() => { setModals(prev => ({ ...prev, receive: false })); setSelectedSubaddress(null); }}
         onCreateSub={createSubaddress}
+        selectedSubaddress={selectedSubaddress}
         showSend={modals.send}
         onCloseSend={() => setModals(prev => ({ ...prev, send: false }))}
         onSend={sendXmr}

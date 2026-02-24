@@ -12,9 +12,11 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 ## 🌪️ On-Chain Privacy (Tactical)
 - [x] **One-Click Churn**: Sweep entire unlocked balance back to self via fresh subaddresses to break deterministic links.
 - [x] **Individual Coin Vanishing**: Selectively sweep individual UTXOs (Deterministic Outputs) back to the primary address using `sweep_single` to isolate trailing transactions.
+- [x] **Subaddress Vanishing**: Sweep all outputs from a specific subaddress to a freshly generated one using `sweep_all` with `subaddr_indices`, breaking on-chain linkability at the subaddress level.
 - [x] **Coin Control (UTXO)**: Detailed list of every deterministic output (unspent) with unlock status and Key Image tracking.
 - [x] **Forced Subaddressing**: Mandatory new subaddress generation for every receive request to prevent metadata leakage via address reuse.
 - [x] **Identity Labeling**: Attach purpose-driven labels to subaddresses for precise ledger management.
+- [x] **Per-Subaddress Balances**: Real-time balance display per subaddress via `getbalance` RPC with `per_subaddress` data.
 
 ## 🆔 Identity Management
 - [x] **Multi-Identity Support**: Create and manage multiple isolated cryptographic vaults with distinct passwords and files.
@@ -28,9 +30,11 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Global Theme Support**: Semantic Dark (Tactical), Light (Financial), and System modes with optimized contrast rendering.
 - [x] **Local Intel Feed**: Real-time XMR market data and network pulse (Hashrate, Fees, Mempool).
 - [x] **Local Chart Rendering**: Integrated `lightweight-charts` engine for theme-aware, interactive market analysis.
+- [x] **Address Detail Modal**: Click any subaddress row to open a full-featured modal showing QR code, address, and payment link.
 
 ## 💸 Asset Bridging
 - [x] **Ghost_Swap Integration**: Quote and execute non-custodial asset swaps directly into your private vault via kyc.rip routing.
+- [x] **Cross-Chain Payment Links**: Generate shareable `kyc.rip/swap?source=pay` links that let external payers choose any asset — funds settle automatically into your XMR subaddress.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
 
 ## 📦 Deployment & Execution
