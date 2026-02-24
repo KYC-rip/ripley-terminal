@@ -19,7 +19,9 @@
     "start": "electron-vite preview",
     "prebuild": "npm run setup-bins",
     "predev": "npm run setup-bins",
-    "prestart": "npm run setup-bins"
+    "prestart": "npm run setup-bins",
+    "deploy:public": "cd .. && ./deploy-public.sh",
+    "deploy:subtree": "cd .. && git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main"
   },
   "build": {
     "publish": [
