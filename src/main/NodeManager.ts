@@ -101,12 +101,12 @@ export class NodeManager {
 
       try {
         let baseUrl = nodeStr.trim();
-        // Do not auto-force HTTPS just because of port 18089. Many nodes offer raw TCP HTTP on 18089.
         if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-          if (baseUrl.endsWith(':443')) {
+          // 🛡️ Monero Protocol Intelligence: Auto-detect secure ports
+          if (baseUrl.endsWith(':18089') || baseUrl.endsWith(':443')) {
             baseUrl = `https://${baseUrl}`;
           } else {
-            baseUrl = `http://${baseUrl}`; // Default to raw HTTP for Monero RPC
+            baseUrl = `http://${baseUrl}`;
           }
         }
         const url = `${baseUrl.replace(/\/$/, '')}/json_rpc`;
