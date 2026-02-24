@@ -122,7 +122,10 @@ export class NodeManager {
           method: 'POST',
           body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
           headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal
+          signal: controller.signal,
+          bypassCustomProtocolHandlers: true,
+          credentials: 'omit',
+          cache: 'no-store'
         });
         clearTimeout(timeoutId);
 
