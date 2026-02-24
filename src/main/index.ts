@@ -9,6 +9,8 @@ import { SyncWatcher } from './SyncWatcher';
 import { AppConfig } from './types';
 import { registerIdentityHandlers } from './handlers/IdentityHandler'; // ⬅️ Imported the rebuilt manager
 
+app.setName('Ghost Terminal');
+
 const Store = require('electron-store').default;
 const store = new Store({
   clearInvalidConfig: true,

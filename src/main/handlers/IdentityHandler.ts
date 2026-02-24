@@ -18,6 +18,8 @@ export function registerIdentityHandlers(store: any) {
       const files = await fs.readdir(walletDir);
       const keyFiles = files.filter(f => f.endsWith('.keys'));
 
+      console.log(`${keyFiles.length} key files found in ${walletDir}`)
+
       // 2. Read auxiliary attributes: alias records in the Store
       const storedIds: any[] = store.get('identities') || [];
 
