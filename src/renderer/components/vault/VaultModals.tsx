@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert } from 'lucide-react';
 import { ReceiveModal } from './ReceiveModal';
 import { DispatchModal } from './DispatchModal';
+import { SplinterModal } from './SplinterModal';
+import { ChurnModal } from './ChurnModal';
 
 interface VaultModalsProps {
   // Seed Modal
@@ -22,13 +24,25 @@ interface VaultModalsProps {
   isSending: boolean;
   initialAddr?: string;
   sourceSubaddressIndex?: number;
+
+  // Splinter & Churn Modals
+  showSplinter: boolean;
+  onCloseSplinter: () => void;
+  onSplinter: (fragments: number) => Promise<void>;
+
+  showChurn: boolean;
+  onCloseChurn: () => void;
+  onChurn: () => Promise<void>;
+  unlockedBalance: number;
 }
 
 export function VaultModals({ 
   showSeed, onCloseSeed, mnemonic,
   showReceive, onCloseReceive, onCreateSub, selectedSubaddress,
   showSend, onCloseSend, onSend, isSending,
-  initialAddr = '', sourceSubaddressIndex
+  initialAddr = '', sourceSubaddressIndex,
+  showSplinter, onCloseSplinter, onSplinter,
+  showChurn, onCloseChurn, onChurn, unlockedBalance
 }: VaultModalsProps) {
 
   return (
@@ -61,6 +75,24 @@ export function VaultModals({
           onClose={onCloseSend}
           initialAddress={initialAddr}
           sourceSubaddressIndex={sourceSubaddressIndex}
+        />
+      )}
+
+      {/* SPLINTER MODAL */}
+      {showSplinter && (
+        <SplinterModal
+          onClose={onCloseSplinter}
+          onSplinter={onSplinter}
+          unlockedBalance={unlockedBalance}
+        />
+      )}
+
+      {/* CHURN MODAL */}
+      {showChurn && (
+        <ChurnModal
+          onClose={onCloseChurn}
+          onChurn={onChurn}
+          unlockedBalance={unlockedBalance}
         />
       )}
     </>
