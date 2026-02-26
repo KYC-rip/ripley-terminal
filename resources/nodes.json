@@ -17,7 +17,9 @@
         "sfprpc2fws6ltnq4hyr7lvpul3nank5layd7q7tyc5h4gy4h77gtabad.onion:18089",
         "a6orjo6aiotog3njppja5jwnd3rexzfjiejxnojvw74p3kma45fundid.onion:18089",
         "trocadorh642rks54sxufwy4kys23mrsgof3axowyro5ljb2dkgdlmad.onion:18089",
-        "moneroxmrxw44lku6qniyarpwgznpcwml4drq7vb24ppatlcg4kmxpqd.onion:18089"
+        "moneroxmrxw44lku6qniyarpwgznpcwml4drq7vb24ppatlcg4kmxpqd.onion:18089",
+        "zu3oyzi45x3ul24sncs4245nlpz76jzizm36tvrkfvq2r33azzjv5syd.onion:18089",
+        "5tvl5acn3sm7id4gzc4mj6n7lrwlyrhssr2r57zkxk6eugxwix4ze4qd.onion:18089"
     ],
     "i2p": [
         "ofrnxmr5ltaazarexs3damrcsldc5p6qlcos3vk25cwdgyjvrueq.b32.i2p:18089",
@@ -43,7 +45,8 @@
         "node.sethforprivacy.com:18089",
         "xmr.stormycloud.org:18089",
         "node.trocador.app:18089",
-        "node.xmr.ru:18081"
+        "node.xmr.ru:18081",
+        "node.monero.one"
       ]
   },
   "testnet": {
