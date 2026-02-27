@@ -5,9 +5,11 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 ## 🛡️ Security & Privacy (Core)
 - [x] **Mandatory Tor Routing**: All outgoing traffic is forced through SOCKS5 Tor tunnels. No Clearnet fallback allowed.
 - [x] **Vault Lock**: Master Password encryption for local identity files. No keys are stored in plain text.
+- [x] **Unlock Resilience**: Automatic retry mechanism (5 attempts) to handle RPC connection race conditions during fast unlocks.
 - [x] **Auto-Lock Timeout**: Securely close and lock the identity after a period of inactivity (default 10 min).
 - [x] **Persistent Storage**: Physical `.keys` file management with auto-save checkpoints during sync.
 - [x] **Hardware Isolation**: Local environment execution with zero reliance on centralized database servers.
+- [x] **Production Hardening**: Mandatory safety locks on reload shortcuts (`Cmd+R`, `F5`) in packaged builds to prevent UI state loss.
 
 ## 🌪️ On-Chain Privacy (Tactical)
 - [x] **One-Click Churn**: Sweep entire unlocked balance back to self via fresh subaddresses to break deterministic links.
@@ -17,7 +19,9 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Coin Control (UTXO)**: Detailed list of every deterministic output (unspent) with unlock status and Key Image tracking.
 - [x] **Forced Subaddressing**: Mandatory new subaddress generation for every receive request to prevent metadata leakage via address reuse.
 - [x] **Identity Labeling**: Attach purpose-driven labels to subaddresses for precise ledger management.
+- [x] **Dust Filtering**: Reactive "DUST_FILTERED" toggle in the Address List header to hide zero-balance subaddresses and maintain focus.
 - [x] **Per-Subaddress Balances**: Real-time balance display per subaddress via `getbalance` RPC with `per_subaddress` data.
+- [x] **Custom Fee Settings**: Full priority control (Unimportant, Normal, Elevated, Priority) for optimal on-chain extraction speed.
 
 ## 🆔 Identity Management
 - [x] **Multi-Identity Support**: Create and manage multiple isolated cryptographic vaults with distinct passwords and files.
@@ -34,6 +38,8 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Local Intel Feed**: Real-time XMR market data and network pulse (Hashrate, Fees, Mempool).
 - [x] **Local Chart Rendering**: Integrated `lightweight-charts` engine for theme-aware, interactive market analysis.
 - [x] **Address Detail Modal**: Click any subaddress row to open a full-featured modal showing QR code, address, and payment link.
+- [x] **Protocol Console**: Toggleable system log viewer via `Cmd+Shift+T` with copiable diagnostic output for troubleshooting the uplink.
+- [x] **Global Keybindings**: Remappable tactical shortcuts (LOCK, SEND, SYNC, etc.) for high-speed terminal operations.
 - [x] **Tactical Action Modals**: Dedicated interface overlays for executing sensitive on-chain actions like UTXO Churns and Splinters without cluttering the main UI.
 
 ## 💸 Asset Bridging
@@ -46,7 +52,8 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 
 ## 📦 Deployment & Execution
 - [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).
-- [x] **Secure Subtree CI/CD**: Custom deployment scripts that scrub the Git git-history for anonymity and push to a clean, public-facing repository natively.
+- [x] **Secure Subtree CI/CD**: Custom deployment scripts that scrub the Git history for anonymity and push to a clean, public-facing repository natively.
+- [x] **Update Intelligence**: Automated update discovery with support for optional pre-release builds and graceful error handling.
 
 ---
-*Last Updated: 2026-02-25*
+*Last Updated: 2026-02-27*
