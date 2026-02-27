@@ -15,6 +15,7 @@ export interface AppConfig {
 export interface EngineStatus {
   status: 'DISCONNECTED' | 'CONNECTING' | 'ONLINE' | 'ERROR' | 'SYNCING';
   node: string;
+  nodeLabel: string;
   useTor: boolean;
   error?: string;
   isStagenet: boolean;

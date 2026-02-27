@@ -140,15 +140,19 @@ function MainApp() {
     const fetchStatus = async () => {
       try {
         const s = await window.api.getUplinkStatus();
-        if (s && s.node) {
-          let cleanUrl = s.node.replace('http://', '').replace('https://', '');
-          if (cleanUrl.includes('.onion')) {
-            const parts = cleanUrl.split('.');
-            if (parts[0].length > 12) {
-              cleanUrl = `${parts[0].substring(0, 12)}...onion${parts[1] ? ':' + parts[1].split(':')[1] : ''}`;
+        if (s) {
+          if (s.nodeLabel) {
+            setUplink(s.nodeLabel);
+          } else if (s.node) {
+            let cleanUrl = s.node.replace('http://', '').replace('https://', '');
+            if (cleanUrl.includes('.onion')) {
+              const parts = cleanUrl.split('.');
+              if (parts[0].length > 12) {
+                cleanUrl = `${parts[0].substring(0, 12)}...onion${parts[1] ? ':' + parts[1].split(':')[1] : ''}`;
+              }
             }
+            setUplink(cleanUrl);
           }
-          setUplink(cleanUrl);
         }
       } catch (e) {
         setUplink('LINK_OFFLINE');

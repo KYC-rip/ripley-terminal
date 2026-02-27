@@ -30,7 +30,7 @@ let watcher: SyncWatcher;
 
 // 🟢 Global State Tracker (For UI polling)
 const isStagenet = store.get("network") === 'stagenet';
-let currentEngineState = { status: 'DISCONNECTED', node: '', useTor: false, error: '', isStagenet };
+let currentEngineState = { status: 'DISCONNECTED', node: '', nodeLabel: '', useTor: false, error: '', isStagenet };
 let isSafeToExit = false;
 
 app.whenReady().then(async () => {
@@ -437,7 +437,8 @@ async function reloadEngine(forceRestart = false) {
         console.warn('[Engine] Custom node ping failed, sync progress percentages may be unavailable.');
       }
     } else {
-      targetNode = await nodeManager.findFastestNode(config.network, useTor ? 'tor' : 'clearnet');
+      const winner = await nodeManager.findFastestNode(config.network, useTor ? 'tor' : 'clearnet');
+      targetNode = winner.address;
     }
 
     await daemonEngine.startMoneroRpc(targetNode, useTor, config.useSystemProxy, config.systemProxyAddress);
@@ -449,12 +450,12 @@ async function reloadEngine(forceRestart = false) {
       customNodeAddress: config.customNodeAddress
     };
 
-    currentEngineState = { status: 'ONLINE', node: targetNode, useTor, error: '', isStagenet: config.network === 'stagenet' };
+    currentEngineState = { status: 'ONLINE', node: targetNode, nodeLabel: NodeManager.activeNodeLabel, useTor, error: '', isStagenet: config.network === 'stagenet' };
     mainWindow?.webContents.send('engine-status', currentEngineState);
 
   } catch (error: any) {
     console.error('[Engine] Start failed:', error);
-    currentEngineState = { status: 'ERROR', node: '', useTor: false, error: error.message, isStagenet: config.network === 'stagenet' };
+    currentEngineState = { status: 'ERROR', node: '', nodeLabel: '', useTor: false, error: error.message, isStagenet: config.network === 'stagenet' };
     mainWindow?.webContents.send('engine-status', currentEngineState);
   }
 }

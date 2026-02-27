@@ -31,7 +31,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="w-full max-w-lg bg-white text-black p-8 border-4 border-xmr-accent relative">
+      <div className="w-full max-w-lg bg-xmr-base/80 text-xmr-dim p-8 border-4 border-xmr-accent relative">
         <button onClick={onClose} disabled={isProcessing} className="absolute top-4 right-4 cursor-pointer disabled:opacity-50">
           <X size={24} />
         </button>
@@ -71,14 +71,14 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
             </div>
           </div>
 
-          <div className="bg-black/5 p-4 border border-black/10">
-            <label className="block text-xs uppercase tracking-widest text-black/60 mb-2">Number of Fragments (2-10)</label>
+          <div className="bg-black/5 p-4 border border-xmr-border">
+            <label className="block text-xs uppercase tracking-widest text-xmr-dim/60 mb-2">Number of Fragments (2-10)</label>
             <input 
               type="number" 
               min="2" max="10" 
               value={fragments} 
               onChange={(e) => setFragments(parseInt(e.target.value) || 2)}
-              className="w-full bg-white border border-black/20 p-3 text-lg outline-none focus:border-xmr-accent transition-colors"
+              className="w-full bg-xmr-surface/80 border border-xmr-border/20 p-3 text-lg outline-none focus:border-xmr-accent transition-colors"
               disabled={isProcessing}
             />
           </div>

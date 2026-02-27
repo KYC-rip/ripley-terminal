@@ -2,19 +2,19 @@
 import { app, net, session } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import yaml from 'js-yaml';
 import { NodeList } from './types';
 
 // Fallback built-in nodes
 import fallbackNodes from '../../resources/nodes.json';
 
-const GITHUB_NODES_URL = 'https://raw.githubusercontent.com/feather-wallet/feather-nodes/master/nodes.yaml';
+const GITHUB_NODES_URL = 'https://raw.githubusercontent.com/KYC-rip/ghost-terminal/main/resources/nodes.json';
 
 export class NodeManager {
   private localNodesPath: string;
   private currentNodes: NodeList;
   public static daemonHeight: number = 0;
   public static activeNodeStr: string = '';
+  public static activeNodeLabel: string = '';
 
   constructor() {
     this.localNodesPath = path.join(app.getPath('userData'), 'latest_nodes.json');
@@ -34,9 +34,9 @@ export class NodeManager {
 
       if (!response.ok) throw new Error(`HTTP Status abnormal: ${response.status}`);
 
-      // Parse YAML
-      const yamlText = await response.text();
-      const parsedData = yaml.load(yamlText) as NodeList;
+      // Parse JSON (remote is now our own nodes.json)
+      const jsonText = await response.text();
+      const parsedData = JSON.parse(jsonText) as NodeList;
 
       if (parsedData && parsedData.mainnet) {
         this.currentNodes = parsedData;
@@ -47,17 +47,38 @@ export class NodeManager {
       }
     } catch (error: any) {
       console.warn(`[NodeManager] 🟡 Unable to connect to remote GitHub (${error.message}), attempting to load local cache...`);
+      this.loadLocalNodes(); // Fallback to local cache
+    }
+  }
+
+  private loadLocalNodes() {
+    try {
       if (fs.existsSync(this.localNodesPath)) {
-        this.currentNodes = JSON.parse(fs.readFileSync(this.localNodesPath, 'utf-8'));
-        console.log('[NodeManager] 🟢 Loaded locally cached node list.');
+        const data = fs.readFileSync(this.localNodesPath, 'utf-8');
+        const parsed = JSON.parse(data);
+
+        // 🛡️ Migration check: If the nodes are in the old flat array format, ignore the cache
+        // to force the application to use the new nested built-in nodes.json
+        if (parsed.mainnet && Array.isArray(parsed.mainnet.tor)) {
+          console.log('[NodeManager] Stale flat nodes detected in cache. Wiping to force migration.');
+          fs.unlinkSync(this.localNodesPath);
+          // After wiping, we'll fall through to using fallbackNodes or re-fetch
+          return;
+        }
+
+        this.currentNodes = parsed;
+        console.log('[NodeManager] 🟢 Loaded nodes from local cache.');
       } else {
         console.warn('[NodeManager] 🟡 Cache does not exist, using factory fallback nodes.');
         this.currentNodes = fallbackNodes as NodeList;
       }
+    } catch (error) {
+      console.error('[NodeManager] 🔴 Error loading local nodes, using factory fallback:', error);
+      this.currentNodes = fallbackNodes as NodeList;
     }
   }
 
-  public async findFastestNode(network: string = 'mainnet', mode: 'tor' | 'clearnet' = 'tor'): Promise<string> {
+  public async findFastestNode(network: string = 'mainnet', mode: 'tor' | 'clearnet' = 'tor'): Promise<{ address: string, label: string }> {
     const rawNodes = this.currentNodes[network]?.[mode];
 
     if (!rawNodes) {
@@ -65,27 +86,35 @@ export class NodeManager {
     }
 
     // 🔄 Data Normalizer: Handle both Feather's Object grouping and standard Arrays
-    let availableNodes: string[] = [];
+    let candidates: { address: string, label: string }[] = [];
+
     if (Array.isArray(rawNodes)) {
-      availableNodes = rawNodes; // Fallback JSON format
+      candidates = rawNodes.map(addr => ({ address: addr, label: 'Standard' }));
     } else if (typeof rawNodes === 'object') {
-      // Flattens { providerA: ['url1'], providerB: ['url2'] } -> ['url1', 'url2']
-      availableNodes = Object.values(rawNodes).flat() as string[];
+      // Flattens { providerA: ['url1'], providerB: ['url2'] } -> [{ address: 'url1', label: 'providerA' }, ...]
+      for (const [label, addresses] of Object.entries(rawNodes)) {
+        if (Array.isArray(addresses)) {
+          addresses.forEach(addr => candidates.push({ address: addr, label }));
+        }
+      }
     }
 
-    if (availableNodes.length === 0) {
+    if (candidates.length === 0) {
       throw new Error(`Node list is empty for ${mode} on ${network}`);
     }
 
-    // Shuffle and pick up to 5 candidates for the race
-    const candidates = availableNodes.sort(() => 0.5 - Math.random()).slice(0, 10);
-    console.log(`[NodeManager] Racing candidates: ${candidates.join(', ')}`);
+    // Shuffle and pick up to 10 candidates for the race
+    const selectedCandidates = candidates.sort(() => 0.5 - Math.random()).slice(0, 10);
+    console.log(`[NodeManager] Racing candidates: ${selectedCandidates.map(c => c.address).join(', ')}`);
 
-    const racePromises = candidates.map(node => this.pingNode(node));
+    const racePromises = selectedCandidates.map(node =>
+      this.pingNode(node.address).then(addr => ({ address: addr, label: node.label }))
+    );
 
     try {
       const winner = await Promise.any(racePromises);
-      console.log(`[NodeManager] Fastest node selected: ${winner}`);
+      console.log(`[NodeManager] Fastest node selected: ${winner.address} (${winner.label})`);
+      NodeManager.activeNodeLabel = winner.label;
       return winner;
     } catch (error) {
       throw new Error('Network paralyzed: All candidate nodes failed to respond.');

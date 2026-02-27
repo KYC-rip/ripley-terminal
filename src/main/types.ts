@@ -15,8 +15,9 @@ export interface AppConfig {
 
 export interface NodeList {
   [network: string]: {
-    tor: string[];
-    clearnet: string[];
+    tor: string[] | { [provider: string]: string[] };
+    clearnet: string[] | { [provider: string]: string[] };
+    i2p?: string[] | { [provider: string]: string[] };
   };
 }
 

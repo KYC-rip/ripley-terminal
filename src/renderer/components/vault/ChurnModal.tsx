@@ -26,11 +26,11 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="w-full max-w-lg bg-white text-black p-8 border-4 border-xmr-green relative">
+      <div className="w-full max-w-lg bg-xmr-base/80 text-xmr-dim p-8 border-4 border-xmr-green relative">
         <button onClick={onClose} disabled={isProcessing} className="absolute top-4 right-4 cursor-pointer disabled:opacity-50">
           <X size={24} />
         </button>
-        
+
         <div className="space-y-6 font-normal">
           <div className="flex items-center gap-3 text-xmr-green font-black">
             <Wind size={32} />
@@ -39,13 +39,13 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
 
           <div className="text-sm font-mono leading-relaxed space-y-4">
             <p>
-              Churning is the defensive counter-part to Splintering. It sweeps your entire unlocked XMR 
+              Churning is the defensive counter-part to Splintering. It sweeps your entire unlocked XMR
               balance into a single, newly generated subaddress.
             </p>
             <p className="opacity-80">
-              Why use it? If you receive Monero from many different untrusted sources, or receive "dust attacks" with tiny outputs, 
-              connecting all those distinct UTXOs together in a single standard transaction could form a heuristic linkage of your identity. 
-              By Churning them first, you consolidate everything behind a fresh ring-signature payload. It essentially launders your local 
+              Why use it? If you receive Monero from many different untrusted sources, or receive "dust attacks" with tiny outputs,
+              connecting all those distinct UTXOs together in a single standard transaction could form a heuristic linkage of your identity.
+              By Churning them first, you consolidate everything behind a fresh ring-signature payload. It essentially launders your local
               funds back to yourself, resetting the heuristic depth.
             </p>
           </div>
@@ -62,21 +62,21 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
               <div className="h-0.5 w-12 bg-xmr-green/50 text-transparent">_</div>
             </div>
             <div className="w-16 h-16 rounded-full border-4 border border-xmr-green bg-xmr-green/20 flex items-center justify-center animate-pulse shadow-[0_0_15px_rgba(0,255,0,0.4)]">
-               <span className="font-mono font-black text-sm">30</span>
+              <span className="font-mono font-black text-sm">30</span>
             </div>
           </div>
 
           {error && <div className="text-red-500 text-xs font-mono">{error}</div>}
 
-          <button 
-            onClick={handleSubmit} 
+          <button
+            onClick={handleSubmit}
             disabled={isProcessing || unlockedBalance <= 0}
-            className="w-full py-4 bg-xmr-green text-white font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-4 bg-xmr-green text-xmr-dim font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isProcessing ? (
               <><Loader2 size={18} className="animate-spin" /> Churning...</>
             ) : (
-              `Consolidate UTXOs ${unlockedBalance > 0 ? `(${unlockedBalance} XMR)` : '(0 XMR)'}`
+                `Consolidate UTXOs ${unlockedBalance > 0 ? `(${unlockedBalance} XMR)` : '(0 XMR)'}`
             )}
           </button>
         </div>
