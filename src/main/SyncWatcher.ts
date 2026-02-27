@@ -10,6 +10,7 @@ export class SyncWatcher {
   private lastKnownHeight: number = -1;
   private lastStoreTime: number = 0;
   private onLog?: (source: string, level: 'info' | 'error', message: string) => void;
+  private loopCounter: number = 0;
 
   constructor(mainWindow: BrowserWindow, onLog?: (source: string, level: 'info' | 'error', message: string) => void) {
     this.mainWindow = mainWindow;
@@ -20,11 +21,34 @@ export class SyncWatcher {
     if (this.intervalId) return;
     this.emitLog('Watcher', 'info', '👁️ Pulse monitoring started...');
     this.lastStoreTime = Date.now();
-    this.intervalId = setInterval(async () => {
+    this.loopCounter = 0;
+    this.intervalId = setTimeout(() => this.runLoop(), 0);
+  }
+
+  private async runLoop(): Promise<void> {
+    try {
+      if (!this.intervalId) return; // Guard for stop() during execution
+
+  // 1. Always check height (Every 2s)
       await this.checkSyncStatus();
-      await this.checkBalance();
+
+      // 2. Periodic tasks
+      this.loopCounter++;
+
+      // Check balance every 3 cycles (~6s) or if it's the first time
+      if (this.loopCounter % 3 === 0 || this.lastKnownBalance === -1) {
+        await this.checkBalance();
+      }
+
       await this.periodicStore();
-    }, 5000);
+    } catch (e) {
+      /* Loop resilience */
+    } finally {
+      // Schedule next run
+      if (this.intervalId !== null) {
+        this.intervalId = setTimeout(() => this.runLoop(), 2000);
+      }
+    }
   }
 
   public getSnapshot() {
@@ -35,7 +59,9 @@ export class SyncWatcher {
   }
 
   public stop(): void {
-    if (this.intervalId) clearInterval(this.intervalId);
+    if (this.intervalId) {
+      clearTimeout(this.intervalId);
+    }
     this.intervalId = null;
     this.lastKnownBalance = -1;
     this.lastKnownHeight = -1;
