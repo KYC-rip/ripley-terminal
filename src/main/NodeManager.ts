@@ -89,7 +89,7 @@ export class NodeManager {
     let candidates: { address: string, label: string }[] = [];
 
     if (Array.isArray(rawNodes)) {
-      candidates = rawNodes.map(addr => ({ address: addr, label: 'Standard' }));
+      candidates = rawNodes.map(addr => ({ address: addr, label: 'WHITELIST' }));
     } else if (typeof rawNodes === 'object') {
       // Flattens { providerA: ['url1'], providerB: ['url2'] } -> [{ address: 'url1', label: 'providerA' }, ...]
       for (const [label, addresses] of Object.entries(rawNodes)) {

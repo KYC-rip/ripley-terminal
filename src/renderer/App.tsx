@@ -142,7 +142,7 @@ function MainApp() {
         const s = await window.api.getUplinkStatus();
         if (s) {
           if (s.nodeLabel) {
-            setUplink(s.nodeLabel);
+            setUplink(s.nodeLabel.toUpperCase());
           } else if (s.node) {
             let cleanUrl = s.node.replace('http://', '').replace('https://', '');
             if (cleanUrl.includes('.onion')) {
