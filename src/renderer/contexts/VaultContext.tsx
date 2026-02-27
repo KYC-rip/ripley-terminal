@@ -24,6 +24,8 @@ export interface VaultContextType {
   currentHeight: number;
   totalHeight: number;
   syncPercent: number;
+  requestedAction: string | null;
+  setRequestedAction: (action: string | null) => void;
   isAppLoading: boolean;
   isInitializing: boolean;
   isLocked: boolean;
@@ -77,6 +79,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isSending, setIsSending] = useState(false);
   const [isStagenet, setIsStagenet] = useState(false);
   const [outputs, setOutputs] = useState<any[]>([]);
+  const [requestedAction, setRequestedAction] = useState<string | null>(null);
   const lastHeightRef = useRef<number>(0); // Track previous height for sync detection
 
   const addLog = useCallback((msg: string, type: any = 'info') => {
@@ -191,14 +194,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refresh]);
 
-  // 🔄 UI Polling Loop (Replaces the background worker)
-  useEffect(() => {
-    if (!isLocked && !isInitializing) {
-      refresh(); // Initial fetch
-      const interval = setInterval(refresh, status === 'SYNCING' ? 3000 : 10000);
-      return () => clearInterval(interval);
-    }
-  }, [isLocked, isInitializing, status, refresh]);
 
   const unlock = useCallback(async (
     password: string,
@@ -243,18 +238,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
       // 🛡️ 2. Identity management and RPC interaction
       if (newIdentityName) {
-        // --- [CREATE OR RESTORE MODE] ---
         const randomId = Math.random().toString(36).substring(2, 9);
         const newId = `vault_${Date.now()}_${randomId}`;
 
-        // Display different logs based on presence of seed
         if (restoreSeed) {
           addLog(`🌅 Restoring identity from seed: ${newIdentityName}...`, 'process');
         } else {
           addLog(`🆕 Constructing fresh identity: ${newIdentityName}...`, 'process');
         }
 
-        // 🚀 Dispatch to backend: include seed and height parameters
         const res = await window.api.walletAction('create', {
           name: newId,
           pwd: password,
@@ -265,7 +257,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
         if (!res.success) throw new Error(res.error);
 
-        // Sync local metadata
         const newIdentity = { id: newId, name: newIdentityName, created: Date.now() };
         const updated = [...identities, newIdentity];
 
@@ -276,19 +267,60 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setActiveId(newId);
         targetId = newId;
       } else {
-        // --- [OPEN EXISTING WALLET MODE] ---
         if (!targetId || targetId === 'primary') {
           throw new Error("Please create a new identity first.");
         }
 
         addLog(`🌅 Opening vault: ${targetId}...`, 'process');
-        const res = await window.api.walletAction('open', { name: targetId, pwd: password });
-        if (!res.success) throw new Error(res.error);
+
+        // --- 🛡️ RPC CONNECTION RESILIENCE ---
+        let res: any = null;
+        for (let retry = 0; retry < 5; retry++) {
+          try {
+            res = await window.api.walletAction('open', { name: targetId, pwd: password });
+            if (res.success) break;
+
+            // If it's a specific "No wallet file" error, don't retry, just throw
+            if (res.error?.includes('No wallet file')) throw new Error(res.error);
+
+            throw new Error(res.error || 'Unknown RPC error');
+          } catch (error: any) {
+            const isConnErr = error.message?.includes('CONNECTION_REFUSED') || error.message?.includes('ECONNREFUSED');
+
+            if (isConnErr && retry < 4) {
+              addLog(`⏳ RPC Uplink initializing... (Retry ${retry + 1}/5)`, 'warning');
+              await new Promise(r => setTimeout(r, 2000));
+              continue;
+            }
+            throw error;
+          }
+        }
+        // --- ---------------------------- ---
+
+        if (!res?.success) throw new Error(res?.error || 'Failed to establish vault session.');
+
+        // 🛡️ [SOFT UNLOCK OPTIMIZATION]
+        // If the backend already had the wallet open (Soft Lock state), it returns a snapshot.
+        // We populate the UI instantly instead of waiting for the next polling cycle.
+        if (res.isSoft && res.snapshot) {
+          const snapshot = res.snapshot;
+          const formatPico = (v: number) => {
+            if (v < 0) return '0.0000';
+            const whole = Math.floor(v / 1e12);
+            const frac = v % 1e12;
+            return `${whole}.${frac.toString().padStart(12, '0')}`;
+          };
+          setBalance(prev => ({
+            total: snapshot.balance > -1 ? formatPico(snapshot.balance) : prev.total,
+            unlocked: prev.unlocked
+          }));
+          if (snapshot.height > -1) setCurrentHeight(snapshot.height);
+          addLog("⚡ Vault session resumed instantly. Background sync was continuous.", "success");
+        }
       }
 
-      // Finalize after success
       setHasVaultFile(true);
-      setStatus('SYNCING'); // Show SYNCING until first successful refresh confirms otherwise
+      setStatus('SYNCING');
       setIsLocked(false);
       setIsInitializing(false);
       addLog("✅ Vault unlocked. Synchronizing with network...", "success");
@@ -304,23 +336,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const lock = useCallback(async () => {
     // 1. 🟢 Immediate UI update (instant lock manifestation)
     setIsLocked(true);
-    addLog("🔒 Vault Secured. Finalizing background sync...", 'warning');
+    addLog("🔒 Vault Secured. Background sync continues...", 'warning');
 
     // 2. 🧹 Purge sensitive state
     setAddress('');
     setBalance({ total: '0.0000', unlocked: '0.0000' });
+    setSubaddresses([]);
+    setTxs([]);
+    setOutputs([]);
     setStatus('READY');
 
-    // 3. ⏳ Background shutdown (async, non-blocking)
-    // No await, processed in an independent async block
-    window.api.walletAction('close', {})
-      .then(() => {
-        addLog("✅ Backend wallet file saved and closed.", 'success');
-      })
-      .catch((err) => {
-        console.error("Lock sequence background error:", err);
-        addLog("⚠️ Backend close error (already closed or busy).", 'error');
-      });
+    // 3. ⏳ Signal Soft Lock to backend (keeps RPC alive but acknowledges lock)
+    window.api.walletAction('close', {}).catch(() => { });
 
   }, [addLog]);
 
@@ -472,20 +499,36 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     }
   }, []);
+  // ⌨️ Tactical Shortcut: Cmd+L to Lock
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        e.preventDefault();
+        if (!isLocked) {
+          addLog("⌨️ Tactical lock triggered via Cmd+L.", "process");
+          lock();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, lock, addLog]);
+
   const value = React.useMemo(() => ({
     accounts, selectedAccountIndex,
     balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
     unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
-    createAccount, sendMulti, getFeeEstimates
+    createAccount, sendMulti, getFeeEstimates,
+    requestedAction, setRequestedAction
   }), [
     accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
     currentHeight, totalHeight, syncPercent, isAppLoading, isInitializing, isLocked,
     isSending, hasVaultFile, identities, activeId, isStagenet, outputs,
     unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
-    createAccount, sendMulti, getFeeEstimates
+    createAccount, sendMulti, getFeeEstimates, requestedAction, setRequestedAction
   ]);
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

@@ -19,7 +19,19 @@ const store = new Store({
     network: 'mainnet',
     customNodeAddress: '',
     show_scanlines: true,
-    auto_lock_minutes: 10
+    auto_lock_minutes: 10,
+    shortcuts: {
+      'LOCK': 'Mod+L',
+      'SEND': 'Mod+S',
+      'RECEIVE': 'Mod+R',
+      'CHURN': 'Mod+Alt+C',
+      'SPLIT': 'Mod+Alt+S',
+      'SYNC': 'Mod+U',
+      'SETTINGS': 'Mod+,',
+      'TERMINAL': 'Mod+Shift+T'
+    },
+    hide_zero_balances: false,
+    include_prereleases: false
   } as AppConfig
 });
 
@@ -63,6 +75,19 @@ app.whenReady().then(async () => {
   });
 
   mainWindow.on('ready-to-show', () => mainWindow.show());
+
+  // 🛡️ Production Hardening: Disable Reload Shortcuts
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (app.isPackaged) {
+      if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+        event.preventDefault();
+      }
+      if (input.key === 'F5') {
+        event.preventDefault();
+      }
+    }
+  });
+
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window));
 
   // 🛡️ Graceful Shutdown Interceptor (Merged from old code)
@@ -218,14 +243,32 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('check-for-updates', async () => {
+  ipcMain.handle('check-for-updates', async (_, include_prereleases: boolean) => {
     try {
-      const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases/latest');
-      if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
-      const release = await response.json() as any;
+      const config = { ...store.store } as AppConfig;
+      config.include_prereleases = !!include_prereleases;
+      store.set(config);
+
+      let release: any;
+      if (include_prereleases) {
+        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases');
+        if (response.status === 404) return { success: true, hasUpdate: false, latestVersion: '---', error: 'No releases found' };
+        if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+        const releases = await response.json() as any[];
+        release = releases[0];
+      } else {
+        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases/latest');
+        if (response.status === 404) return { success: true, hasUpdate: false, latestVersion: '---', error: 'No releases found' };
+        if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+        release = await response.json() as any;
+      }
+
+      if (!release) return { success: true, hasUpdate: false, latestVersion: '---', error: 'No releases found' };
+
       const latestVersion = release.tag_name.replace(/^v/, '');
       const currentVersion = app.getVersion();
       const hasUpdate = latestVersion !== currentVersion;
+
       return {
         success: true,
         hasUpdate,
@@ -234,8 +277,9 @@ app.whenReady().then(async () => {
         body: release.body,
         publishedAt: release.published_at
       };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (error: any) {
+      console.error('Update check failed:', error);
+      return { success: false, error: error.message };
     }
   });
 
@@ -273,6 +317,8 @@ app.whenReady().then(async () => {
     }
   });
 
+  let currentOpenWallet: { id: string, pwd: string } | null = null;
+
   ipcMain.handle('wallet-action', async (_, action: string, payload: any) => {
     try {
       if ((action === 'create' || action === 'open') && !payload?.name) {
@@ -282,7 +328,6 @@ app.whenReady().then(async () => {
       switch (action) {
         case 'create':
           if (payload.seed) {
-            // Restore from mnemonic seed
             await WalletManager.restoreWallet(
               payload.name,
               payload.pwd,
@@ -290,23 +335,45 @@ app.whenReady().then(async () => {
               payload.height || 0,
               payload.language || 'English'
             );
+            currentOpenWallet = { id: payload.name, pwd: payload.pwd };
             watcher.start();
             return { success: true };
           } else {
-            // Create fresh wallet, then retrieve the generated seed
             await WalletManager.createWallet(payload.name, payload.pwd);
             const seed = await WalletManager.getMnemonic();
+            currentOpenWallet = { id: payload.name, pwd: payload.pwd };
             watcher.start();
             return { success: true, seed, address: '' };
           }
         case 'open':
+          // 🛡️ SOFT UNLOCK: If wallet is already open and password matches, just return success
+          if (currentOpenWallet && currentOpenWallet.id === payload.name) {
+            if (currentOpenWallet.pwd === payload.pwd) {
+              console.log(`[Main] Soft unlock triggered for: ${payload.name}`);
+              return { success: true, isSoft: true, snapshot: watcher.getSnapshot() };
+            } else {
+              throw new Error("Invalid password for active session.");
+            }
+          }
+
           await WalletManager.openWallet(payload.name, payload.pwd);
+          currentOpenWallet = { id: payload.name, pwd: payload.pwd };
           watcher.start();
           return { success: true };
+
         case 'close':
+          // 🛡️ SOFT LOCK: We stop pushing events but keep the RPC alive for background sync
+          console.log(`[Main] Soft lock engaged for: ${currentOpenWallet?.id}`);
+          // Note: We DON'T call watcher.stop() anymore to allow continuous scan
+          return { success: true };
+
+        case 'hard-close':
+        // Genuine termination (e.g. for identity switch or purge)
           watcher.stop();
           await WalletManager.closeWallet();
+          currentOpenWallet = null;
           return { success: true };
+
         case 'mnemonic':
           const seed = await WalletManager.getMnemonic();
           return { success: true, seed };

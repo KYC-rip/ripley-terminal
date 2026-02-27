@@ -11,6 +11,11 @@ export interface AppConfig {
   skin_background?: string; // base64 string
   skin_opacity?: number;    // 0.0 to 1.0
   skin_style?: 'cover' | 'contain' | 'tile' | 'top-left';
+  shortcuts?: {
+    [action: string]: string; // action name -> keyboard sequence (e.g., 'Mod+L')
+  };
+  hide_zero_balances?: boolean;
+  include_prereleases?: boolean;
 }
 
 export interface NodeList {

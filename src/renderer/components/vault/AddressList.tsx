@@ -11,9 +11,14 @@ interface AddressListProps {
   onVanishSubaddress: (index: number) => Promise<void>;
   onSendFrom: (subaddressIndex: number) => void;
   isSyncing: boolean;
+  hideZeroBalances: boolean;
+  onToggleFilter: (val: boolean) => void;
 }
 
-export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClick, onVanishSubaddress, onSendFrom, isSyncing }: AddressListProps) {
+export function AddressList({
+  subaddresses, handleCopy, onUpdateLabel, onRowClick, onVanishSubaddress,
+  onSendFrom, isSyncing, hideZeroBalances, onToggleFilter
+}: AddressListProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [vanishingIndex, setVanishingIndex] = useState<number | null>(null);
@@ -45,8 +50,24 @@ export function AddressList({ subaddresses, handleCopy, onUpdateLabel, onRowClic
   return (
     <Card noPadding className="h-[400px] flex flex-col">
       <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
-        <span>Internal_Subaddresses</span>
-        <span className="opacity-40">{subaddresses?.length || 0} Entries</span>
+        <div className="flex items-center gap-4">
+          <span>Internal_Subaddresses</span>
+          <span className="opacity-40">{subaddresses?.length || 0} Entries</span>
+        </div>
+        <button
+          onClick={() => onToggleFilter(!hideZeroBalances)}
+          className={`flex items-center gap-2 px-3 py-1 border transition-all cursor-pointer text-[10px] font-black ${hideZeroBalances ? 'bg-xmr-accent/10 border-xmr-accent text-xmr-accent' : 'border-xmr-border text-xmr-dim hover:border-xmr-green hover:text-xmr-green'}`}
+        >
+          {hideZeroBalances ? (
+            <>
+              <Check size={10} /> DUST_FILTERED
+            </>
+          ) : (
+            <>
+              <X size={10} /> SHOW_ALL_DUST
+            </>
+          )}
+        </button>
       </div>
       <div className="flex-grow overflow-y-auto custom-scrollbar">
         <table className="w-full text-left">

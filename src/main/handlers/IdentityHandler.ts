@@ -3,6 +3,7 @@ import { app, ipcMain } from 'electron';
 import fs from 'fs/promises'; // 🚀 Force async API to prevent UI stutter
 import { existsSync } from 'fs';
 import path from 'path';
+import { WalletManager } from '../WalletManager';
 
 export function registerIdentityHandlers(store: any) {
   const walletDir = path.join(app.getPath('userData'), 'wallets');
@@ -81,6 +82,10 @@ export function registerIdentityHandlers(store: any) {
   // 🔥 Physical vault destruction — deletes .keys and companion files from disk
   ipcMain.handle('delete-identity-files', async (_, id: string) => {
     try {
+      // Always attempt to hard-close the wallet via RPC first — the wallet-rpc process
+      // holds a file lock on .keys files, preventing deletion
+      await WalletManager.closeWallet().catch(() => { });
+
       const keysFile = path.join(walletDir, `${id}.keys`);
       const cacheFile = path.join(walletDir, id); // wallet cache file (no extension)
 

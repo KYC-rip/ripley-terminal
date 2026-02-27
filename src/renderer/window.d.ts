@@ -10,6 +10,11 @@ export interface AppConfig {
   skin_background?: string;
   skin_opacity?: number;
   skin_style?: 'cover' | 'contain' | 'tile' | 'top-left';
+  shortcuts?: {
+    [action: string]: string;
+  };
+  hide_zero_balances?: boolean;
+  include_prereleases?: boolean;
 }
 
 export interface EngineStatus {
@@ -32,6 +37,11 @@ export interface WalletActionResponse {
   seed?: string;
   address?: string;
   error?: string;
+  isSoft?: boolean;
+  snapshot?: {
+    balance: number;
+    height: number;
+  };
 }
 
 export interface IApi {
@@ -49,7 +59,7 @@ export interface IApi {
   deleteIdentityFiles: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   // --- Core Wallet Operations (Delegated to RPC) ---
-  walletAction: (action: 'create' | 'open' | 'close' | 'label_account' | 'mnemonic', payload?: { name?: string; pwd?: string, seed?: string, height?: number, language?: string, account_index?: number, label?: string }) => Promise<WalletActionResponse>;
+  walletAction: (action: 'create' | 'open' | 'close' | 'hard-close' | 'label_account' | 'mnemonic', payload?: { name?: string; pwd?: string, seed?: string, height?: number, language?: string, account_index?: number, label?: string }) => Promise<WalletActionResponse>;
 
   // --- Engine Telemetry ---
   getUplinkStatus: () => Promise<EngineStatus>;
@@ -71,7 +81,7 @@ export interface IApi {
   getAppInfo: () => Promise<{ version: string; appDataPath: string; walletsPath: string; platform: NodeJS.Platform }>;
   openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
-  checkForUpdates: () => Promise<{ success: boolean; hasUpdate?: boolean; latestVersion?: string; releaseUrl?: string; body?: string; publishedAt?: string; error?: string }>;
+  checkForUpdates: (include_prereleases: boolean) => Promise<{ success: boolean; hasUpdate?: boolean; latestVersion?: string; releaseUrl?: string; body?: string; publishedAt?: string; error?: string }>;
   selectBackgroundImage: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 

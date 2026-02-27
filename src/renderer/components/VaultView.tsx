@@ -15,15 +15,16 @@ interface VaultViewProps {
   setView: (v: any) => void;
   vault: VaultContextType;
   handleBurn: () => void;
+  appConfig: any;
 }
 
-export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
+export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewProps) {
   const {
     accounts, selectedAccountIndex, setSelectedAccountIndex,
     balance, address, subaddresses, outputs, refresh,
     status, isSending, sendXmr, createSubaddress,
     churn, splinter, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel,
-    vanishSubaddress
+    vanishSubaddress, requestedAction
   } = vault;
   const [tab, setTab] = useState<'ledger' | 'addresses' | 'coins' | 'contacts'>('ledger');
   const [modals, setModals] = useState({ seed: false, receive: false, send: false, splinter: false, churn: false });
@@ -35,24 +36,36 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
+  const [hideZeroBalances, setHideZeroBalances] = useState(false);
 
   const currentAcc = accounts.find(a => a.index === selectedAccountIndex);
   const currentAccBalance = currentAcc?.balance || '0.0000';
   const { fiatText: usdValue } = useFiatValue('XMR', currentAccBalance, true);
 
-  // 1. Load contacts (modified getConfig logic)
   useEffect(() => {
     const loadAddressBook = async () => {
-      const config = await window.api.getConfig();
       // Assume address book is stored under a specific key in the config object
-      const bookKey = `address_book_${activeId}` as keyof typeof config;
-      setContacts((config as any)[bookKey] || []);
+      const bookKey = `address_book_${activeId}` as keyof typeof appConfig;
+      setContacts((appConfig as any)[bookKey] || []);
+      setHideZeroBalances(!!appConfig.hide_zero_balances);
     };
-    loadAddressBook();
-  }, [activeId]);
+    if (appConfig) loadAddressBook();
+  }, [activeId, appConfig]);
 
   // Click-away listener to close the dropdown
   const dropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (requestedAction) {
+      if (requestedAction === 'OPEN_SEND') setModals(prev => ({ ...prev, send: true }));
+      else if (requestedAction === 'OPEN_RECEIVE') setModals(prev => ({ ...prev, receive: true }));
+      else if (requestedAction === 'OPEN_CHURN') setModals(prev => ({ ...prev, churn: true }));
+      else if (requestedAction === 'OPEN_SPLINTER') setModals(prev => ({ ...prev, splinter: true }));
+
+      // Clear the action so it doesn't re-trigger
+      vault.setRequestedAction(null);
+    }
+  }, [requestedAction, vault]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -104,6 +117,12 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
     } catch (e: any) {
       alert(`RPC_ERROR: ${e.message || 'Could not retrieve mnemonic. Wallet may be busy syncing.'}`);
     }
+  };
+
+  const handleToggleFilter = async (val: boolean) => {
+    setHideZeroBalances(val);
+    const updatedConfig = { ...appConfig, hide_zero_balances: val };
+    await window.api.saveConfigOnly?.(updatedConfig) || await window.api.saveConfigAndReload(updatedConfig);
   };
 
   const handleCopy = (text: string) => {
@@ -247,13 +266,15 @@ export function VaultView({ setView, vault, handleBurn }: VaultViewProps) {
         {tab === 'ledger' && <TransactionLedger txs={txs} subaddresses={subaddresses} />}
         {tab === 'coins' && <CoinControl outputs={outputs} onSendFromCoin={(_keyImage, _amount) => { setModals(prev => ({ ...prev, send: true })); }} />}
         {tab === 'addresses' && <AddressList
-          subaddresses={subaddresses}
+          subaddresses={hideZeroBalances ? subaddresses.filter(s => parseFloat(s.balance) > 0 || s.index === 0) : subaddresses}
           handleCopy={handleCopy}
           onUpdateLabel={setSubaddressLabel}
           onRowClick={(s) => { setSelectedSubaddress(s); setModals(prev => ({ ...prev, receive: true })); }}
           onVanishSubaddress={vanishSubaddress}
           onSendFrom={(idx) => { setDispatchSubIndex(idx); setModals(prev => ({ ...prev, send: true })); }}
           isSyncing={status === 'SYNCING'}
+          hideZeroBalances={hideZeroBalances}
+          onToggleFilter={handleToggleFilter}
         />}
         {tab === 'contacts' && <AddressBook
           contacts={contacts}

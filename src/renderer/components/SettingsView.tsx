@@ -21,7 +21,10 @@ export function SettingsView() {
     systemProxyAddress: '',
     skin_background: '',
     skin_opacity: 0.2,
-    skin_style: 'cover'
+    skin_style: 'cover',
+    shortcuts: {} as Record<string, string>,
+    hide_zero_balances: false,
+    include_prereleases: false
   });
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -59,7 +62,10 @@ export function SettingsView() {
         systemProxyAddress: fullConfig.systemProxyAddress || '',
         skin_background: fullConfig.skin_background || '',
         skin_opacity: fullConfig.skin_opacity !== undefined ? fullConfig.skin_opacity : 0.2,
-        skin_style: fullConfig.skin_style || 'cover'
+        skin_style: fullConfig.skin_style || 'cover',
+        shortcuts: fullConfig.shortcuts || {},
+        hide_zero_balances: fullConfig.hide_zero_balances || false,
+        include_prereleases: fullConfig.include_prereleases || false
       });
 
       const info = await window.api.getAppInfo();
@@ -74,7 +80,7 @@ export function SettingsView() {
     setUpdateResult({ checked: false });
     setShowChangelog(false);
     try {
-      const res = await window.api.checkForUpdates();
+      const res = await window.api.checkForUpdates(localSettings?.include_prereleases);
       if (res.success) {
         setUpdateResult({
           checked: true,
@@ -127,7 +133,10 @@ export function SettingsView() {
         auto_lock_minutes: localSettings.auto_lock_minutes,
         skin_background: localSettings.skin_background,
         skin_opacity: localSettings.skin_opacity,
-        skin_style: localSettings.skin_style
+        skin_style: localSettings.skin_style,
+        shortcuts: localSettings.shortcuts,
+        hide_zero_balances: localSettings.hide_zero_balances,
+        include_prereleases: localSettings.include_prereleases
       };
 
       if (needsPhysicalReload) {
@@ -208,15 +217,30 @@ export function SettingsView() {
               <div className="space-y-1">
                 <div className="text-xs font-black text-xmr-dim uppercase">Current_Version</div>
                 <div className="text-xl text-xmr-green font-mono">v{appInfo?.version || '...'}</div>
+                <p className="mt-1 text-xmr-dim/50 italic lowercase">Latest tactical builds from the frontline.</p>
               </div>
-              <button
-                onClick={handleCheckUpdate}
-                disabled={isCheckingUpdate}
-                className="px-4 py-2 border border-xmr-green text-xmr-green text-xs uppercase font-black tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isCheckingUpdate ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                {isCheckingUpdate ? 'Checking...' : 'Check_For_Updates'}
-              </button>
+              <div className="flex flex-col items-end gap-3">
+                <label className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest cursor-pointer group hover:text-xmr-accent transition-all">
+                  <span>Include_Pre-releases</span>
+                  <input
+                    type="checkbox"
+                    className="accent-xmr-accent hidden"
+                    checked={localSettings.include_prereleases}
+                    onChange={(e) => setLocalSettings({ ...localSettings, include_prereleases: e.target.checked })}
+                  />
+                  <div className={`w-10 h-5 border flex items-center px-1 transition-all ${localSettings.include_prereleases ? 'border-xmr-accent bg-xmr-accent/10' : 'border-xmr-border bg-xmr-base'}`}>
+                    <div className={`w-3 h-3 transition-all ${localSettings.include_prereleases ? 'bg-xmr-accent translate-x-5' : 'bg-xmr-dim translate-x-0'}`} />
+                  </div>
+                </label>
+                <button
+                  onClick={handleCheckUpdate}
+                  disabled={isCheckingUpdate}
+                  className="px-6 py-2 border border-xmr-green text-xmr-green text-xs font-black uppercase tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isCheckingUpdate ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  Check_For_Tactical_Updates
+                </button>
+              </div>
             </div>
 
             {updateResult.checked && (
@@ -529,6 +553,37 @@ export function SettingsView() {
                   </div>
                 </div>
               )}
+            </div>
+          </Card>
+        </section>
+
+        {/* ⌨️ Keyboard Command Center */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase">
+            <Zap size={14} /> Tactical_Shortcuts
+          </h3>
+          <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+            <p className="text-[10px] text-xmr-dim uppercase font-black leading-relaxed">
+              Map major terminal functions to key sequences.<br />
+              Format: <span className="text-xmr-green">Mod+Key</span> (e.g., Mod+S) or <span className="text-xmr-green">Mod+Alt+Key</span>.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(localSettings.shortcuts || {}).map(([action, sequence]) => (
+                <div key={action} className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-xmr-dim uppercase">{action.replace('_', ' ')}</label>
+                  <input
+                    type="text"
+                    value={sequence}
+                    onChange={(e) => {
+                      const newShortcuts = { ...localSettings.shortcuts, [action]: e.target.value };
+                      setLocalSettings({ ...localSettings, shortcuts: newShortcuts });
+                    }}
+                    className="bg-xmr-base border border-xmr-border p-2 text-xs text-xmr-green focus:border-xmr-green outline-none font-black"
+                    placeholder="e.g. Mod+S"
+                  />
+                </div>
+              ))}
             </div>
           </Card>
         </section>

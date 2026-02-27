@@ -30,6 +30,8 @@ const SkinOverlay = ({ config }: { config: any }) => {
 function MainApp() {
   const [view, setView] = useState<'home' | 'vault' | 'settings'>('home');
   const [showConsole, setShowConsole] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
 
   const [appConfig, setAppConfig] = useState<any>(null);
 
@@ -74,7 +76,7 @@ function MainApp() {
 
     const checkOnBoot = async () => {
       try {
-        const res = await window.api.checkForUpdates();
+        const res = await window.api.checkForUpdates(appConfig.include_prereleases);
         if (res.success && res.hasUpdate && res.latestVersion && res.releaseUrl) {
           setUpdateBanner({ show: true, version: res.latestVersion, url: res.releaseUrl });
         }
@@ -131,11 +133,62 @@ function MainApp() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showConsole) setShowConsole(false);
+      if (e.key === 'Escape' && showConsole) {
+        setShowConsole(false);
+        return;
+      }
+
+      if (!appConfig?.shortcuts || isLocked) return;
+
+      const isMod = e.metaKey || e.ctrlKey;
+      const isAlt = e.altKey;
+      const key = e.key.toUpperCase();
+
+      // Helper to match key sequence strings like "Mod+S" or "Mod+Alt+C"
+      const matchShortcut = (id: string) => {
+        const seq = appConfig.shortcuts[id];
+        if (!seq) return false;
+        const parts = seq.split('+');
+        const wantsMod = parts.includes('Mod');
+        const wantsAlt = parts.includes('Alt');
+        const targetKey = parts[parts.length - 1].toUpperCase();
+
+        return isMod === wantsMod && isAlt === wantsAlt && key === targetKey;
+      };
+
+      if (matchShortcut('LOCK')) {
+        e.preventDefault();
+        lock();
+      } else if (matchShortcut('SEND')) {
+        e.preventDefault();
+        setView('vault');
+        vault.setRequestedAction('OPEN_SEND');
+      } else if (matchShortcut('RECEIVE')) {
+        e.preventDefault();
+        setView('vault');
+        vault.setRequestedAction('OPEN_RECEIVE');
+      } else if (matchShortcut('CHURN')) {
+        e.preventDefault();
+        setView('vault');
+        vault.setRequestedAction('OPEN_CHURN');
+      } else if (matchShortcut('SPLIT')) {
+        e.preventDefault();
+        setView('vault');
+        vault.setRequestedAction('OPEN_SPLINTER');
+      } else if (matchShortcut('SYNC')) {
+        e.preventDefault();
+        vault.refresh();
+      } else if (matchShortcut('SETTINGS')) {
+        e.preventDefault();
+        setView('settings');
+      } else if (matchShortcut('TERMINAL')) {
+        e.preventDefault();
+        setShowConsole(prev => !prev);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showConsole]);
+  }, [showConsole, appConfig, isLocked, lock, setView, vault]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -289,6 +342,16 @@ function MainApp() {
           />
 
           <NavButton id="settings" label="Config_System" icon={Settings} />
+
+          <button
+            onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); }}
+            className={`w-full flex items-center justify-between px-6 py-4 border-l-2 border-transparent text-xmr-dim hover:text-xmr-accent hover:bg-xmr-accent/5 transition-all cursor-pointer group`}
+          >
+            <div className="flex items-center gap-3">
+              <RefreshCw size={18} className="opacity-50 group-hover:opacity-100 group-hover:animate-spin-slow" />
+              <span className="text-[11px] font-black uppercase tracking-[0.2em]">Feedback?</span>
+            </div>
+          </button>
         </nav>
 
         <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
@@ -405,7 +468,7 @@ function MainApp() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => window.open(updateBanner.url)}
+                        onClick={() => window.api.openExternal(updateBanner.url)}
                         className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[11px] uppercase hover:bg-white transition-all cursor-pointer flex items-center gap-2"
                       >
                         <Download size={12} /> Init_Download
@@ -421,7 +484,7 @@ function MainApp() {
                 )}
 
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
-              <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} /></div>
+                <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} appConfig={appConfig} /></div>
 
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
             </>
@@ -431,7 +494,7 @@ function MainApp() {
         {showConsole && (
           <>
             <div className="fixed inset-0 z-50 bg-black/5" onClick={() => setShowConsole(false)} />
-            <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+            <div className="absolute inset-x-0 bottom-8 h-64 bg-xmr-base/95 backdrop-blur-xl border-t border-xmr-green/30 z-[60] flex flex-col animate-in slide-in-from-bottom-4 duration-300 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] select-text">
               <div className="px-4 py-2 border-b border-xmr-green/10 flex justify-between items-center bg-xmr-green/5">
                 <div className="flex items-center gap-2 text-[11px] font-black text-xmr-green uppercase tracking-widest"><TerminalIcon size={12} /> System_Log_Output</div>
                 <div className="flex items-center gap-4">
@@ -475,6 +538,51 @@ function MainApp() {
             <span className="opacity-75">© 2026 kyc.rip // tactical_terminal_v1.0</span>
           </div>
         </footer>
+        {showFeedbackModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="w-[500px] bg-xmr-base border border-xmr-accent/30 p-8 shadow-2xl relative animate-in zoom-in-95 duration-300">
+              <button onClick={() => setShowFeedbackModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-accent transition-colors">
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-6">
+                <RefreshCw size={24} className="text-xmr-accent" />
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-tighter text-xmr-accent italic leading-none">Transmission_Input</h2>
+                  <p className="text-[10px] text-xmr-dim uppercase font-black tracking-widest mt-1">Found a bug? Want a feature? Report it.</p>
+                </div>
+              </div>
+
+              <textarea
+                autoFocus
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="TYPE_YOUR_TACTICAL_FEEDBACK_HERE..."
+                className="w-full h-40 bg-xmr-surface border border-xmr-border p-4 text-xs text-xmr-green font-black outline-none focus:border-xmr-accent transition-all resize-none custom-scrollbar"
+              />
+
+              <div className="mt-6 flex gap-4">
+                <button
+                  onClick={() => {
+                    const template = encodeURIComponent(`Hi @XBToshi, I have a feedback for Ghost Terminal:\n\n"${feedbackText}"\n\n#kycrip #privacy #GhostTerminal`);
+                    window.api.openExternal(`https://x.com/intent/tweet?text=${template}`);
+                    setShowFeedbackModal(false);
+                  }}
+                  disabled={!feedbackText.trim()}
+                  className="flex-grow py-4 bg-xmr-accent text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-30 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RefreshCw size={16} /> Submit_To_Uplink
+                </button>
+                <button
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="px-6 py-4 border border-xmr-border text-xmr-dim font-black uppercase text-xs tracking-widest hover:border-xmr-green hover:text-xmr-green transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

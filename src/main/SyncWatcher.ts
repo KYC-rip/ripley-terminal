@@ -25,6 +25,13 @@ export class SyncWatcher {
     }, 5000);
   }
 
+  public getSnapshot() {
+    return {
+      balance: this.lastKnownBalance,
+      height: this.lastKnownHeight,
+    };
+  }
+
   public stop(): void {
     if (this.intervalId) clearInterval(this.intervalId);
     this.intervalId = null;
