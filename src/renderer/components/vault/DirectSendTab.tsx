@@ -437,7 +437,7 @@ export function DirectSendTab({
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            window.api.openPath('https://xmr.bio');
+            window.api.openExternal('https://xmr.bio');
           }}
           className="text-[10px] text-xmr-dim hover:text-xmr-green underline transition-colors font-black tracking-widest"
         >

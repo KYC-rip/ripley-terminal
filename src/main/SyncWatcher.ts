@@ -9,14 +9,16 @@ export class SyncWatcher {
   private lastKnownBalance: number = -1;
   private lastKnownHeight: number = -1;
   private lastStoreTime: number = 0;
+  private onLog?: (source: string, level: 'info' | 'error', message: string) => void;
 
-  constructor(mainWindow: BrowserWindow) {
+  constructor(mainWindow: BrowserWindow, onLog?: (source: string, level: 'info' | 'error', message: string) => void) {
     this.mainWindow = mainWindow;
+    this.onLog = onLog;
   }
 
   public start(): void {
     if (this.intervalId) return;
-    console.log('[Watcher] 👁️ Pulse monitoring started...');
+    this.emitLog('Watcher', 'info', '👁️ Pulse monitoring started...');
     this.lastStoreTime = Date.now();
     this.intervalId = setInterval(async () => {
       await this.checkSyncStatus();
@@ -37,7 +39,7 @@ export class SyncWatcher {
     this.intervalId = null;
     this.lastKnownBalance = -1;
     this.lastKnownHeight = -1;
-    console.log('[Watcher] 💤 Pulse monitoring suspended.');
+    this.emitLog('Watcher', 'info', '💤 Pulse monitoring suspended.');
   }
 
   private pushEvent(payload: WalletEventPayload) {
@@ -48,13 +50,17 @@ export class SyncWatcher {
 
   private async periodicStore(): Promise<void> {
     try {
-      // Auto-save every 60 seconds to prevent progress loss
       if (Date.now() - this.lastStoreTime > 60000) {
         await (WalletManager as any).callRpc('store', {});
         this.lastStoreTime = Date.now();
-        console.log('[Watcher] 💾 Auto-saving wallet sync progress');
+        this.emitLog('Watcher', 'info', '💾 Auto-saving wallet sync progress');
       }
     } catch (e) { /* Ignore */ }
+  }
+
+  private emitLog(source: string, level: 'info' | 'error', message: string) {
+    console.log(`[${source}] ${message}`);
+    if (this.onLog) this.onLog(source, level, message);
   }
 
   private async checkSyncStatus(): Promise<void> {
@@ -66,7 +72,7 @@ export class SyncWatcher {
       const result = await (WalletManager as any).callRpc('get_height');
       if (result.height !== this.lastKnownHeight) {
         this.lastKnownHeight = result.height;
-        console.log(`[Watcher] 🔄 Detected block height update: ${result.height} / Latest daemon height: ${daemonHeight}`);
+        this.emitLog('Watcher', 'info', `🔄 Block height update: ${result.height} / Daemon: ${daemonHeight}`);
         this.pushEvent({
           type: 'SYNC_UPDATE', payload: {
             height: result.height,
@@ -81,7 +87,7 @@ export class SyncWatcher {
     try {
       const result = await (WalletManager as any).callRpc('get_balance');
       if (result.balance !== this.lastKnownBalance) {
-        console.log(`[Watcher] 💰 Detected balance change: ${result.balance}`);
+        this.emitLog('Watcher', 'info', `💰 Balance change detected: ${result.balance}`);
         this.pushEvent({ type: 'BALANCE_CHANGED', payload: { balance: result.balance, unlocked: result.unlocked_balance } });
       }
       this.lastKnownBalance = result.balance;

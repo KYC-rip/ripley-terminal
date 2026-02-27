@@ -45,6 +45,12 @@ const isStagenet = store.get("network") === 'stagenet';
 let currentEngineState = { status: 'DISCONNECTED', node: '', nodeLabel: '', useTor: false, error: '', isStagenet };
 let isSafeToExit = false;
 
+function emitAppLog(source: string, level: 'info' | 'error', message: string) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('core-log', { source, level, message });
+  }
+}
+
 app.whenReady().then(async () => {
   const fs = require('fs');
   const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
@@ -124,13 +130,9 @@ app.whenReady().then(async () => {
 
   daemonEngine = new DaemonManager();
   nodeManager = new NodeManager();
-  watcher = new SyncWatcher(mainWindow);
+  watcher = new SyncWatcher(mainWindow, emitAppLog);
 
-  daemonEngine.setLogListener((source, level, message) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('core-log', { source, level, message });
-    }
-  });
+  daemonEngine.setLogListener(emitAppLog);
 
 
   // 🔌 Register the Identity/Vault Handlers
