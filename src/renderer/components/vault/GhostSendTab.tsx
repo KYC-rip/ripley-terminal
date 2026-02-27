@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Ghost, ArrowRight, DollarSign, Loader2, CheckCircle2, AlertTriangle, Wallet, RefreshCw } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
+import { useStats } from '../../hooks/useStats';
 import { CurrencySelector } from '../CurrencySelector';
 import { ComplianceSelector } from '../ComplianceSelector';
 import { useCurrencies, Currency } from '../../hooks/useCurrencies';
@@ -22,7 +23,8 @@ interface GhostSendTabProps {
 }
 
 export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) {
-  const { sendXmr } = useVault();
+  const { sendXmr, getFeeEstimates } = useVault();
+  const { stats } = useStats();
   const { currencies } = useCurrencies();
 
   const [ghostCurrency, setGhostCurrency] = useState<Currency | null>(null);
@@ -34,6 +36,8 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
   const [tradeStatus, setTradeStatus] = useState('');
   const [ghostError, setGhostError] = useState('');
   const [compliance, setCompliance] = useState<ComplianceState>({ kyc: 'STANDARD', log: 'STANDARD' });
+  const [priority, setPriority] = useState(0);
+  const [feeEstimates, setFeeEstimates] = useState<Record<number, string>>({});
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
@@ -47,6 +51,35 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
     if (currencies.length > 0 && !ghostCurrency)
       setGhostCurrency(currencies.find((c) => c.ticker === 'usdt' && c.network === 'TRC20') || currencies[0]);
   }, [currencies, ghostCurrency]);
+
+  const isFetchingFees = useRef(false);
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    const fetchFees = async () => {
+      if (isFetchingFees.current) return;
+      isFetchingFees.current = true;
+      try {
+        const result = await getFeeEstimates();
+        if (result && result.fees) {
+          const mapped: Record<number, string> = {
+            1: result.fees[0],
+            0: result.fees[1],
+            2: result.fees[1],
+            3: result.fees[2],
+            4: result.fees[3]
+          };
+          setFeeEstimates(mapped);
+        }
+      } catch (e) {
+        // silent fail
+      } finally {
+        isFetchingFees.current = false;
+        timer = setTimeout(fetchFees, 10000);
+      }
+    };
+    fetchFees();
+    return () => clearTimeout(timer);
+  }, [getFeeEstimates]);
 
   useEffect(
     () => () => {
@@ -101,7 +134,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
         setGhostPhase('sending');
         const depositAddr = trade.deposit_address || trade.address_provider;
         const depositAmt = trade.deposit_amount || trade.amount_from;
-        await sendXmr(depositAddr, depositAmt);
+        await sendXmr(depositAddr, depositAmt, undefined, priority);
         setGhostPhase('tracking');
         setTradeStatus('WAITING');
         const tradeId = trade.trade_id || trade.id || '';
@@ -163,9 +196,8 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
               </label>
               {ghostReceiverAddr.length > 0 && !isGhostAddrValidating && (
                 <span
-                  className={`text-xs uppercase tracking-widest ${
-                    isGhostAddrValid ? 'text-xmr-green' : 'text-red-500 animate-pulse'
-                  }`}
+                  className={`text-xs uppercase tracking-widest ${isGhostAddrValid ? 'text-xmr-green' : 'text-red-500 animate-pulse'
+                    }`}
                 >
                   {isGhostAddrValid ? 'Valid Format' : ghostAddrError || 'Invalid Format'}
                 </span>
@@ -176,9 +208,8 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
               value={ghostReceiverAddr}
               onChange={(e) => setGhostReceiverAddr(e.target.value)}
               placeholder={`${ghostCurrency?.ticker.toUpperCase() || 'Asset'} address`}
-              className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${
-                ghostReceiverAddr.length > 0 && isGhostAddrValid === false ? 'border-red-600' : 'border-xmr-border'
-              }`}
+              className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${ghostReceiverAddr.length > 0 && isGhostAddrValid === false ? 'border-red-600' : 'border-xmr-border'
+                }`}
             />
           </div>
 
@@ -196,6 +227,46 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
           </div>
 
           <ComplianceSelector value={compliance} onChange={setCompliance} variant="ghost" />
+
+          {/* Fee Priority Selection */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5 px-0.5">
+              <RefreshCw size={10} /> Network_Fee_Priority
+            </label>
+            <div className="grid grid-cols-5 gap-1 bg-xmr-surface/30 p-1 border border-xmr-border/30 rounded-sm">
+              {[
+                { label: 'Slow', val: 1 },
+                { label: 'Auto', val: 0 },
+                { label: 'Med', val: 2 },
+                { label: 'Fast', val: 3 },
+                { label: 'Urgent', val: 4 }
+              ].map((lvl) => {
+                const xmrFee = feeEstimates[lvl.val];
+                const streetPriceStr = stats?.price?.street || '0';
+                const streetPrice = parseFloat(streetPriceStr.replace(/[$,]/g, ''));
+                const usdFee = xmrFee && streetPrice ? (parseFloat(xmrFee) * streetPrice * 3000).toFixed(4) : null;
+
+
+                return (
+                  <button
+                    key={lvl.val}
+                    onClick={() => setPriority(lvl.val)}
+                    className={`h-[42px] px-1 flex flex-col items-center justify-center transition-all cursor-pointer rounded-sm ${priority === lvl.val
+                      ? 'bg-xmr-accent text-xmr-base'
+                      : 'text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'
+                      }`}
+                  >
+                    <span className="text-[10px] font-black uppercase">{lvl.label}</span>
+                    {usdFee && (
+                      <span className={`text-[10px] font-mono mt-0.5 font-bold ${priority === lvl.val ? 'text-xmr-base' : 'text-xmr-green/80'}`}>
+                        ${usdFee}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <button
             disabled={

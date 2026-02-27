@@ -47,6 +47,7 @@ function MainApp() {
   const [showScanlines, setShowScanlines] = useState(resolvedTheme === 'dark');
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const [uplink, setUplink] = useState<string>('SCANNING...');
+  const [uplinkUrl, setUplinkUrl] = useState<string>('');
   const [sessionStartTime] = useState(Date.now());
   const [uptime, setUptime] = useState('00:00:00');
 
@@ -142,7 +143,8 @@ function MainApp() {
         const s = await window.api.getUplinkStatus();
         if (s) {
           if (s.nodeLabel) {
-            setUplink(s.nodeLabel.toUpperCase());
+            setUplink(s.nodeLabel);
+            setUplinkUrl(s.node);
           } else if (s.node) {
             let cleanUrl = s.node.replace('http://', '').replace('https://', '');
             if (cleanUrl.includes('.onion')) {
@@ -152,10 +154,12 @@ function MainApp() {
               }
             }
             setUplink(cleanUrl);
+            setUplinkUrl(s.node);
           }
         }
       } catch (e) {
         setUplink('LINK_OFFLINE');
+        setUplinkUrl('');
       }
     };
     fetchStatus();
@@ -351,7 +355,7 @@ function MainApp() {
             </div>
           </div>
           <div className="mt-2 border-t border-xmr-border/10 justify-end absolute bottom-2 left-6">
-            <div className="text-[10px] text-xmr-dim leading-relaxed uppercase italic ">
+            <div className="text-[10px] text-xmr-dim leading-relaxed uppercase italic " title={uplinkUrl}>
               Uplink: {uplink || 'Scanning...'}
             </div>
           </div>

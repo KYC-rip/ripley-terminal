@@ -37,11 +37,12 @@ export interface VaultContextType {
   createAccount: (label: string) => Promise<void>;
   unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
   lock: () => void;
-  sendXmr: (address: string, amount: number) => Promise<string | undefined>;
-  sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[]) => Promise<void>;
+  sendXmr: (address: string, amount: number, accountIndex?: number, priority?: number) => Promise<string | undefined>;
+  sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority?: number) => Promise<void>;
   purgeIdentity: (id: string) => Promise<void>;
   switchIdentity: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
+  getFeeEstimates: () => Promise<{ fees: string[] } | undefined>;
   createSubaddress: (label?: string) => Promise<string | undefined>;
   renameIdentity: (id: string, name: string) => Promise<void>;
   renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
@@ -323,11 +324,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   }, [addLog]);
 
-  const sendXmr = useCallback(async (destination: string, amount: number, accountIndex?: number) => {
+  const sendXmr = useCallback(async (destination: string, amount: number, accountIndex?: number, priority: number = 0) => {
     setIsSending(true);
-    addLog(`💸 Preparing transfer of ${amount} XMR...`, 'process');
+    addLog(`💸 Preparing transfer of ${amount} XMR (Priority: ${priority})...`, 'process');
     try {
-      const txHash = await WalletService.sendTransaction(destination, amount, accountIndex || 0);
+      const txHash = await WalletService.sendTransaction(destination, amount, accountIndex || 0, priority);
       addLog(`✅ Transaction dispatched: ${txHash}`, 'success');
       await refresh();
       return txHash;
@@ -411,67 +412,81 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     loadIdentities();
   }, []);
 
-  // Graceful Shutdown
-  useEffect(() => {
-    if (window.api.onVaultShutdown) {
-      window.api.onVaultShutdown(async () => {
-        addLog("🛡️ System shutdown signal received. Securing vault...", "process");
-        await window.api.walletAction('close', {});
-        window.api.confirmShutdown();
-      });
-    }
-  }, [addLog]);
+  const rescan = useCallback(async (height: number) => {
+    await WalletService.rescan(height);
+    await refresh();
+  }, [refresh]);
 
-  const value = {
+  const renameAccount = useCallback(async (accountIndex: number, newLabel: string) => {
+    await WalletService.renameAccount(accountIndex, newLabel);
+    await refresh();
+  }, [refresh]);
+
+  const churn = useCallback(async (accountIndex?: number) => {
+    await WalletService.churn(accountIndex || selectedAccountIndex);
+    refresh();
+  }, [selectedAccountIndex, refresh]);
+
+  const splinter = useCallback(async (fragments: number) => {
+    await WalletService.splinter(selectedAccountIndex, fragments);
+    refresh();
+  }, [selectedAccountIndex, refresh]);
+
+  const vanishCoin = useCallback(async (keyImage: string) => {
+    const txHash = await WalletService.vanishCoin(keyImage, selectedAccountIndex);
+    if (txHash) {
+      addLog(`✅ Single UTXO vanished! TXID: ${txHash}`, 'success');
+    }
+    await refresh();
+  }, [selectedAccountIndex, refresh, addLog]);
+
+  const vanishSubaddress = useCallback(async (subaddressIndex: number) => {
+    const result = await WalletService.vanishSubaddress(subaddressIndex, selectedAccountIndex);
+    if (result.txHash) {
+      addLog(`✅ Subaddress #${subaddressIndex} vanished → new address. TXID: ${result.txHash}`, 'success');
+    }
+    await refresh();
+  }, [selectedAccountIndex, refresh, addLog]);
+
+  const setSubaddressLabel = useCallback(async (index: number, label: string, accountIndex?: number) => {
+    await WalletService.setSubaddressLabel(index, label, accountIndex || selectedAccountIndex);
+    await refresh();
+  }, [selectedAccountIndex, refresh]);
+
+  const switchIdentity = useCallback(async (id: string) => {
+    await window.api.setActiveIdentity(id);
+    location.reload();
+  }, []);
+
+  const sendMulti = useCallback(async (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority: number = 0) => {
+    await WalletService.sendMulti(destinations, selectedAccountIndex, subaddrIndices, priority);
+    addLog(`✅ Multi-send dispatched: ${destinations.length} recipient(s)`, 'success');
+    await refresh();
+  }, [selectedAccountIndex, refresh, addLog]);
+
+  const getFeeEstimates = useCallback(async () => {
+    try {
+      return await WalletService.getFeeEstimates();
+    } catch (e: any) {
+      console.error('[VaultContext] getFeeEstimates failed:', e.message);
+      return undefined;
+    }
+  }, []);
+  const value = React.useMemo(() => ({
     accounts, selectedAccountIndex,
     balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
     unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex,
-    rescan: async (height: number) => {
-      await WalletService.rescan(height);
-      await refresh();
-    },
-    renameAccount: async (accountIndex: number, newLabel: string) => {
-      await WalletService.renameAccount(accountIndex, newLabel);
-      await refresh();
-    },
-    churn: async (accountIndex?: number) => {
-      await WalletService.churn(accountIndex || selectedAccountIndex);
-      refresh();
-    },
-    splinter: async (fragments: number) => {
-      await WalletService.splinter(selectedAccountIndex, fragments);
-      refresh();
-    },
-    vanishCoin: async (keyImage: string) => {
-      // 1. Trigger the single UTXO sweep
-      const txHash = await WalletService.vanishCoin(keyImage, selectedAccountIndex);
-      if (txHash) {
-        // 2. Add a success log
-        addLog(`✅ Single UTXO vanished! TXID: ${txHash}`, 'success');
-      }
-    // 3. Refresh the wallet state to update outputs table and balance
-      await refresh();
-    },
-    vanishSubaddress: async (subaddressIndex: number) => {
-      const result = await WalletService.vanishSubaddress(subaddressIndex, selectedAccountIndex);
-      if (result.txHash) {
-        addLog(`✅ Subaddress #${subaddressIndex} vanished → new address. TXID: ${result.txHash}`, 'success');
-      }
-      await refresh();
-    },
-    setSubaddressLabel: async (index: number, label: string, accountIndex?: number) => {
-      await WalletService.setSubaddressLabel(index, label, accountIndex || selectedAccountIndex);
-      await refresh();
-    },
-    switchIdentity: useCallback(async (id: string) => { await window.api.setActiveIdentity(id); location.reload(); }, []),
-    createAccount,
-    sendMulti: async (destinations: { address: string; amount: number }[], subaddrIndices?: number[]) => {
-      await WalletService.sendMulti(destinations, selectedAccountIndex, subaddrIndices);
-      addLog(`✅ Multi-send dispatched: ${destinations.length} recipient(s)`, 'success');
-      await refresh();
-    }
-  };
+    rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
+    createAccount, sendMulti, getFeeEstimates
+  }), [
+    accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
+    currentHeight, totalHeight, syncPercent, isAppLoading, isInitializing, isLocked,
+    isSending, hasVaultFile, identities, activeId, isStagenet, outputs,
+    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex,
+    rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
+    createAccount, sendMulti, getFeeEstimates
+  ]);
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
 }

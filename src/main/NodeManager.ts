@@ -104,7 +104,7 @@ export class NodeManager {
     }
 
     // Shuffle and pick up to 10 candidates for the race
-    const selectedCandidates = candidates.sort(() => 0.5 - Math.random()).slice(0, 10);
+    const selectedCandidates = candidates.sort(() => 0.5 - Math.random()).slice(0, 20);
     console.log(`[NodeManager] Racing candidates: ${selectedCandidates.map(c => c.address).join(', ')}`);
 
     const racePromises = selectedCandidates.map(node =>

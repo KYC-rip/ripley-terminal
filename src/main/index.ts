@@ -241,7 +241,16 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('proxy-request', async (_, payload: { method: string; params: any }) => {
     try {
-      const response = await net.fetch('http://127.0.0.1:18082/json_rpc', {
+      const isDaemonMethod = ['get_fee_estimate', 'get_info', 'get_last_block_header'].includes(payload.method);
+      let targetUrl = 'http://127.0.0.1:18082/json_rpc';
+
+      if (isDaemonMethod && NodeManager.activeNodeStr) {
+        const address = NodeManager.activeNodeStr;
+        const protocol = address.includes('://') ? '' : 'http://';
+        targetUrl = `${protocol}${address}/json_rpc`;
+      }
+
+      const response = await net.fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -439,6 +448,8 @@ async function reloadEngine(forceRestart = false) {
     } else {
       const winner = await nodeManager.findFastestNode(config.network, useTor ? 'tor' : 'clearnet');
       targetNode = winner.address;
+      NodeManager.activeNodeStr = targetNode;
+      NodeManager.activeNodeLabel = winner.label;
     }
 
     await daemonEngine.startMoneroRpc(targetNode, useTor, config.useSystemProxy, config.systemProxyAddress);

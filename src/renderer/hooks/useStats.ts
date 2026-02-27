@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 export interface Stats {
   price: { paper: string; street: string; premium: string, source: string };
@@ -54,5 +54,5 @@ export function useStats() {
     return () => clearInterval(interval);
   }, []);
 
-  return { stats, loading, refresh: fetchData };
+  return useMemo(() => ({ stats, loading, refresh: fetchData }), [stats, loading]);
 }

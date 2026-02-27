@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
+import { useStats } from '../../hooks/useStats';
 
 interface ParsedDest {
   address: string;
@@ -47,7 +48,7 @@ export function DirectSendTab({
   onRequirePassword,
   onClose,
 }: DirectSendTabProps) {
-  const { sendXmr, sendMulti, isSending } = useVault();
+  const { sendXmr, sendMulti, getFeeEstimates, isSending } = useVault();
 
   const [sendMode, setSendMode] = useState<'single' | 'multi'>('single');
   const [destAddr, setDestAddr] = useState(initialAddress);
@@ -56,6 +57,9 @@ export function DirectSendTab({
   const [isBanned, setIsBanned] = useState(false);
   const [directSent, setDirectSent] = useState(false);
   const [directTxHash, setDirectTxHash] = useState('');
+  const [priority, setPriority] = useState(0); // 0 = AUTO (Normal x4)
+  const [feeEstimates, setFeeEstimates] = useState<Record<number, string>>({});
+  const { stats } = useStats();
 
   // --- Coin Control ---
   const [showCoinControl, setShowCoinControl] = useState(sourceSubaddressIndex !== undefined);
@@ -133,6 +137,35 @@ export function DirectSendTab({
     });
   };
 
+  const isFetchingFees = useRef(false);
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    const fetchFees = async () => {
+      if (isFetchingFees.current) return;
+      isFetchingFees.current = true;
+      try {
+        const result = await getFeeEstimates();
+        if (result && result.fees) {
+          const mapped: Record<number, string> = {
+            1: result.fees[0],
+            0: result.fees[1],
+            2: result.fees[1],
+            3: result.fees[2],
+            4: result.fees[3]
+          };
+          setFeeEstimates(mapped);
+        }
+      } catch (e) {
+        // silent fail
+      } finally {
+        isFetchingFees.current = false;
+        timer = setTimeout(fetchFees, 10000);
+      }
+    };
+    fetchFees();
+    return () => clearTimeout(timer);
+  }, [getFeeEstimates]);
+
   const selectedTotal = availableOutputs
     .filter((o: any) => selectedOutputs.has(o.keyImage))
     .reduce((sum: number, o: any) => sum + parseFloat(o.amount || '0'), 0);
@@ -144,9 +177,9 @@ export function DirectSendTab({
         const subIndices =
           selectedOutputs.size > 0 && sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
         if (subIndices) {
-          await sendMulti([{ address: destAddr, amount: parseFloat(sendAmount) }], subIndices);
+          await sendMulti([{ address: destAddr, amount: parseFloat(sendAmount) }], subIndices, priority);
         } else {
-          const txHash = await sendXmr(destAddr, parseFloat(sendAmount));
+          const txHash = await sendXmr(destAddr, parseFloat(sendAmount), undefined, priority);
           if (txHash) setDirectTxHash(txHash);
         }
         setDirectSent(true);
@@ -155,7 +188,7 @@ export function DirectSendTab({
       if (parsed.destinations.length === 0 || parsed.errors.length > 0) return;
       onRequirePassword(async () => {
         const subIndices = sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
-        await sendMulti(parsed.destinations, subIndices);
+        await sendMulti(parsed.destinations, subIndices, priority);
         setDirectSent(true);
       });
     }
@@ -300,6 +333,46 @@ export function DirectSendTab({
           )}
         </div>
       )}
+
+      {/* ── Fee Priority Selection (CakeWallet Style) ── */}
+      <div className="space-y-2">
+        <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5 px-1">
+          <Coins size={10} /> Network_Fee_Priority
+        </label>
+        <div className="grid grid-cols-5 gap-1 bg-xmr-surface/30 p-1 border border-xmr-border/30 rounded-sm">
+          {[
+            { label: 'Slow', val: 1 },
+            { label: 'Auto', val: 0 },
+            { label: 'Med', val: 2 },
+            { label: 'Fast', val: 3 },
+            { label: 'Urgent', val: 4 }
+          ].map((lvl) => {
+            const xmrFee = feeEstimates[lvl.val];
+            const streetPriceStr = stats?.price?.street || '0';
+            const streetPrice = parseFloat(streetPriceStr.replace(/[$,]/g, ''));
+            // get_fee_estimate is per-byte. Average tx is ~3000 bytes.
+            const usdFee = xmrFee && streetPrice ? (parseFloat(xmrFee) * streetPrice * 3000).toFixed(4) : null;
+
+            return (
+              <button
+                key={lvl.val}
+                onClick={() => setPriority(lvl.val)}
+                className={`h-[42px] px-1 flex flex-col items-center justify-center transition-all cursor-pointer rounded-sm ${priority === lvl.val
+                  ? 'bg-xmr-accent text-xmr-base'
+                  : 'text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'
+                  }`}
+              >
+                <span className="text-[10px] font-black uppercase">{lvl.label}</span>
+                {usdFee && (
+                  <span className={`text-[10px] font-mono mt-0.5 font-bold ${priority === lvl.val ? 'text-xmr-base' : 'text-xmr-green/80'}`}>
+                    ${usdFee}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ── Advanced Coin Control ── */}
       <div className="border border-xmr-border/30 rounded-sm overflow-hidden">

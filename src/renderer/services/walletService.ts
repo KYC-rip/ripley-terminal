@@ -80,13 +80,13 @@ export const WalletService = {
   },
 
   // --- Transaction Operations ---
-  async send(destination: string, amountXmr: number, accountIndex: number) {
+  async send(destination: string, amountXmr: number, accountIndex: number, priority: number = 0) {
     const rawAmount = RpcClient.toAtomic(amountXmr);
 
     await RpcClient.call('transfer', {
       destinations: [{ destination, amount: rawAmount }],
       account_index: accountIndex,
-      priority: 1
+      priority
     });
   },
 
@@ -96,7 +96,8 @@ export const WalletService = {
   async sendMulti(
     destinations: { address: string; amount: number }[],
     accountIndex: number,
-    subaddrIndices?: number[]
+    subaddrIndices?: number[],
+    priority?: number
   ) {
     const rpcDest = destinations.map(d => ({
       destination: d.address,
@@ -106,7 +107,7 @@ export const WalletService = {
     const params: any = {
       destinations: rpcDest,
       account_index: accountIndex,
-      priority: 1
+      priority: priority ?? 0
     };
 
     if (subaddrIndices && subaddrIndices.length > 0) {
@@ -233,6 +234,14 @@ export const WalletService = {
     return await RpcClient.call('rescan_blockchain', { height }); // C++ RPC rescans from specified height
   },
 
+  async getFeeEstimates() {
+    const res = await RpcClient.call('get_fee_estimate');
+    return {
+      fees: (res.fees || []).map((f: any) => RpcClient.formatXmr(f)),
+      quantization_mask: res.quantization_mask
+    };
+  },
+
 
   async getOutputs(accountIndex: number) {
     try {
@@ -312,10 +321,11 @@ export const WalletService = {
     return address;
   },
 
-  async sendTransaction(destination: string, amount: number, accountIndex: number) {
+  async sendTransaction(destination: string, amount: number, accountIndex: number, priority: number = 0) {
     const tx = await RpcClient.call('transfer', {
       destinations: [{ address: destination, amount: RpcClient.toAtomic(amount) }],
       account_index: accountIndex,
+      priority,
       ring_size: 16
     });
 
