@@ -23,13 +23,13 @@ interface GhostSendTabProps {
 }
 
 export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) {
-  const { sendXmr, getFeeEstimates } = useVault();
+  const { sendXmr, getFeeEstimates, balance, selectedAccountIndex } = useVault();
   const { stats } = useStats();
   const { currencies } = useCurrencies();
 
   const [ghostCurrency, setGhostCurrency] = useState<Currency | null>(null);
   const [ghostReceiverAddr, setGhostReceiverAddr] = useState('');
-  const [ghostXmrAmount, setGhostXmrAmount] = useState('');
+  const [ghostTargetAmount, setGhostTargetAmount] = useState('');
   const [quote, setQuote] = useState<ExchangeQuote | null>(null);
   const [ghostPhase, setGhostPhase] = useState<GhostPhase>('configure');
   const [tradeResponse, setTradeResponse] = useState<ExchangeResponse | null>(null);
@@ -89,7 +89,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
   );
 
   const handleGetQuote = async () => {
-    if (!ghostCurrency || !ghostXmrAmount || parseFloat(ghostXmrAmount) <= 0) return;
+    if (!ghostCurrency || !ghostTargetAmount || parseFloat(ghostTargetAmount) <= 0) return;
     setGhostPhase('quoting');
     setGhostError('');
     try {
@@ -98,8 +98,8 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
         'Mainnet',
         ghostCurrency.ticker,
         ghostCurrency.network || 'Mainnet',
-        parseFloat(ghostXmrAmount),
-        false,
+        parseFloat(ghostTargetAmount),
+        true, // isReverse: true
         compliance.kyc,
         compliance.log
       );
@@ -113,6 +113,16 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
 
   const handleGhostExecute = () => {
     if (!quote || !ghostCurrency || !ghostReceiverAddr) return;
+
+    // 🛡️ PROACTIVE BALANCE CHECK
+    const amountToSpend = quote.amount_from;
+    const unlocked = parseFloat(balance.unlocked);
+
+    if (amountToSpend > unlocked) {
+      alert(`INSUFFICIENT_FUNDS: Swap requires ${amountToSpend} XMR, but unlocked balance is ${balance.unlocked} XMR.`);
+      return;
+    }
+
     onRequirePassword(async () => {
       setGhostPhase('creating');
       setGhostError('');
@@ -132,9 +142,15 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
         });
         setTradeResponse(trade);
         setGhostPhase('sending');
+
         const depositAddr = trade.deposit_address || trade.address_provider;
         const depositAmt = trade.deposit_amount || trade.amount_from;
-        await sendXmr(depositAddr, depositAmt, undefined, priority);
+
+        // sendXmr is now guaranteed to throw on failure or return txHash
+        const txHash = await sendXmr(depositAddr, depositAmt, selectedAccountIndex, priority);
+
+        if (!txHash) throw new Error("TRANSACTION_FAILED: No hash returned.");
+
         setGhostPhase('tracking');
         setTradeStatus('WAITING');
         const tradeId = trade.trade_id || trade.id || '';
@@ -215,12 +231,12 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
 
           <div className="space-y-1.5">
             <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
-              <DollarSign size={10} /> XMR to Spend
+              <DollarSign size={10} /> {ghostCurrency?.ticker.toUpperCase() || 'Asset'} to Receive
             </label>
             <input
               type="number"
-              value={ghostXmrAmount}
-              onChange={(e) => setGhostXmrAmount(e.target.value)}
+              value={ghostTargetAmount}
+              onChange={(e) => setGhostTargetAmount(e.target.value)}
               placeholder="0.00"
               className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none"
             />
@@ -271,8 +287,8 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
           <button
             disabled={
               !ghostReceiverAddr ||
-              !ghostXmrAmount ||
-              parseFloat(ghostXmrAmount) <= 0 ||
+              !ghostTargetAmount ||
+              parseFloat(ghostTargetAmount) <= 0 ||
               isGhostAddrValid === false
             }
             onClick={handleGetQuote}
