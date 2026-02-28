@@ -41,16 +41,20 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Address Detail Modal**: Click any subaddress row to open a full-featured modal showing QR code, address, and payment link.
 - [x] **Protocol Console**: Toggleable system log viewer via `Cmd+Shift+T` with copiable diagnostic output for troubleshooting the uplink.
 - [x] **Global Keybindings**: Remappable tactical shortcuts (LOCK, SEND, SYNC, etc.) for high-speed terminal operations.
+- [x] **Protocol Deep Link Handling**: Native support for `monero:` and `ghost:` URIs—clicking a payment link on kyc.rip or any tactical portal instantly populates the Dispatch modal.
+- [x] **Intelligent Network Selection**: Daemon-level persistence for Mainnet and Stagenet with automatic node discovery per network environment.
 - [x] **Tactical Action Modals**: Dedicated interface overlays for executing sensitive on-chain actions like UTXO Churns and Splinters without cluttering the main UI.
 
 ## 💸 Asset Bridging
 - [x] **Ghost_Swap Integration**: Quote and execute non-custodial asset swaps directly into your private vault via kyc.rip routing.
 - [x] **Cross-Chain Payment Links**: Generate shareable `kyc.rip/swap?source=pay` links that let external payers choose any asset — funds settle automatically into your XMR subaddress.
-- [x] **Ghost Send**: Send XMR from your vault — receiver gets BTC, USDT, ETH, or any supported asset. Quote, confirm, and auto-dispatch through the kyc.rip swap engine with zero identity link.
+- [x] **Ghost Send (Reverse/Fixed)**: Refactored delivery logic to support fixed-output swaps—input the exact amount you want the receiver to get, and the terminal calculates the XMR payload.
+- [x] **Ghost Persistence (Ledger)**: On-chain trades are recorded locally and mapped to TX hashes in the ledger; includes a **Ghost** badge and direct status tracker link with a 7-day TTL.
+- [x] **Sized Status Windows**: External status trackers launch in a calibrated 940x820 viewport for optimal visualization of trade progress.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
 - [x] **Send From Subaddress**: Dispatch XMR or execute Ghost Sends scoped to a specific subaddress for granular coin control.
 - [x] **xmr.bio Resolver**: Send funds instantly to Twitter handles—automatically fetching Monero addresses from `api.xmr.bio` and displaying beautiful profile cards inline.
-- [x] **Dynamic Send Controls**: Real-time unlocked balance display and percentage-based quick-select (25%, 50%, 75%, 100%) for high-speed dispatching.
+- [x] **Dynamic Send Controls**: Real-time unlocked balance display, "Sweep All" integration, and percentage-based quick-select (25%, 50%, 75%, 100%) for high-speed dispatching.
 
 ## 📦 Deployment & Execution
 - [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).
@@ -58,4 +62,4 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Update Intelligence**: Automated update discovery with support for optional pre-release builds and graceful error handling.
 
 ---
-*Last Updated: 2026-02-28*
+*Last Updated: 2026-02-28 (v1.0.30)*
