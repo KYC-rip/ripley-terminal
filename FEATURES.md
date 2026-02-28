@@ -61,5 +61,15 @@ This file tracks the tactical capabilities of the Ripley Terminal.
 - [x] **Secure Subtree CI/CD**: Custom deployment scripts that scrub the Git history for anonymity and push to a clean, public-facing repository natively.
 - [x] **Update Intelligence**: Automated update discovery with support for optional pre-release builds and graceful error handling.
 
+## 🤖 AI Agent Gateway (Beta)
+- [x] **Secure RPC Uplink**: Local HTTP gateway (port 38084) allowing AI agents to interact with Monero wallets via a secure API key.
+- [x] **Account Isolation**: Granularly select which specific Monero account the AI agent can access, preventing unauthorized vault-wide exposure.
+- [x] **Spend Limits**: Daily and session-based XMR limits to prevent agent runaway or overspending.
+- [x] **Real-time Activity Feed**: High-density logs showing every agent RPC call, balance query, and blocked attempt directly in the UI.
+- [x] **Multi-Platform Uplink**: Pre-configured installation commands for Gemini, OpenClaw, and Claude Desktop.
+- [x] **Network Discovery**: Automatic network detection (Mainnet/Stagenet) for AI agents to prevent cross-network friction.
+- [x] **Animated Mascot**: Dynamic "Ripley" cyber-cat with scanning animations and theme-aware glowing effects.
+- [x] **Collapsible Knowledge Base**: Streamlined UI that hides setup instructions once configured to maximize activity visibility.
+
 ---
 *Last Updated: 2026-03-01 (v1.0.31)*
