@@ -267,8 +267,23 @@ app.whenReady().then(async () => {
     return { success: !error, error };
   });
 
-  ipcMain.handle('open-external', async (_, url: string) => {
+  ipcMain.handle('open-external', async (_, url: string, options?: { width?: number; height?: number }) => {
     try {
+      if (options?.width && options?.height) {
+        const { BrowserWindow } = require('electron');
+        const win = new BrowserWindow({
+          width: options.width,
+          height: options.height,
+          autoHideMenuBar: true,
+          backgroundColor: '#050505',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        });
+        win.loadURL(url);
+        return { success: true };
+      }
       await require('electron').shell.openExternal(url);
       return { success: true };
     } catch (error: any) {

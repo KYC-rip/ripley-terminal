@@ -36,11 +36,16 @@ const api = {
     ipcRenderer.once('vault-shutdown', callback); // Notice 'once' instead of 'on'
     return () => { };
   },
+  onDeepLink: (callback: (url: string) => void) => {
+    const handler = (_: any, url: string) => callback(url);
+    ipcRenderer.on('deep-link', handler);
+    return () => ipcRenderer.removeListener('deep-link', handler);
+  },
   proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
 
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
-  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  openExternal: (url: string, options?: { width?: number; height?: number }) => ipcRenderer.invoke('open-external', url, options),
   checkForUpdates: (include_prereleases: boolean) => ipcRenderer.invoke('check-for-updates', include_prereleases),
   selectBackgroundImage: () => ipcRenderer.invoke('select-background-image'),
 
