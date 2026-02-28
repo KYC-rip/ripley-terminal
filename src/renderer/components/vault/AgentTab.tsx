@@ -13,6 +13,7 @@ export function AgentTab() {
   const [selectedAccountIndex, setSelectedAccountIndex] = useState(0);
   const [activities, setActivities] = useState<{ id: string; type: string; msg: string; timestamp: number; status: 'ok' | 'fail' }[]>([]);
   const [activeInstallTab, setActiveInstallTab] = useState<'gemini' | 'claw' | 'claude'>('gemini');
+  const [networkType, setNetworkType] = useState('mainnet');
 
   const blockedCount = activities.filter(a => a.status === 'fail').length;
   const managedBalance = accounts.find(a => a.index === selectedAccountIndex)?.balance || '0.0000';
@@ -28,6 +29,7 @@ export function AgentTab() {
         setTotalLimit(agent.totalLimit);
         setApiKey(agent.apiKey);
         setSelectedAccountIndex(agent.selectedAccountIndex || 0);
+        setNetworkType(fullConfig.network || 'mainnet');
       }
     };
     loadCfg();
@@ -250,7 +252,7 @@ export function AgentTab() {
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
                       <label className="text-[9px] text-xmr-green/60 uppercase font-black tracking-widest">System_Prompt_Uplink</label>
                       <div className="bg-xmr-base/60 p-3 border border-xmr-border/30 rounded-sm font-mono text-[10px] text-xmr-green select-all whitespace-pre-wrap break-all opacity-80 hover:opacity-100 transition-opacity">
-                        {`# Monero Ripley Gateway Skill\nURL: http://localhost:38084\nAPI_KEY: ${apiKey}\nACCOUNT_INDEX: ${selectedAccountIndex}\nCOMMANDS: /sync, /balance, /subaddress, /transfer`}
+                        {`# Monero Ripley Gateway Skill\nURL: http://localhost:38084\nAPI_KEY: ${apiKey}\nACCOUNT_INDEX: ${selectedAccountIndex}\nNETWORK: ${networkType}\nCOMMANDS: /sync, /balance, /subaddress, /transfer`}
                       </div>
                       <p className="text-[8px] text-xmr-dim/60 uppercase font-black">
                         For local Claude Desktop, you can also download the ZIP from GitHub and import via Settings.

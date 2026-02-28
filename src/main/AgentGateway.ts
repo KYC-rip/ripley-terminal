@@ -54,6 +54,8 @@ export class AgentGateway {
         this.handleTransfer(req, res);
       } else if (req.method === 'POST' && url.pathname === '/subaddress') {
         this.handleSubaddress(req, res);
+      } else if (req.method === 'GET' && url.pathname === '/network') {
+        this.handleNetwork(res);
       } else {
         res.writeHead(404);
         res.end();
@@ -97,13 +99,16 @@ export class AgentGateway {
 
       const balance = await WalletManager.getBalance(accountIndex);
 
-      // Convert atomic piconero to XMR string for the agent
-      const formatXmr = (pico: string) => (parseInt(pico) / 1e12).toFixed(12);
+      // Convert atomic piconero to XMR string for the agent (handles numbers or strings)
+      const formatXmr = (pico: any) => {
+        if (pico === undefined || pico === null) return '0.000000000000';
+        return (Number(pico) / 1e12).toFixed(12);
+      };
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        balance: formatXmr(balance.total.toString()),
-        unlocked_balance: formatXmr(balance.unlocked.toString())
+      res.end(JSON.stringify({ 
+        balance: formatXmr(balance.total),
+        unlocked_balance: formatXmr(balance.unlocked) 
       }));
     } catch (e: any) {
       this.log('fail', `Balance query error: ${e.message}`);
@@ -174,5 +179,26 @@ export class AgentGateway {
         res.end(JSON.stringify({ error: e.message }));
       }
     });
+  }
+
+  private async handleNetwork(res: http.ServerResponse) {
+    try {
+      this.log('ok', 'Agent queried network status.');
+
+      // Get network from WalletManager or AppConfig
+      // Most Monero RPCs return 'mainnet', 'stagenet', or 'testnet' in get_info
+      // For now, we'll try to get it from the store or a quick RPC call
+      const network = this.store.get('network') || 'mainnet';
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        network: network,
+        nettype: network, // Compatibility 
+        status: 'OK'
+      }));
+    } catch (e: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
   }
 }

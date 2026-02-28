@@ -96,8 +96,9 @@ export class WalletManager {
    */
   public static async getBalance(accountIndex: number = 0) {
     const res = await this.callRpc('get_balance', { account_index: accountIndex });
+    // Handle both 'balance' (standard) and 'total_balance' (GUI variant)
     return {
-      total: res.total_balance,
+      total: res.balance !== undefined ? res.balance : res.total_balance,
       unlocked: res.unlocked_balance
     };
   }

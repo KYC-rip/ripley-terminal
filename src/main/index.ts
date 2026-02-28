@@ -58,6 +58,7 @@ const store = new Store({
       totalLimit: '1.0',
       port: 38084,
       selectedWalletId: '',
+      selectedAccountIndex: 0,
       accumulatedDailySpend: '0',
       lastResetTimestamp: Date.now()
     }
