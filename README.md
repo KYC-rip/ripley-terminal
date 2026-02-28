@@ -5,7 +5,7 @@
 `ripley-terminal` is a privacy-first, security-hardened Monero desktop wallet designed for sovereign wealth management. It serves as the local command center for the `kyc-rip` ecosystem, providing direct access to Monero's untraceable privacy features with a precise, tactical, terminal-inspired interface.
 
 ## 🚀 Vision
-In an era of pervasive financial surveillance, `ripley-terminal` provides a local, hardware-agnostic encryption layer. It is built for those who demand absolute control over their digital assets and identity.
+In an era of pervasive financial surveillance and the rise of autonomous intelligence, `ripley-terminal` provides a local, hardware-agnostic encryption layer. It is built for those who demand absolute control over their digital assets, identity, and the ability to delegate financial agency to AI.
 
 ## 🛠 Tech Stack
 - **Framework**: Electron + Vite
@@ -13,6 +13,7 @@ In an era of pervasive financial surveillance, `ripley-terminal` provides a loca
 - **Engine**: High-availability Monero RPC Wrapper (Replaces `monero-ts` for multi-platform stability)
 - **Networking**: Mandatory Tor routing via integrated Tor Expert Bundle
 - **Reliability**: SWR caching and real-time state synchronization
+- **Intelligence**: Built-in AI Agent Gateway (Secure RPC Uplink)
 - **CI/CD**: Multi-platform automated builds (macOS arm64/x64, Linux x64)
 
 ## 📦 Getting Started
@@ -45,6 +46,13 @@ pnpm build
 - **Traffic Sealing**: All outbound RPC calls are forced through the integrated Tor proxy.
 - **Graceful Shutdown**: Safety-interceptor to ensure wallet state is saved before process termination.
 
+## 🤖 AI Agent Gateway
+`ripley-terminal` is the first Monero wallet with a native, secure bridge for AI Agents.
+- **Secure RPC**: Open a local, authenticated port (38084) for your agents.
+- **Granular Permissions**: Isolate agents to specific subaddresses or accounts.
+- **Spend Shields**: Configure daily and session-based XMR limits.
+- **Uplink Skills**: Native support for Gemini, [OpenClaw](https://github.com/KYC-rip/openclaw), and Claude Desktop.
+
 ## 🏗 Maintenance & Release Workflow
 
 This project is maintained as part of the `kyc-rip` ecosystem and synchronized via **Git Subtree**.
@@ -76,4 +84,4 @@ The CI pipeline automatically builds and publishes a GitHub Release when a versi
    ```
 
 ---
-**SECURE_UPLINK_ESTABLISHED // NO_LOGS // NO_KYC**
+**SECURE_UPLINK_ESTABLISHED // AGENTS_READY // NO_LOGS // NO_KYC**
