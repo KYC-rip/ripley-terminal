@@ -312,13 +312,13 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
             <div className="text-[11px] text-xmr-dim uppercase tracking-widest">Quote Summary</div>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-lg font-black text-xmr-accent">{quote.amount_from} XMR</div>
+                <div className="text-lg font-black text-xmr-accent">{Number(quote.amount_from || 0).toFixed(6)} XMR</div>
                 <div className="text-xs text-xmr-dim uppercase">You send</div>
               </div>
               <ArrowRight size={20} className="text-xmr-dim" />
               <div className="text-right">
                 <div className="text-lg font-black text-xmr-green">
-                  {quote.amount_to.toFixed(6)} {ghostCurrency?.ticker.toUpperCase()}
+                  {Number(quote.amount_to || 0).toFixed(6)} {ghostCurrency?.ticker.toUpperCase()}
                 </div>
                 <div className="text-xs text-xmr-dim uppercase">Receiver gets</div>
               </div>
