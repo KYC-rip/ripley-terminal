@@ -402,8 +402,13 @@ export function DirectSendTab({
             <div className="relative group">
               <input
                 type="number"
+                min="0"
                 value={sendAmount}
-                onChange={(e) => setSendAmount(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (parseFloat(val) < 0) return;
+                  setSendAmount(val);
+                }}
                 placeholder="0.00"
                 className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none pr-24"
               />
@@ -426,9 +431,10 @@ export function DirectSendTab({
                     const unlocked = parseFloat(balance.unlocked);
                     if (unlocked > 0) {
                       if (pct === 100) {
-                        // For 100%, we try to estimate fee but usually sweep_all is better
-                        // But for simple UI fill, let's just put the max minus a tiny buffer
-                        setSendAmount((unlocked - 0.0005).toFixed(6));
+                        // For 100% selection in the UI, we subtract a small fee buffer 
+                        // but ensure it never goes below zero.
+                        // Note: Users should use the 'Sweep_All' button for percision.
+                        setSendAmount(Math.max(0, unlocked - 0.0001).toFixed(6));
                       } else {
                         setSendAmount((unlocked * (pct / 100)).toFixed(6));
                       }
