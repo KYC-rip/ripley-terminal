@@ -48,6 +48,7 @@ pnpm build
 
 ## 🤖 AI Agent Gateway
 `ripley-terminal` is the first Monero wallet with a native, secure bridge for AI Agents.
+- **Official Skill**: [ripley-xmr-gateway](https://github.com/KYC-rip/ripley-xmr-gateway) — The plug-and-play skill for Gemini, OpenClaw, and Claude.
 - **Secure RPC**: Open a local, authenticated port (38084) for your agents.
 - **Granular Permissions**: Isolate agents to specific subaddresses or accounts.
 - **Spend Shields**: Configure daily and session-based XMR limits.
