@@ -80,13 +80,22 @@ export function AgentTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         <div className="relative group">
           <div className="absolute inset-0 bg-xmr-green/10 blur-3xl rounded-full animate-pulse group-hover:bg-xmr-green/20 transition-all duration-1000"></div>
-          {/* Proposed Mascot Placeholder */}
-          <div className="relative z-10 p-8 flex justify-center">
-            <img
-              src="ripley_cybercat.png"
-              alt="Ripley Cyber-Cat"
-              className="w-64 h-64 object-contain drop-shadow-[0_0_30px_var(--color-xmr-green)] filter brightness-110 group-hover:scale-105 transition-transform duration-700"
-            />
+          {/* Mascot Animation Container */}
+          <div className="relative z-10 p-8 flex justify-center h-64">
+            <div className="mascot-wrapper relative w-64 h-64 group-hover:scale-105 transition-transform duration-700">
+              {/* Front View */}
+              <img
+                src="/ripley_cybercat-front.png"
+                alt="Ripley Front"
+                className="absolute inset-0 w-full h-full object-contain filter brightness-110 drop-shadow-[0_0_30px_var(--color-xmr-green)] animate-mascot-front"
+              />
+              {/* Side View (Animated Flip) */}
+              <img
+                src="/ripley_cybercat.png"
+                alt="Ripley Side"
+                className="absolute inset-0 w-full h-full object-contain filter brightness-110 drop-shadow-[0_0_30px_var(--color-xmr-green)] animate-mascot-side"
+              />
+            </div>
           </div>
           <div className="absolute top-4 left-4 border-l-2 border-t-2 border-xmr-green/30 w-8 h-8"></div>
           <div className="absolute bottom-4 right-4 border-r-2 border-b-2 border-xmr-green/30 w-8 h-8"></div>

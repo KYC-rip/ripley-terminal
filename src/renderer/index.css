@@ -142,3 +142,27 @@
 
   text-align: left;
 }
+
+@keyframes mascot-front {
+  0%, 20% { opacity: 0; }
+  25%, 35% { opacity: 1; }
+  40%, 65% { opacity: 0; }
+  75%, 85% { opacity: 1; }
+  90%, 100% { opacity: 0; }
+}
+
+@keyframes mascot-side {
+  0%, 20% { opacity: 1; transform: scaleX(1); }
+  25%, 35% { opacity: 0; transform: scaleX(1); }
+  40%, 65% { opacity: 1; transform: scaleX(-1); }
+  75%, 85% { opacity: 0; transform: scaleX(-1); }
+  90%, 100% { opacity: 1; transform: scaleX(1); }
+}
+
+.animate-mascot-front {
+  animation: mascot-front 12s infinite ease-in-out;
+}
+
+.animate-mascot-side {
+  animation: mascot-side 12s infinite ease-in-out;
+}
