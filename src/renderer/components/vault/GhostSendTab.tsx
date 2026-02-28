@@ -318,7 +318,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
               <ArrowRight size={20} className="text-xmr-dim" />
               <div className="text-right">
                 <div className="text-lg font-black text-xmr-green">
-                  {Number(quote.amount_to || 0).toFixed(6)} {ghostCurrency?.ticker.toUpperCase()}
+                  {Number(quote.amount_to || ghostTargetAmount).toFixed(6)} {ghostCurrency?.ticker.toUpperCase()}
                 </div>
                 <div className="text-xs text-xmr-dim uppercase">Receiver gets</div>
               </div>
@@ -381,6 +381,14 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
             </div>
           )}
           <div className="text-xs text-xmr-dim opacity-50 uppercase">Polling every 10s...</div>
+          <a
+            href={`https://kyc.rip/swap?id=${tradeResponse.trade_id || tradeResponse.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-xmr-accent hover:text-xmr-green underline uppercase tracking-tighter mt-2"
+          >
+            External_Status_Tracker
+          </a>
         </div>
       )}
 
@@ -389,8 +397,16 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
           <CheckCircle2 size={48} className="text-xmr-green" />
           <div className="text-sm uppercase text-xmr-green font-black">Ghost Send Complete</div>
           <div className="text-[11px] text-xmr-dim uppercase">
-            {tradeResponse?.amount_to} {tradeResponse?.ticker_to?.toUpperCase()} delivered
+            {tradeResponse?.amount_to || ghostTargetAmount} {tradeResponse?.ticker_to?.toUpperCase()} delivered
           </div>
+          <a
+            href={`https://kyc.rip/swap?id=${tradeResponse?.trade_id || tradeResponse?.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-xmr-accent hover:text-xmr-green underline uppercase tracking-tighter"
+          >
+            View_On_KYC.RIP
+          </a>
           <button
             onClick={onClose}
             className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-xs uppercase tracking-widest cursor-pointer"
