@@ -291,6 +291,42 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle('save-ghost-trade', async (_, txHash: string, tradeId: string) => {
+    try {
+      const trades = store.get('ghost_trades', {}) as Record<string, { tradeId: string, timestamp: number }>;
+
+      // Cleanup old trades (> 7 days)
+      const now = Date.now();
+      const expiry = 7 * 24 * 60 * 60 * 1000;
+      const cleanTrades = Object.fromEntries(
+        Object.entries(trades).filter(([_, data]) => now - data.timestamp < expiry)
+      );
+
+      cleanTrades[txHash] = { tradeId, timestamp: now };
+      store.set('ghost_trades', cleanTrades);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-ghost-trades', async () => {
+    try {
+      const trades = store.get('ghost_trades', {}) as Record<string, { tradeId: string, timestamp: number }>;
+      const now = Date.now();
+      const expiry = 7 * 24 * 60 * 60 * 1000;
+
+      // Filter expired ones on read just in case
+      const activeTrades = Object.fromEntries(
+        Object.entries(trades).filter(([_, data]) => now - data.timestamp < expiry)
+      );
+
+      return { success: true, trades: activeTrades };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('select-background-image', async () => {
     const { dialog } = require('electron');
     const fs = require('fs');

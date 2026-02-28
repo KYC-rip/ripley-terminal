@@ -148,12 +148,16 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
 
         // sendXmr is now guaranteed to throw on failure or return txHash
         const txHash = await sendXmr(depositAddr, depositAmt, selectedAccountIndex, priority);
-
         if (!txHash) throw new Error("TRANSACTION_FAILED: No hash returned.");
+
+        // Save trade persistence for ledger tracking
+        const tradeId = trade.trade_id || trade.id || '';
+        if (tradeId && txHash) {
+          (window as any).api.saveGhostTrade(txHash, tradeId);
+        }
 
         setGhostPhase('tracking');
         setTradeStatus('WAITING');
-        const tradeId = trade.trade_id || trade.id || '';
         pollingRef.current = setInterval(async () => {
           try {
             const status = await getTradeStatus(tradeId);

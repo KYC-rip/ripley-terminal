@@ -48,6 +48,8 @@ const api = {
   openExternal: (url: string, options?: { width?: number; height?: number }) => ipcRenderer.invoke('open-external', url, options),
   checkForUpdates: (include_prereleases: boolean) => ipcRenderer.invoke('check-for-updates', include_prereleases),
   selectBackgroundImage: () => ipcRenderer.invoke('select-background-image'),
+  saveGhostTrade: (txHash: string, tradeId: string) => ipcRenderer.invoke('save-ghost-trade', txHash, tradeId),
+  getGhostTrades: () => ipcRenderer.invoke('get-ghost-trades'),
 
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 }
