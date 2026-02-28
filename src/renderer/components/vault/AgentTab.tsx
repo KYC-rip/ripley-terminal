@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Shield, Zap, Key, RefreshCw, BarChart3, Activity, Terminal as TerminalIcon } from 'lucide-react';
+import { Bot, Shield, Zap, Key, RefreshCw, BarChart3, Activity, Terminal as TerminalIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '../Card';
 import { useVault } from '../../hooks/useVault';
 
@@ -14,6 +14,7 @@ export function AgentTab() {
   const [activities, setActivities] = useState<{ id: string; type: string; msg: string; timestamp: number; status: 'ok' | 'fail' }[]>([]);
   const [activeInstallTab, setActiveInstallTab] = useState<'gemini' | 'claw' | 'claude'>('gemini');
   const [networkType, setNetworkType] = useState('mainnet');
+  const [isUplinkExpanded, setIsUplinkExpanded] = useState(false);
 
   const blockedCount = activities.filter(a => a.status === 'fail').length;
   const managedBalance = accounts.find(a => a.index === selectedAccountIndex)?.balance || '0.0000';
@@ -214,10 +215,20 @@ export function AgentTab() {
         <div className="lg:col-span-2 space-y-8">
           {/* KNOWLEDGE_UPLINK Section */}
           <section className="space-y-4">
-            <h3 className="text-[11px] font-black text-xmr-green flex items-center gap-2 uppercase tracking-[0.2em]">
-              <Zap size={14} className="text-xmr-accent" /> Knowledge_Uplink
+            <h3
+              onClick={() => setIsUplinkExpanded(!isUplinkExpanded)}
+              className="text-[11px] font-black text-xmr-green flex items-center justify-between uppercase tracking-[0.2em] cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center gap-2">
+                <Zap size={14} className={isEnabled ? "animate-pulse" : ""} /> Knowledge_Uplink
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] opacity-50 underline decoration-xmr-green/20">AGENT_SKILL_SETUP</span>
+                {isUplinkExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </div>
             </h3>
-            <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-4">
+
+            <Card className={`p-6 bg-xmr-surface border-xmr-border/40 transition-all duration-300 overflow-hidden ${isUplinkExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden !py-0 !border-none'}`}>
               <div className="space-y-4">
                 <p className="text-[10px] text-xmr-dim uppercase font-black leading-relaxed">
                   Teach your AI agent how to use this gateway. This desktop wallet is a drop-in provider for the <span className="text-xmr-green">ripley-xmr-gateway</span> skill.
@@ -251,7 +262,7 @@ export function AgentTab() {
                   {activeInstallTab === 'claw' && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
                       <label className="text-[9px] text-xmr-green/60 uppercase font-black tracking-widest">NPM_Install_Command</label>
-                      <div className="bg-black/60 p-3 border border-xmr-border/30 rounded-sm font-mono text-[10px] text-xmr-green select-all break-all leading-relaxed">
+                      <div className="bg-xmr-base/60 p-3 border border-xmr-border/30 rounded-sm font-mono text-[10px] text-xmr-green select-all break-all leading-relaxed">
                         npx clawhub@latest install monero-wallet
                       </div>
                     </div>
