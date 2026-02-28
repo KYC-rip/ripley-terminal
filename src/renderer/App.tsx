@@ -220,6 +220,37 @@ function MainApp() {
     return () => clearInterval(interval);
   }, []);
 
+  // --- 🔗 DEEP LINK LISTENER ---
+  useEffect(() => {
+    const cleanup = window.api.onDeepLink((url: string) => {
+      console.log('[App] Received deep link:', url);
+      try {
+        const protocolRegex = /^(monero|ghost):([^?]+)(\?.*)?$/i;
+        const match = url.match(protocolRegex);
+        if (!match) return;
+
+        const address = match[2];
+        const searchParams = new URLSearchParams(match[3] || '');
+
+        const data = {
+          address,
+          amount: searchParams.get('tx_amount') || searchParams.get('amount') || '',
+          description: searchParams.get('tx_description') || searchParams.get('tx_note') || searchParams.get('note') || '',
+          name: searchParams.get('recipient_name') || ''
+        };
+
+        vault.setDeepLinkData(data);
+        setView('vault');
+        vault.setRequestedAction('OPEN_SEND');
+
+        // If app is locked, we'll wait for unlock. If not, DirectSendTab will pick it up.
+      } catch (err) {
+        console.error('[App] Failed to parse deep link:', err);
+      }
+    });
+    return cleanup;
+  }, [vault]);
+
   // --- 🔒 LOCK / AUTH RENDERING LOGIC ---
 
   // 1. Splash Screen: Only during initial app data load

@@ -145,7 +145,8 @@ export class DaemonManager {
     targetNode: string,
     useTor: boolean,
     useSystemProxy: boolean,
-    systemProxyAddress: string
+    systemProxyAddress: string,
+    network: string
   ): Promise<void> {
     if (process.platform !== 'win32') {
       try {
@@ -165,6 +166,12 @@ export class DaemonManager {
         '--disable-rpc-login',
         '--daemon-address', targetNode
       ];
+
+      if (network === 'stagenet') {
+        rpcArgs.push('--stagenet');
+      } else if (network === 'testnet') {
+        rpcArgs.push('--testnet');
+      }
 
       const env = Object.assign({}, process.env);
       if (useTor) {
