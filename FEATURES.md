@@ -1,6 +1,6 @@
-# 📟 GHOST_TERMINAL :: FEATURE_LOG
+# 📟 RIPLEY_TERMINAL :: FEATURE_LOG
 
-This file tracks the tactical capabilities of the Ghost Terminal.
+This file tracks the tactical capabilities of the Ripley Terminal.
 
 ## 🛡️ Security & Privacy (Core)
 - [x] **Mandatory Tor Routing**: All outgoing traffic is forced through SOCKS5 Tor tunnels. No Clearnet fallback allowed.
@@ -62,4 +62,4 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Update Intelligence**: Automated update discovery with support for optional pre-release builds and graceful error handling.
 
 ---
-*Last Updated: 2026-02-28 (v1.0.30)*
+*Last Updated: 2026-03-01 (v1.0.31)*

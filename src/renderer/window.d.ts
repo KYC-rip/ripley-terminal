@@ -15,6 +15,17 @@ export interface AppConfig {
   };
   hide_zero_balances?: boolean;
   include_prereleases?: boolean;
+  agent_config?: {
+    enabled: boolean;
+    apiKey: string;
+    dailyLimit: string;
+    totalLimit: string;
+    selectedWalletId: string;
+    selectedAccountIndex: number;
+    accumulatedDailySpend: string;
+    lastResetTimestamp: number;
+    port: number;
+  };
 }
 
 export interface EngineStatus {
@@ -84,6 +95,10 @@ export interface IApi {
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   checkForUpdates: (include_prereleases: boolean) => Promise<{ success: boolean; hasUpdate?: boolean; latestVersion?: string; releaseUrl?: string; body?: string; publishedAt?: string; error?: string }>;
   selectBackgroundImage: () => Promise<{ success: boolean; data?: string; error?: string }>;
+  saveGhostTrade: (txHash: string, tradeId: string) => Promise<{ success: boolean; error?: string }>;
+  getGhostTrades: () => Promise<{ success: boolean; trades: any[]; error?: string }>;
+  updateAgentConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
+  onAgentActivity: (callback: (activity: any) => void) => () => void;
 }
 
 declare global {

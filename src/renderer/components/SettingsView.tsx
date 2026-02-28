@@ -187,7 +187,7 @@ export function SettingsView() {
       <div className="flex items-center gap-4 border-b border-xmr-border/30 pb-6">
         <Settings size={32} className="text-xmr-green" />
         <div>
-          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green">Terminal_Config</h2>
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green">Ripley_Config</h2>
           <p className="text-xs text-xmr-dim uppercase tracking-widest">Adjust tactical parameters and cryptographic routing.</p>
         </div>
       </div>
@@ -503,7 +503,7 @@ export function SettingsView() {
                 )}
 
                 <button
-                  onClick={() => window.api.openExternal('https://x.com/search?q=%23GhostTerminalSkin')}
+                  onClick={() => window.api.openExternal('https://x.com/search?q=%23RipleyTerminalSkin')}
                   className="px-4 py-2 bg-xmr-base border border-xmr-border hover:border-xmr-accent text-xmr-green text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2">
                   <ExternalLink size={12} /> Find more on <X size={14} />
                 </button>

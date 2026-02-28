@@ -1,11 +1,11 @@
-# GHOST_TERMINAL 🎭
+# RIPLEY_TERMINAL 🎭
 
 > **Tactical Monero Desktop Wallet.**
 
-`ghost-terminal` is a privacy-first, security-hardened Monero desktop wallet designed for sovereign wealth management. It serves as the local command center for the `kyc-rip` ecosystem, providing direct access to Monero's untraceable privacy features with a precise, tactical, terminal-inspired interface.
+`ripley-terminal` is a privacy-first, security-hardened Monero desktop wallet designed for sovereign wealth management. It serves as the local command center for the `kyc-rip` ecosystem, providing direct access to Monero's untraceable privacy features with a precise, tactical, terminal-inspired interface.
 
 ## 🚀 Vision
-In an era of pervasive financial surveillance, `ghost-terminal` provides a local, hardware-agnostic encryption layer. It is built for those who demand absolute control over their digital assets and identity.
+In an era of pervasive financial surveillance, `ripley-terminal` provides a local, hardware-agnostic encryption layer. It is built for those who demand absolute control over their digital assets and identity.
 
 ## 🛠 Tech Stack
 - **Framework**: Electron + Vite
@@ -52,7 +52,7 @@ This project is maintained as part of the `kyc-rip` ecosystem and synchronized v
 ### 🔄 Synchronizing with Parent
 To push local changes from the parent workspace to this repository:
 ```bash
-git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main
+git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ripley-terminal.git main
 ```
 
 ### 🏷 Triggering a Release
@@ -68,7 +68,7 @@ The CI pipeline automatically builds and publishes a GitHub Release when a versi
    ```
 3. Push the tag to this repository:
    ```bash
-   git push git@github-xbtoshi:KYC-rip/ghost-terminal.git v1.x.x
+   git push git@github-xbtoshi:KYC-rip/ripley-terminal.git v1.x.x
    ```
 4. Cleanup:
    ```bash

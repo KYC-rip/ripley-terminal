@@ -16,6 +16,17 @@ export interface AppConfig {
   };
   hide_zero_balances?: boolean;
   include_prereleases?: boolean;
+  agent_config?: {
+    enabled: boolean;
+    apiKey: string;
+    dailyLimit: string;
+    totalLimit: string;
+    selectedWalletId: string;
+    selectedAccountIndex: number;
+    accumulatedDailySpend: string;
+    lastResetTimestamp: number;
+    port: number;
+  };
 }
 
 export interface NodeList {

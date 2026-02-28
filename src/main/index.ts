@@ -7,15 +7,18 @@ import { NodeManager } from './NodeManager';
 import { WalletManager } from './WalletManager';
 import { SyncWatcher } from './SyncWatcher';
 import { AppConfig } from './types';
-import { registerIdentityHandlers } from './handlers/IdentityHandler'; // ⬅️ Imported the rebuilt manager
+import { registerIdentityHandlers } from './handlers/IdentityHandler';
+import { AgentGateway } from './AgentGateway';
 
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('monero', process.execPath, [join(__dirname, '..', '..')]);
+    app.setAsDefaultProtocolClient('ripley', process.execPath, [join(__dirname, '..', '..')]);
     app.setAsDefaultProtocolClient('ghost', process.execPath, [join(__dirname, '..', '..')]);
   }
 } else {
   app.setAsDefaultProtocolClient('monero');
+  app.setAsDefaultProtocolClient('ripley');
   app.setAsDefaultProtocolClient('ghost');
 }
 
@@ -47,7 +50,17 @@ const store = new Store({
       'TERMINAL': 'Mod+Shift+T'
     },
     hide_zero_balances: false,
-    include_prereleases: false
+    include_prereleases: false,
+    agent_config: {
+      enabled: false,
+      apiKey: 'RG-' + Math.random().toString(36).substring(2, 15).toUpperCase(),
+      dailyLimit: '0.1',
+      totalLimit: '1.0',
+      port: 38084,
+      selectedWalletId: '',
+      accumulatedDailySpend: '0',
+      lastResetTimestamp: Date.now()
+    }
   } as AppConfig
 });
 
@@ -55,6 +68,7 @@ let mainWindow: BrowserWindow;
 let daemonEngine: DaemonManager;
 let nodeManager: NodeManager;
 let watcher: SyncWatcher;
+let agentGateway: AgentGateway;
 
 // 🔗 Deep Link Buffer (to catch links that arrive before window is ready)
 let pendingDeepLink: string | null = null;
@@ -85,7 +99,7 @@ if (!gotTheLock) {
     }
     // Protocol handler for Windows/Linux
     const url = commandLine.pop();
-    if (url && (url.startsWith('monero:') || url.startsWith('ghost:'))) {
+    if (url && (url.startsWith('monero:') || url.startsWith('ghost:') || url.startsWith('ripley:'))) {
       handleDeepLink(url);
     }
   });
@@ -104,6 +118,18 @@ function emitAppLog(source: string, level: 'info' | 'error', message: string) {
 
 app.whenReady().then(async () => {
   const fs = require('fs');
+  // 🛡️ Data Migration: Handle rename from ghost-terminal to ripley-terminal
+  const oldPath = join(app.getPath('appData'), 'ghost-terminal');
+  const newPath = app.getPath('userData');
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    console.log(`[Main] Migrating data from ${oldPath} to ${newPath}`);
+    try {
+      fs.renameSync(oldPath, newPath);
+    } catch (e) {
+      console.error('[Main] Migration failed:', e);
+    }
+  }
+
   const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
   const currentB64 = store.get('skin_background');
   if (currentB64) {
@@ -114,7 +140,7 @@ app.whenReady().then(async () => {
     } catch (e) { }
   }
 
-  electronApp.setAppUserModelId('rip.kyc.terminal');
+  electronApp.setAppUserModelId('rip.kyc.ripley');
 
   session.defaultSession.setCertificateVerifyProc((_, callback) => {
     callback(0); // 0 stands for net::OK, direct unconditional release
@@ -198,6 +224,11 @@ app.whenReady().then(async () => {
 
   // 🔌 Register the Identity/Vault Handlers
   registerIdentityHandlers(store);
+
+  agentGateway = new AgentGateway(mainWindow, store);
+  if (store.get('agent_config.enabled')) {
+    agentGateway.start();
+  }
   // ---------------------------------------------------------
   // 🔌 IPC Channels
   // ---------------------------------------------------------
@@ -327,6 +358,20 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle('update-agent-config', async (_, newAgentConfig: any) => {
+    try {
+      store.set('agent_config', newAgentConfig);
+      if (newAgentConfig.enabled) {
+        agentGateway.start();
+      } else {
+        agentGateway.stop();
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('select-background-image', async () => {
     const { dialog } = require('electron');
     const fs = require('fs');
@@ -365,13 +410,13 @@ app.whenReady().then(async () => {
 
       let release: any;
       if (include_prereleases) {
-        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases');
+        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ripley-terminal/releases');
         if (response.status === 404) return { success: true, hasUpdate: false, latestVersion: '---', error: 'No releases found' };
         if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
         const releases = await response.json() as any[];
         release = releases[0];
       } else {
-        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ghost-terminal/releases/latest');
+        const response = await net.fetch('https://api.github.com/repos/KYC-rip/ripley-terminal/releases/latest');
         if (response.status === 404) return { success: true, hasUpdate: false, latestVersion: '---', error: 'No releases found' };
         if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
         release = await response.json() as any;

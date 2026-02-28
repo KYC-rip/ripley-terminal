@@ -116,7 +116,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
            <button onClick={() => setView('vault')} className="group text-left cursor-pointer">
             <Card topGradientAccentColor="xmr-accent" className="hover:bg-xmr-accent/5 transition-all relative overflow-hidden h-full">
                <Ghost size={20} className="mb-4 text-xmr-accent" />
-                 <h4 className="text-xs font-black uppercase text-xmr-accent mb-1">Ghost_Send</h4>
+                 <h4 className="text-xs font-black uppercase text-xmr-accent mb-1">Ripley_Send</h4>
                  <p className="text-xs text-xmr-dim uppercase leading-tight">Send XMR — receiver gets any asset. Zero identity link.</p>
                <div className="absolute -bottom-2 -right-2 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity"><Ghost size={80}/></div>
             </Card>

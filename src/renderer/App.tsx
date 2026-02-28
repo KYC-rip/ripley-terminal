@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap } from 'lucide-react';
+import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap, Bot } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -9,6 +9,7 @@ import { HomeView } from './components/HomeView';
 import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
+import { AgentTab } from './components/vault/AgentTab';
 import { VaultProvider } from './contexts/VaultContext';
 
 const SkinOverlay = ({ config }: { config: any }) => {
@@ -28,7 +29,7 @@ const SkinOverlay = ({ config }: { config: any }) => {
 };
 
 function MainApp() {
-  const [view, setView] = useState<'home' | 'vault' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'vault' | 'settings' | 'agent'>('home');
   const [showConsole, setShowConsole] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -225,7 +226,7 @@ function MainApp() {
     const cleanup = window.api.onDeepLink((url: string) => {
       console.log('[App] Received deep link:', url);
       try {
-        const protocolRegex = /^(monero|ghost):([^?]+)(\?.*)?$/i;
+        const protocolRegex = /^(monero|ghost|ripley):([^?]+)(\?.*)?$/i;
         const match = url.match(protocolRegex);
         if (!match) return;
 
@@ -349,7 +350,7 @@ function MainApp() {
             <div className="absolute inset-0 bg-red-500/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100"></div>
           </div>
           <div className="text-center">
-            <div className="text-xs font-black tracking-[0.4em] text-xmr-green">GHOST_TERMINAL</div>
+            <div className="text-xs font-black tracking-[0.4em] text-xmr-green">RIPLEY_TERMINAL</div>
             <div
               className="text-[10px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1 cursor-help"
               title={activeIdentity?.name || 'TACTICAL_UPLINK'}
@@ -373,6 +374,8 @@ function MainApp() {
           />
 
           <NavButton id="settings" label="Config_System" icon={Settings} />
+
+          <NavButton id="agent" label="Agent_Gateway" icon={Bot} />
 
           <button
             onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); }}
@@ -518,6 +521,7 @@ function MainApp() {
                 <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} appConfig={appConfig} /></div>
 
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
+                <div className={view === 'agent' ? 'block' : 'hidden'}><AgentTab /></div>
             </>
           )}
         </main>
@@ -566,7 +570,7 @@ function MainApp() {
               <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
               {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
             </span>
-            <span className="opacity-75">© 2026 kyc.rip // tactical_terminal_v1.0</span>
+            <span className="opacity-75">© 2026 kyc.rip // ripley_terminal_v1.0</span>
           </div>
         </footer>
         {showFeedbackModal && (
@@ -595,7 +599,7 @@ function MainApp() {
               <div className="mt-6 flex gap-4">
                 <button
                   onClick={() => {
-                    const template = encodeURIComponent(`Hi @XBToshi, I have a feedback for Ghost Terminal:\n\n"${feedbackText}"\n\n#kycrip #privacy #GhostTerminal`);
+                    const template = encodeURIComponent(`Hi @XBToshi, I have a feedback for Ripley Terminal:\n\n"${feedbackText}"\n\n#kycrip #privacy #RipleyTerminal`);
                     window.api.openExternal(`https://x.com/intent/tweet?text=${template}`);
                     setShowFeedbackModal(false);
                   }}

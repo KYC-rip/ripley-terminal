@@ -51,6 +51,13 @@ const api = {
   saveGhostTrade: (txHash: string, tradeId: string) => ipcRenderer.invoke('save-ghost-trade', txHash, tradeId),
   getGhostTrades: () => ipcRenderer.invoke('get-ghost-trades'),
 
+  updateAgentConfig: (config: any) => ipcRenderer.invoke('update-agent-config', config),
+  onAgentActivity: (callback: (activity: any) => void) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('agent-activity', handler);
+    return () => ipcRenderer.removeListener('agent-activity', handler);
+  },
+
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 }
 

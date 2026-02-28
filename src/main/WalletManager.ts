@@ -90,4 +90,39 @@ export class WalletManager {
     const res = await this.callRpc('query_key', { key_type: 'mnemonic' });
     return res.key;
   }
+
+  /**
+   * Get balance for a specific account
+   */
+  public static async getBalance(accountIndex: number = 0) {
+    const res = await this.callRpc('get_balance', { account_index: accountIndex });
+    return {
+      total: res.total_balance,
+      unlocked: res.unlocked_balance
+    };
+  }
+
+  /**
+   * Perform a transfer from a specific account
+   */
+  public static async transfer(destination: string, amountAtomic: string, accountIndex: number = 0) {
+    const res = await this.callRpc('transfer', {
+      destinations: [{ address: destination, amount: amountAtomic }],
+      account_index: accountIndex,
+      priority: 0,
+      ring_size: 16
+    });
+    return res.tx_hash;
+  }
+
+  /**
+   * Create subaddress for a specific account
+   */
+  public static async createSubaddress(label: string, accountIndex: number = 0) {
+    const res = await this.callRpc('create_address', {
+      account_index: accountIndex,
+      label
+    });
+    return res.address;
+  }
 }

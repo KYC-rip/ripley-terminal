@@ -1,11 +1,11 @@
 {
-  "name": "ghost-terminal",
-  "displayName": "Ghost Terminal",
-  "version": "1.0.30",
+  "name": "ripley-terminal",
+  "displayName": "Ripley Terminal",
+  "version": "1.0.31",
   "description": "KYC.RIP Tactical Monero Desktop Wallet",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KYC-rip/ghost-terminal.git"
+    "url": "https://github.com/KYC-rip/ripley-terminal.git"
   },
   "main": "./out/main/index.js",
   "author": "KYC.RIP",
@@ -29,7 +29,7 @@
       {
         "provider": "github",
         "owner": "KYC-rip",
-        "repo": "ghost-terminal"
+        "repo": "ripley-terminal"
       }
     ],
     "protocols": [
@@ -40,8 +40,9 @@
         ]
       },
       {
-        "name": "Ghost Terminal Link",
+        "name": "Ripley Protocol Link",
         "schemes": [
+          "ripley",
           "ghost"
         ]
       }
