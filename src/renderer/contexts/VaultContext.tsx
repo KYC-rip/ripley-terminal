@@ -40,12 +40,16 @@ export interface VaultContextType {
   unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
   lock: () => void;
   sendXmr: (address: string, amount: number, accountIndex?: number, priority?: number) => Promise<string | undefined>;
-  sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority?: number) => Promise<void>;
+  sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority?: number) => Promise<string | undefined>;
   purgeIdentity: (id: string) => Promise<void>;
   switchIdentity: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
   getFeeEstimates: () => Promise<{ fees: string[] } | undefined>;
   createSubaddress: (label?: string) => Promise<string | undefined>;
+  getTxKey: (txid: string) => Promise<string | undefined>;
+  getTxProof: (txid: string, address: string, message?: string) => Promise<string | undefined>;
+  checkTxKey: (txid: string, txKey: string, address: string) => Promise<any>;
+  checkTxProof: (txid: string, address: string, message: string, signature: string) => Promise<any>;
   renameIdentity: (id: string, name: string) => Promise<void>;
   renameAccount: (accountIndex: number, newLabel: string) => Promise<void>;
   churn: () => Promise<void>;
@@ -54,6 +58,17 @@ export interface VaultContextType {
   vanishSubaddress: (subaddressIndex: number) => Promise<void>;
   setSubaddressLabel: (index: number, label: string) => Promise<void>;
   rescan: (height: number) => Promise<void>;
+  addLog: (msg: string, type?: LogEntry['type']) => void;
+
+  // 🔗 Deep Link Support
+  deepLinkData: {
+    address?: string;
+    amount?: string;
+    description?: string;
+    name?: string;
+  } | null;
+  setDeepLinkData: (data: any) => void;
+  clearDeepLinkData: () => void;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -80,7 +95,23 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isStagenet, setIsStagenet] = useState(false);
   const [outputs, setOutputs] = useState<any[]>([]);
   const [requestedAction, setRequestedAction] = useState<string | null>(null);
-  const lastHeightRef = useRef<number>(0); // Track previous height for sync detection
+  const [deepLinkData, setDeepLinkData] = useState<any>(null);
+  const lastHeightRef = useRef<number>(0);
+  const daemonHeightRef = useRef<number>(0);
+
+  const determineSyncStatus = useCallback((height: number, daemonH: number) => {
+    if (daemonH > 0) {
+      const blocksLeft = daemonH - height;
+      if (blocksLeft > 5) {
+        return { status: 'SYNCING', percent: Math.min((height / daemonH) * 100, 99.9) };
+      } else {
+        return { status: 'SYNCED', percent: 100 };
+      }
+    }
+    return { status: 'SYNCING', percent: 0 };
+  }, []);
+
+  const clearDeepLinkData = useCallback(() => setDeepLinkData(null), []);
 
   const addLog = useCallback((msg: string, type: any = 'info') => {
     setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
@@ -91,7 +122,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const allAccs = await WalletService.getAccounts().catch(() => null);
-      if (allAccs) setAccounts(allAccs);
+      if (allAccs) {
+        setAccounts(allAccs);
+        // 🛡️ Sync the global balance state for the currently selected account
+        const currentAcc = allAccs.find(a => a.index === selectedAccountIndex);
+        if (currentAcc) {
+          setBalance({
+            total: currentAcc.balance,
+            unlocked: currentAcc.unlockedBalance
+          });
+        }
+      }
 
       // Use allSettled: a single RPC failure (e.g. get_transfers over flaky Tor)
       // must NOT prevent balance/height/addresses from displaying
@@ -106,7 +147,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
 
       if (balRes.status === 'fulfilled') setBalance(balRes.value);
-      if (heightRes.status === 'fulfilled') setCurrentHeight(heightRes.value);
+      if (heightRes.status === 'fulfilled') {
+        const h = heightRes.value;
+        setCurrentHeight(h);
+        lastHeightRef.current = h;
+
+        // Recalculate sync status during refresh
+        const { status: s, percent: p } = determineSyncStatus(h, daemonHeightRef.current);
+        setStatus(s);
+        setSyncPercent(p);
+      }
       if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
       if (addrRes.status === 'fulfilled') {
         setSubaddresses(addrRes.value);
@@ -117,7 +167,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } catch (e: any) {
       console.warn("Sync gap detected:", e.message);
     }
-  }, [isLocked, isInitializing, selectedAccountIndex]);
+  }, [isLocked, isInitializing, selectedAccountIndex, determineSyncStatus]);
+
+  // 🔄 Initial & Periodic Refresh
+  useEffect(() => {
+    if (!isLocked && !isInitializing) {
+      refresh();
+      const timer = setInterval(refresh, 10000);
+      return () => clearInterval(timer);
+    }
+  }, [isLocked, isInitializing, refresh]);
 
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
@@ -151,48 +210,27 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           const newHeight = event.payload.height;
           const daemonH = event.payload.daemonHeight || 0;
           setCurrentHeight(newHeight);
-
-          // Store daemon height for UI display
-          if (daemonH > 0) {
-            setTotalHeight(daemonH);
-            // Use daemon height for accurate sync detection
-            const blocksLeft = daemonH - newHeight;
-            if (blocksLeft > 5) {
-              setStatus('SYNCING');
-              setSyncPercent(Math.min((newHeight / daemonH) * 100, 99.9));
-            } else {
-              setStatus('SYNCED');
-              setSyncPercent(100);
-            }
-          } else {
-            // Fallback: height-delta detection when daemon height is unknown
-            const prevHeight = lastHeightRef.current;
-            if (prevHeight > 0) {
-              const delta = newHeight - prevHeight;
-              setStatus(delta > 2 ? 'SYNCING' : 'SYNCED');
-            }
-          }
           lastHeightRef.current = newHeight;
+
+          if (daemonH > 0) {
+            daemonHeightRef.current = daemonH;
+            setTotalHeight(daemonH);
+          }
+
+          const { status: s, percent: p } = determineSyncStatus(newHeight, daemonHeightRef.current);
+          setStatus(s);
+          setSyncPercent(p);
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
-          // Set balance directly from SyncWatcher data (piconeros → XMR)
-          // This bypasses the renderer's proxy-request pipeline which may be failing
-          const formatPico = (v: number) => {
-            const whole = Math.floor(v / 1e12);
-            const frac = v % 1e12;
-            return `${whole}.${frac.toString().padStart(12, '0')}`;
-          };
-          setBalance({
-            total: formatPico(event.payload.balance),
-            unlocked: formatPico(event.payload.unlocked || 0)
-          });
-          // Also trigger refresh for accounts/subaddresses/txs (best effort)
+          // 🛡️ Only update global state if the change belongs to the active account
+          // Since SyncWatcher currently emits for whichever account is active in RPC,
+          // we should double-check or just refresh to be safe.
           refresh();
         }
       });
       return () => cleanup();
     }
-  }, [refresh]);
+  }, [refresh, determineSyncStatus, selectedAccountIndex]);
 
 
   const unlock = useCallback(async (
@@ -320,7 +358,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       }
 
       setHasVaultFile(true);
-      setStatus('SYNCING');
       setIsLocked(false);
       setIsInitializing(false);
       addLog("✅ Vault unlocked. Synchronizing with network...", "success");
@@ -355,12 +392,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSending(true);
     addLog(`💸 Preparing transfer of ${amount} XMR (Priority: ${priority})...`, 'process');
     try {
-      const txHash = await WalletService.sendTransaction(destination, amount, accountIndex || 0, priority);
+      const targetAcc = accountIndex ?? selectedAccountIndex;
+      const txHash = await WalletService.sendTransaction(destination, amount, targetAcc, priority);
+      if (!txHash) throw new Error("EMPTY_TX_HASH: Daemon accepted but returned no ID.");
+
       addLog(`✅ Transaction dispatched: ${txHash}`, 'success');
       await refresh();
       return txHash;
     } catch (e: any) {
       addLog(`❌ SEND_ERROR: ${e.message}`, 'error');
+      throw e; // Rethrow to let UI handle failure
     } finally {
       setIsSending(false);
     }
@@ -486,9 +527,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendMulti = useCallback(async (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority: number = 0) => {
-    await WalletService.sendMulti(destinations, selectedAccountIndex, subaddrIndices, priority);
-    addLog(`✅ Multi-send dispatched: ${destinations.length} recipient(s)`, 'success');
-    await refresh();
+    setIsSending(true);
+    try {
+      const res = await WalletService.sendMulti(destinations, selectedAccountIndex, subaddrIndices, priority);
+      const txHash = res.tx_hash_list?.[0] || res.tx_hash;
+
+      addLog(`✅ Multi-send dispatched: ${destinations.length} recipient(s)`, 'success');
+      await refresh();
+      return txHash;
+    } catch (e: any) {
+      addLog(`❌ MULTI_SEND_ERROR: ${e.message}`, 'error');
+      throw e;
+    } finally {
+      setIsSending(false);
+    }
   }, [selectedAccountIndex, refresh, addLog]);
 
   const getFeeEstimates = useCallback(async () => {
@@ -499,6 +551,42 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     }
   }, []);
+
+  const getTxKey = useCallback(async (txid: string) => {
+    try {
+      return await WalletService.getTxKey(txid);
+    } catch (e: any) {
+      addLog(`❌ Failed to fetch TX Key: ${e.message}`, 'error');
+      return undefined;
+    }
+  }, [addLog]);
+
+  const getTxProof = useCallback(async (txid: string, address: string, message: string = "") => {
+    try {
+      return await WalletService.getTxProof(txid, address, message);
+    } catch (e: any) {
+      addLog(`❌ Failed to generate TX Proof: ${e.message}`, 'error');
+      return undefined;
+    }
+  }, [addLog]);
+
+  const checkTxKey = useCallback(async (txid: string, txKey: string, address: string) => {
+    try {
+      return await WalletService.checkTxKey(txid, txKey, address);
+    } catch (e: any) {
+      addLog(`❌ Verification failed: ${e.message}`, 'error');
+      return undefined;
+    }
+  }, [addLog]);
+
+  const checkTxProof = useCallback(async (txid: string, address: string, message: string, signature: string) => {
+    try {
+      return await WalletService.checkTxProof(txid, address, message, signature);
+    } catch (e: any) {
+      addLog(`❌ Verification failed: ${e.message}`, 'error');
+      return undefined;
+    }
+  }, [addLog]);
   // ⌨️ Tactical Shortcut: Cmd+L to Lock
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -518,17 +606,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     accounts, selectedAccountIndex,
     balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
-    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex,
+    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
     createAccount, sendMulti, getFeeEstimates,
-    requestedAction, setRequestedAction
+    getTxKey, getTxProof, checkTxKey, checkTxProof,
+    requestedAction, setRequestedAction,
+    deepLinkData, setDeepLinkData, clearDeepLinkData
   }), [
     accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
     currentHeight, totalHeight, syncPercent, isAppLoading, isInitializing, isLocked,
     isSending, hasVaultFile, identities, activeId, isStagenet, outputs,
-    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex,
+    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
-    createAccount, sendMulti, getFeeEstimates, requestedAction, setRequestedAction
+    createAccount, sendMulti, getFeeEstimates, requestedAction, setRequestedAction,
+    getTxKey, getTxProof, checkTxKey, checkTxProof,
+    deepLinkData, setDeepLinkData, clearDeepLinkData
   ]);
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

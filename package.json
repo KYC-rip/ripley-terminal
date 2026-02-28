@@ -1,7 +1,7 @@
 {
   "name": "ghost-terminal",
   "displayName": "Ghost Terminal",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "KYC.RIP Tactical Monero Desktop Wallet",
   "repository": {
     "type": "git",
@@ -30,6 +30,20 @@
         "provider": "github",
         "owner": "KYC-rip",
         "repo": "ghost-terminal"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Monero Payment Request",
+        "schemes": [
+          "monero"
+        ]
+      },
+      {
+        "name": "Ghost Terminal Link",
+        "schemes": [
+          "ghost"
+        ]
       }
     ],
     "mac": {

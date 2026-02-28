@@ -9,6 +9,22 @@ import { SyncWatcher } from './SyncWatcher';
 import { AppConfig } from './types';
 import { registerIdentityHandlers } from './handlers/IdentityHandler'; // ⬅️ Imported the rebuilt manager
 
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('monero', process.execPath, [join(__dirname, '..', '..')]);
+    app.setAsDefaultProtocolClient('ghost', process.execPath, [join(__dirname, '..', '..')]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('monero');
+  app.setAsDefaultProtocolClient('ghost');
+}
+
+// macOS specific: handle URL when app is already running or launched via URL
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
 const Store = require('electron-store').default;
 const store = new Store({
   clearInvalidConfig: true,
@@ -39,6 +55,41 @@ let mainWindow: BrowserWindow;
 let daemonEngine: DaemonManager;
 let nodeManager: NodeManager;
 let watcher: SyncWatcher;
+
+// 🔗 Deep Link Buffer (to catch links that arrive before window is ready)
+let pendingDeepLink: string | null = null;
+
+function handleDeepLink(url: string) {
+  console.log(`[Main] Incoming Deep Link: ${url}`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log(`[Main] Sending deep-link to renderer...`);
+    mainWindow.webContents.send('deep-link', url);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  } else {
+    console.log(`[Main] Window not ready, buffering deep link.`);
+    pendingDeepLink = url;
+  }
+}
+
+// 🛡️ Single Instance Lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, commandLine) => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+    // Protocol handler for Windows/Linux
+    const url = commandLine.pop();
+    if (url && (url.startsWith('monero:') || url.startsWith('ghost:'))) {
+      handleDeepLink(url);
+    }
+  });
+}
 
 // 🟢 Global State Tracker (For UI polling)
 const isStagenet = store.get("network") === 'stagenet';
@@ -80,7 +131,17 @@ app.whenReady().then(async () => {
     }
   });
 
-  mainWindow.on('ready-to-show', () => mainWindow.show());
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show();
+    if (pendingDeepLink) {
+      setTimeout(() => {
+        handleDeepLink(pendingDeepLink!);
+        pendingDeepLink = null;
+      }, 1000);
+    }
+  });
+
+  // Protocol handler for macOS is now registered at the top level
 
   // 🛡️ Production Hardening: Disable Reload Shortcuts
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -269,7 +330,19 @@ app.whenReady().then(async () => {
 
       const latestVersion = release.tag_name.replace(/^v/, '');
       const currentVersion = app.getVersion();
-      const hasUpdate = latestVersion !== currentVersion;
+
+      // Proper semver-aware comparison
+      const isNewer = (latest: string, current: string): boolean => {
+        const lp = latest.split('.').map((v) => parseInt(v, 10) || 0);
+        const cp = current.split('.').map((v) => parseInt(v, 10) || 0);
+        for (let i = 0; i < Math.max(lp.length, cp.length); i++) {
+          if ((lp[i] || 0) > (cp[i] || 0)) return true;
+          if ((lp[i] || 0) < (cp[i] || 0)) return false;
+        }
+        return false;
+      };
+
+      const hasUpdate = isNewer(latestVersion, currentVersion);
 
       return {
         success: true,
@@ -521,7 +594,7 @@ async function reloadEngine(forceRestart = false) {
       NodeManager.activeNodeLabel = winner.label;
     }
 
-    await daemonEngine.startMoneroRpc(targetNode, useTor, config.useSystemProxy, config.systemProxyAddress);
+    await daemonEngine.startMoneroRpc(targetNode, useTor, config.useSystemProxy, config.systemProxyAddress, config.network);
 
     // ✅ Update successful, syncing snapshot
     lastPhysicalConfig = {

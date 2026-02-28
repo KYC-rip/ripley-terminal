@@ -171,10 +171,12 @@ export const WalletService = {
   /**
    * Sweep All: Extinguish all wallet funds to a specific address
    */
-  async sweepAll(destination: string, accountIndex: number) {
+  async sweepAll(destination: string, accountIndex: number, priority: number = 0) {
     const res = await RpcClient.call('sweep_all', {
       address: destination,
-      account_index: accountIndex
+      account_index: accountIndex,
+      priority,
+      ring_size: 16
     });
     return res.tx_hash_list;
   },
@@ -366,5 +368,34 @@ export const WalletService = {
     });
 
     return { txHash: tx.tx_hash_list?.[0] || tx.tx_hash, destination: newAddr };
+  },
+
+  async getTxKey(txid: string) {
+    const res = await RpcClient.call('get_tx_key', { txid });
+    return res.tx_key;
+  },
+
+  async getTxProof(txid: string, address: string, message: string = "") {
+    const res = await RpcClient.call('get_tx_proof', { txid, address, message });
+    return res.signature;
+  },
+
+  async checkTxKey(txid: string, txKey: string, address: string) {
+    const res = await RpcClient.call('check_tx_key', { txid, tx_key: txKey, address });
+    return {
+      confirmations: res.confirmations,
+      inPool: res.in_pool,
+      received: RpcClient.formatXmr(res.received)
+    };
+  },
+
+  async checkTxProof(txid: string, address: string, message: string, signature: string) {
+    const res = await RpcClient.call('check_tx_proof', { txid, address, message, signature });
+    return {
+      confirmations: res.confirmations,
+      good: res.good,
+      inPool: res.in_pool,
+      received: RpcClient.formatXmr(res.received)
+    };
   }
 };

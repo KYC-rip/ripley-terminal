@@ -16,6 +16,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Tactical Splinter**: Shatter large UTXOs into multiple smaller fragments across new stealth addresses to prevent "toxic change" and net-worth leakage.
 - [x] **Individual Coin Vanishing**: Selectively sweep individual UTXOs (Deterministic Outputs) back to the primary address using `sweep_single` to isolate trailing transactions.
 - [x] **Subaddress Vanishing**: Sweep all outputs from a specific subaddress to a freshly generated one using `sweep_all` with `subaddr_indices`, breaking on-chain linkability at the subaddress level.
+- [x] **Native Sweep All**: Extinguish entire account balances with optimized RPC calls and real-time fee estimation for maximum efficiency.
 - [x] **Coin Control (UTXO)**: Detailed list of every deterministic output (unspent) with unlock status and Key Image tracking.
 - [x] **Forced Subaddressing**: Mandatory new subaddress generation for every receive request to prevent metadata leakage via address reuse.
 - [x] **Identity Labeling**: Attach purpose-driven labels to subaddresses for precise ledger management.
@@ -49,6 +50,7 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Address Book**: Securely archive external Monero addresses with alias support for rapid dispatching.
 - [x] **Send From Subaddress**: Dispatch XMR or execute Ghost Sends scoped to a specific subaddress for granular coin control.
 - [x] **xmr.bio Resolver**: Send funds instantly to Twitter handles—automatically fetching Monero addresses from `api.xmr.bio` and displaying beautiful profile cards inline.
+- [x] **Dynamic Send Controls**: Real-time unlocked balance display and percentage-based quick-select (25%, 50%, 75%, 100%) for high-speed dispatching.
 
 ## 📦 Deployment & Execution
 - [x] **Automated Packaging**: Cross-platform Electron build system (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`).
@@ -56,4 +58,4 @@ This file tracks the tactical capabilities of the Ghost Terminal.
 - [x] **Update Intelligence**: Automated update discovery with support for optional pre-release builds and graceful error handling.
 
 ---
-*Last Updated: 2026-02-27*
+*Last Updated: 2026-02-28*

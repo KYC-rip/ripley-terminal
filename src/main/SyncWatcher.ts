@@ -96,7 +96,9 @@ export class SyncWatcher {
 
       // 2. Refresh local wallet height
       const result = await (WalletManager as any).callRpc('get_height');
-      if (result.height !== this.lastKnownHeight) {
+      const isFirstRun = this.lastKnownHeight === -1;
+
+      if (result.height !== this.lastKnownHeight || isFirstRun) {
         this.lastKnownHeight = result.height;
         this.emitLog('Watcher', 'info', `🔄 Block height update: ${result.height} / Daemon: ${daemonHeight}`);
         this.pushEvent({

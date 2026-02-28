@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins } from 'lucide-react';
+import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, Info, ExternalLink } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { useStats } from '../../hooks/useStats';
+import { WalletService } from '../../services/walletService';
 
 interface ParsedDest {
   address: string;
@@ -48,7 +49,11 @@ export function DirectSendTab({
   onRequirePassword,
   onClose,
 }: DirectSendTabProps) {
-  const { sendXmr, sendMulti, getFeeEstimates, isSending } = useVault();
+  const {
+    sendXmr, sendMulti, getFeeEstimates, isSending, balance,
+    selectedAccountIndex,
+    deepLinkData, clearDeepLinkData
+  } = useVault();
 
   const [sendMode, setSendMode] = useState<'single' | 'multi'>('single');
   const [destAddr, setDestAddr] = useState(initialAddress);
@@ -116,6 +121,17 @@ export function DirectSendTab({
     }
   }, [destAddr, sendMode]);
 
+  // 🔗 Consume Deep Link Data
+  useEffect(() => {
+    if (deepLinkData) {
+      if (deepLinkData.address) setDestAddr(deepLinkData.address);
+      if (deepLinkData.amount) setSendAmount(deepLinkData.amount);
+      // Switch to single mode for standard monero: links
+      setSendMode('single');
+      clearDeepLinkData();
+    }
+  }, [deepLinkData, clearDeepLinkData]);
+
   // Ban check
   useEffect(() => {
     if (sendMode === 'single' && destAddr.length > 30) {
@@ -172,26 +188,86 @@ export function DirectSendTab({
 
   const handleExecute = () => {
     if (sendMode === 'single') {
-      if (!destAddr || !sendAmount || isBanned) return;
+      const amount = parseFloat(sendAmount);
+      if (!destAddr || isNaN(amount) || amount <= 0 || isBanned) return;
+
+      // 🛡️ PROACTIVE BALANCE CHECK
+      const unlocked = parseFloat(balance.unlocked);
+      if (amount > unlocked) {
+        alert(`INSUFFICIENT_FUNDS: Unlocked balance is ${balance.unlocked} XMR, but you requested ${amount} XMR.`);
+        return;
+      }
+
       onRequirePassword(async () => {
-        const subIndices =
-          selectedOutputs.size > 0 && sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
-        if (subIndices) {
-          await sendMulti([{ address: destAddr, amount: parseFloat(sendAmount) }], subIndices, priority);
-        } else {
-          const txHash = await sendXmr(destAddr, parseFloat(sendAmount), undefined, priority);
-          if (txHash) setDirectTxHash(txHash);
+        try {
+          const subIndices =
+            selectedOutputs.size > 0 && sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
+
+          let txHash: string | undefined;
+          if (subIndices) {
+            txHash = await sendMulti([{ address: destAddr, amount }], subIndices, priority);
+          } else {
+            txHash = await sendXmr(destAddr, amount, selectedAccountIndex, priority);
+          }
+
+          if (txHash) {
+            setDirectTxHash(txHash);
+            setDirectSent(true);
+          }
+        } catch (err: any) {
+          // Error already logged by VaultContext
         }
-        setDirectSent(true);
       });
     } else {
       if (parsed.destinations.length === 0 || parsed.errors.length > 0) return;
+
+      // 🛡️ PROACTIVE BALANCE CHECK (MULTI)
+      const unlocked = parseFloat(balance.unlocked);
+      if (multiTotal > unlocked) {
+        alert(`INSUFFICIENT_FUNDS: Total amount ${multiTotal.toFixed(6)} XMR exceeds unlocked balance ${balance.unlocked} XMR.`);
+        return;
+      }
+
       onRequirePassword(async () => {
-        const subIndices = sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
-        await sendMulti(parsed.destinations, subIndices, priority);
-        setDirectSent(true);
+        try {
+          const subIndices = sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
+          const txHash = await sendMulti(parsed.destinations, subIndices, priority);
+          if (txHash) {
+            setDirectTxHash(txHash);
+            setDirectSent(true);
+          }
+        } catch (err: any) {
+          // Error already logged by VaultContext
+        }
       });
     }
+  };
+
+  const handleSweepAll = () => {
+    if (!destAddr || isBanned) return;
+    const unlocked = parseFloat(balance.unlocked);
+    if (unlocked <= 0) {
+      alert("No unlocked funds to sweep.");
+      return;
+    }
+
+    if (!confirm(`SWEEP_ALL: This will extinguish ALL funds (~${unlocked.toFixed(6)} XMR) from Account #${selectedAccountIndex} and send them to ${destAddr}. Proceed?`)) {
+      return;
+    }
+
+    onRequirePassword(async () => {
+      try {
+        const txHashList = await WalletService.sweepAll(destAddr, selectedAccountIndex, priority);
+        if (txHashList && txHashList.length > 0) {
+          setDirectTxHash(txHashList[0]);
+          setDirectSent(true);
+        } else {
+          throw new Error("No transaction hash returned from sweep.");
+        }
+      } catch (err: any) {
+        alert(`SWEEP_ERROR: ${err.message}`);
+      }
+    });
   };
 
   if (directSent) {
@@ -199,15 +275,36 @@ export function DirectSendTab({
       <div className="py-12 flex flex-col items-center gap-4 text-center">
         <CheckCircle2 size={48} className="text-xmr-green" />
         <div className="text-sm uppercase text-xmr-green font-black">Transaction Dispatched</div>
-        {directTxHash && <div className="text-[11px] font-mono text-xmr-dim break-all max-w-sm">{directTxHash}</div>}
+
+        {directTxHash && (
+          <div className="space-y-3 flex flex-col items-center">
+            <div className="bg-black/20 p-3 border border-xmr-border/30 flex items-center gap-3">
+              <div className="text-[11px] font-mono text-xmr-green break-all max-w-[280px]">
+                {directTxHash}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(directTxHash);
+                  // alert could be replaced with a toast but we'll stick to a simple copy for now
+                }}
+                className="text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer"
+                title="Copy TXID"
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {sendMode === 'multi' && (
           <div className="text-[11px] text-xmr-dim">
             {parsed.destinations.length} recipients • {multiTotal.toFixed(4)} XMR total
           </div>
         )}
+
         <button
           onClick={onClose}
-          className="mt-4 px-6 py-2 bg-xmr-green text-xmr-base text-xs uppercase tracking-widest cursor-pointer"
+          className="mt-4 px-8 py-2.5 bg-xmr-green text-xmr-base text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-xmr-green/80 transition-all"
         >
           Close
         </button>
@@ -294,16 +391,55 @@ export function DirectSendTab({
             )}
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
-              <DollarSign size={10} /> Amount (XMR)
-            </label>
-            <input
-              type="number"
-              value={sendAmount}
-              onChange={(e) => setSendAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none"
-            />
+            <div className="flex justify-between items-center">
+              <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5">
+                <DollarSign size={10} /> Amount (XMR)
+              </label>
+              <div className="text-[10px] font-black text-xmr-green/60 uppercase tracking-widest">
+                Unlocked: {balance.unlocked} XMR
+              </div>
+            </div>
+            <div className="relative group">
+              <input
+                type="number"
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-2xl font-black text-xmr-accent focus:border-xmr-accent outline-none pr-24"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <button
+                  onClick={handleSweepAll}
+                  className="px-2 py-1 bg-xmr-green/10 text-xmr-green text-[9px] font-black uppercase border border-xmr-green/30 hover:bg-xmr-green hover:text-xmr-base transition-all cursor-pointer"
+                >
+                  Sweep_All
+                </button>
+              </div>
+            </div>
+
+            {/* Percentage Slider / Quick Select */}
+            <div className="grid grid-cols-4 gap-1 mt-2">
+              {[25, 50, 75, 100].map(pct => (
+                <button
+                  key={pct}
+                  onClick={() => {
+                    const unlocked = parseFloat(balance.unlocked);
+                    if (unlocked > 0) {
+                      if (pct === 100) {
+                        // For 100%, we try to estimate fee but usually sweep_all is better
+                        // But for simple UI fill, let's just put the max minus a tiny buffer
+                        setSendAmount((unlocked - 0.0005).toFixed(6));
+                      } else {
+                        setSendAmount((unlocked * (pct / 100)).toFixed(6));
+                      }
+                    }
+                  }}
+                  className="py-1.5 bg-xmr-surface/50 border border-xmr-border/30 text-[9px] text-xmr-dim font-black uppercase hover:border-xmr-accent hover:text-xmr-accent transition-all cursor-pointer"
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
           </div>
         </>
       ) : (
