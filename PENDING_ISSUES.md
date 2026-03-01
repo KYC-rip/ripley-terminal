@@ -1,4 +1,4 @@
-# Ghost Terminal - Pending Issues & Tactical Tasks
+# Ripley Terminal - Pending Issues & Tactical Tasks
 
 ## 1. Core Sync & State Feedback (Critical)
 - [x] **UI Progress Flickering**: UI height and percentage weren't updating in real-time.

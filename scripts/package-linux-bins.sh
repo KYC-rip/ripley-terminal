@@ -1,5 +1,5 @@
 #!/bin/bash
-# 💀 GHOST TERMINAL - Linux Binary Packaging Tool
+# 💀 RIPLEY TERMINAL - Linux Binary Packaging Tool
 # This script downloads official binaries and repackages them for the kyc-rip downloader.
 
 set -e
