@@ -7,7 +7,7 @@ import { NodeList } from './types';
 // Fallback built-in nodes
 import fallbackNodes from '../../resources/nodes.json';
 
-const GITHUB_NODES_URL = 'https://raw.githubusercontent.com/KYC-rip/ghost-terminal/main/resources/nodes.json';
+const GITHUB_NODES_URL = 'https://raw.githubusercontent.com/KYC-rip/ripley-terminal/main/resources/nodes.json';
 
 export class NodeManager {
   private localNodesPath: string;
