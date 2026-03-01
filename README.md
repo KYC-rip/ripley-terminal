@@ -52,7 +52,7 @@ pnpm build
 - **Secure RPC**: Open a local, authenticated port (38084) for your agents.
 - **Granular Permissions**: Isolate agents to specific subaddresses or accounts.
 - **Spend Shields**: Configure daily and session-based XMR limits.
-- **Uplink Skills**: Native support for Gemini, [OpenClaw](https://github.com/KYC-rip/openclaw), and Claude Desktop.
+- **Uplink Skills**: Native support for Gemini, OpenClaw, and Claude.
 
 ## 🏗 Maintenance & Release Workflow
 
