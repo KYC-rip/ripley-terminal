@@ -15,11 +15,13 @@ if (process.defaultApp) {
     app.setAsDefaultProtocolClient('monero', process.execPath, [join(__dirname, '..', '..')]);
     app.setAsDefaultProtocolClient('ripley', process.execPath, [join(__dirname, '..', '..')]);
     app.setAsDefaultProtocolClient('ghost', process.execPath, [join(__dirname, '..', '..')]);
+    app.setAsDefaultProtocolClient('xmr402', process.execPath, [join(__dirname, '..', '..')]);
   }
 } else {
   app.setAsDefaultProtocolClient('monero');
   app.setAsDefaultProtocolClient('ripley');
   app.setAsDefaultProtocolClient('ghost');
+  app.setAsDefaultProtocolClient('xmr402');
 }
 
 // macOS specific: handle URL when app is already running or launched via URL
@@ -76,6 +78,17 @@ let pendingDeepLink: string | null = null;
 
 function handleDeepLink(url: string) {
   console.log(`[Main] Incoming Deep Link: ${url}`);
+  
+  if (url.startsWith('xmr402:')) {
+    console.log(`[Main] 🛡️ XMR402 Challenge detected. Triggering Tactical Prompt...`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('xmr402-challenge', url);
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      return;
+    }
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     console.log(`[Main] Sending deep-link to renderer...`);
     mainWindow.webContents.send('deep-link', url);
@@ -100,7 +113,7 @@ if (!gotTheLock) {
     }
     // Protocol handler for Windows/Linux
     const url = commandLine.pop();
-    if (url && (url.startsWith('monero:') || url.startsWith('ghost:') || url.startsWith('ripley:'))) {
+    if (url && (url.startsWith('monero:') || url.startsWith('ghost:') || url.startsWith('ripley:') || url.startsWith('xmr402:'))) {
       handleDeepLink(url);
     }
   });
@@ -371,6 +384,29 @@ app.whenReady().then(async () => {
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  });
+
+  ipcMain.handle('send-xmr', async (_, address: string, amountAtomic: string) => {
+    try {
+      const txHash = await WalletManager.transfer(address, amountAtomic);
+      return { success: true, txid: txHash };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-tx-proof', async (_, txHash: string, address: string, message: string) => {
+    try {
+      const signature = await WalletManager.getTxProof(txHash, address, message);
+      return { success: true, signature };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('authorize-xmr402', async (_, { id, password }) => {
+    AgentGateway.resolveAuth(id, password);
+    return { success: true };
   });
 
   ipcMain.handle('select-background-image', async () => {

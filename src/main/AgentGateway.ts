@@ -8,6 +8,16 @@ export class AgentGateway {
   private mainWindow: BrowserWindow | null = null;
   private store: any = null;
 
+  private static pendingAuths = new Map<string, (password: string | null) => void>();
+
+  public static resolveAuth(id: string, password: string | null) {
+    const resolve = this.pendingAuths.get(id);
+    if (resolve) {
+      resolve(password);
+      this.pendingAuths.delete(id);
+    }
+  }
+
   constructor(mainWindow: BrowserWindow, store: any) {
     this.mainWindow = mainWindow;
     this.store = store;
@@ -54,6 +64,8 @@ export class AgentGateway {
         this.handleTransfer(req, res);
       } else if (req.method === 'POST' && url.pathname === '/subaddress') {
         this.handleSubaddress(req, res);
+      } else if (req.method === 'POST' && url.pathname === '/pay_402') {
+        this.handlePay402(req, res);
       } else if (req.method === 'GET' && url.pathname === '/network') {
         this.handleNetwork(res);
       } else {
@@ -200,5 +212,76 @@ export class AgentGateway {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     }
+  }
+
+  private async handlePay402(req: http.IncomingMessage, res: http.ServerResponse) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { address, amount, message } = JSON.parse(body);
+        if (!address || !amount || !message) {
+          throw new Error('Missing address, amount, or message (nonce)');
+        }
+
+        const requestId = Math.random().toString(36).substring(7);
+        this.log('info', `Agent requesting payment of ${amount} XMR. Waiting for user authorization...`);
+
+        // 1. Trigger Modal in Renderer
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('agent-pay-402', {
+            id: requestId,
+            address,
+            amount,
+            message
+          });
+
+          if (this.mainWindow.isMinimized()) this.mainWindow.restore();
+          this.mainWindow.focus();
+        }
+
+        // 2. Wait for Authorization
+        const password = await new Promise<string | null>((resolve) => {
+          AgentGateway.pendingAuths.set(requestId, resolve);
+          // Auto-timeout after 2 minutes
+          setTimeout(() => {
+            if (AgentGateway.pendingAuths.has(requestId)) {
+              AgentGateway.resolveAuth(requestId, null);
+            }
+          }, 120000);
+        });
+
+        if (!password) {
+          this.log('fail', 'Payment authorization denied or timed out.');
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Authorization Denied' }));
+          return;
+        }
+
+        // 3. Execute Transfer
+        this.log('ok', 'Payment authorized. Executing transfer...');
+        const amountAtomic = (parseFloat(amount) * 1e12).toFixed(0);
+        const txHash = await WalletManager.transfer(address, amountAtomic);
+
+        // 4. Generate Proof
+        this.log('ok', 'Transfer successful. Generating XMR402 proof...');
+        const proof = await WalletManager.getTxProof(txHash, address, message);
+
+        // 5. Respond to Agent
+        const authHeader = `XMR402 txid="${txHash}", proof="${proof}"`;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'PAID',
+          authorization_header: authHeader,
+          txid: txHash,
+          proof
+        }));
+
+      } catch (e: any) {
+        this.log('fail', `402 Payment Error: ${e.message}`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
   }
 }

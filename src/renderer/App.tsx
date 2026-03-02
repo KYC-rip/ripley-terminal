@@ -10,6 +10,7 @@ import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
 import { AgentTab } from './components/vault/AgentTab';
+import { XMR402Modal } from './components/common/XMR402Modal';
 import { VaultProvider } from './contexts/VaultContext';
 
 const SkinOverlay = ({ config }: { config: any }) => {
@@ -618,6 +619,7 @@ function MainApp() {
             </div>
           </div>
         )}
+        <XMR402Modal />
       </div>
     </div>
   );

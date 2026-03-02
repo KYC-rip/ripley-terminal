@@ -99,6 +99,11 @@ export interface IApi {
   getGhostTrades: () => Promise<{ success: boolean; trades: any[]; error?: string }>;
   updateAgentConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
   onAgentActivity: (callback: (activity: any) => void) => () => void;
+  onAgentPay402: (callback: (data: any) => void) => () => void;
+  onXmr402Challenge: (callback: (url: string) => void) => () => void;
+  authorizeXmr402: (id: string, password: string | null) => Promise<{ success: boolean; error?: string }>;
+  sendXmr: (address: string, amountAtomic: string) => Promise<{ success: boolean; txid?: string; error?: string }>;
+  getTxProof: (txHash: string, address: string, message: string) => Promise<{ success: boolean; signature?: string; error?: string }>;
 }
 
 declare global {

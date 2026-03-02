@@ -52,11 +52,23 @@ const api = {
   getGhostTrades: () => ipcRenderer.invoke('get-ghost-trades'),
 
   updateAgentConfig: (config: any) => ipcRenderer.invoke('update-agent-config', config),
+
   onAgentActivity: (callback: (activity: any) => void) => {
     const handler = (_: any, data: any) => callback(data);
     ipcRenderer.on('agent-activity', handler);
     return () => ipcRenderer.removeListener('agent-activity', handler);
   },
+
+  onAgentPay402: (callback: (data: any) => void) => {
+    const handler = (_: any, data: any) => callback(data);
+    ipcRenderer.on('agent-pay-402', handler);
+    return () => ipcRenderer.removeListener('agent-pay-402', handler);
+  },
+
+  authorizeXmr402: (id: string, password: string | null) => ipcRenderer.invoke('authorize-xmr402', { id, password }),
+
+  sendXmr: (address: string, amountAtomic: string) => ipcRenderer.invoke('send-xmr', address, amountAtomic),
+  getTxProof: (txHash: string, address: string, message: string) => ipcRenderer.invoke('get-tx-proof', txHash, address, message),
 
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')
 }

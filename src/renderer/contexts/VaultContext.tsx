@@ -60,15 +60,26 @@ export interface VaultContextType {
   rescan: (height: number) => Promise<void>;
   addLog: (msg: string, type?: LogEntry['type']) => void;
 
-  // 🔗 Deep Link Support
   deepLinkData: {
     address?: string;
     amount?: string;
     description?: string;
     name?: string;
+    returnUrl?: string;
   } | null;
   setDeepLinkData: (data: any) => void;
   clearDeepLinkData: () => void;
+
+  // 🛡️ XMR402 Challenge Support
+  monero402Challenge: {
+    id: string;
+    address: string;
+    amount: string;
+    message: string;
+    type: 'agent' | 'deep-link';
+    returnUrl?: string;
+  } | null;
+  clearMonero402Challenge: () => void;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -96,6 +107,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [outputs, setOutputs] = useState<any[]>([]);
   const [requestedAction, setRequestedAction] = useState<string | null>(null);
   const [deepLinkData, setDeepLinkData] = useState<any>(null);
+  const [monero402Challenge, setMonero402Challenge] = useState<any>(null);
   const lastHeightRef = useRef<number>(0);
   const daemonHeightRef = useRef<number>(0);
 
@@ -112,6 +124,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearDeepLinkData = useCallback(() => setDeepLinkData(null), []);
+  const clearMonero402Challenge = useCallback(() => setMonero402Challenge(null), []);
 
   const addLog = useCallback((msg: string, type: any = 'info') => {
     setLogs(prev => [{ msg, timestamp: Date.now(), type }, ...prev].slice(0, 100));
@@ -231,6 +244,41 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       return () => cleanup();
     }
   }, [refresh, determineSyncStatus, selectedAccountIndex]);
+
+  // 🛡️ XMR402 Challenge Listeners
+  useEffect(() => {
+    const cleanupAgent = window.api.onAgentPay402?.((data: any) => {
+      console.log('[VaultContext] Received Agent XMR402 challenge:', data);
+      setMonero402Challenge({ ...data, type: 'agent' });
+    });
+
+    const cleanupDeep = window.api.onXmr402Challenge?.((url: string) => {
+      console.log('[VaultContext] Received DeepLink XMR402 challenge:', url);
+      try {
+        const u = new URL(url.replace('xmr402://', 'http://402/'));
+        const address = u.pathname.replace('/', '');
+        const amount = u.searchParams.get('amount') || '';
+        const message = u.searchParams.get('message') || u.searchParams.get('nonce') || '';
+        const returnUrl = u.searchParams.get('return_url') || undefined;
+        
+        setMonero402Challenge({
+          id: 'deep-link',
+          address,
+          amount,
+          message,
+          type: 'deep-link',
+          returnUrl
+        });
+      } catch (e) {
+        console.error('Failed to parse XMR402 deep link', e);
+      }
+    });
+
+    return () => {
+      cleanupAgent?.();
+      cleanupDeep?.();
+    };
+  }, []);
 
 
   const unlock = useCallback(async (
@@ -611,7 +659,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     createAccount, sendMulti, getFeeEstimates,
     getTxKey, getTxProof, checkTxKey, checkTxProof,
     requestedAction, setRequestedAction,
-    deepLinkData, setDeepLinkData, clearDeepLinkData
+    deepLinkData, setDeepLinkData, clearDeepLinkData,
+    monero402Challenge, clearMonero402Challenge
   }), [
     accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
     currentHeight, totalHeight, syncPercent, isAppLoading, isInitializing, isLocked,
@@ -620,7 +669,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
     createAccount, sendMulti, getFeeEstimates, requestedAction, setRequestedAction,
     getTxKey, getTxProof, checkTxKey, checkTxProof,
-    deepLinkData, setDeepLinkData, clearDeepLinkData
+    deepLinkData, setDeepLinkData, clearDeepLinkData,
+    monero402Challenge, clearMonero402Challenge
   ]);
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

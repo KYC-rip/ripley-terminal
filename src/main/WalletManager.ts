@@ -126,4 +126,19 @@ export class WalletManager {
     });
     return res.address;
   }
+
+  /**
+   * Generate a transaction proof for a specific TXID and recipient address
+   * @param txid Transaction ID
+   * @param address Recipient address
+   * @param message Nonce or message to include in the proof
+   */
+  public static async getTxProof(txid: string, address: string, message: string = '') {
+    const res = await this.callRpc('get_tx_proof', {
+      txid,
+      address,
+      message
+    });
+    return res.signature;
+  }
 }
