@@ -65,6 +65,12 @@ const api = {
     return () => ipcRenderer.removeListener('agent-pay-402', handler);
   },
 
+  onXmr402Challenge: (callback: (url: string) => void) => {
+    const handler = (_: any, url: string) => callback(url);
+    ipcRenderer.on('xmr402-challenge', handler);
+    return () => ipcRenderer.removeListener('xmr402-challenge', handler);
+  },
+
   authorizeXmr402: (id: string, password: string | null) => ipcRenderer.invoke('authorize-xmr402', { id, password }),
 
   sendXmr: (address: string, amountAtomic: string) => ipcRenderer.invoke('send-xmr', address, amountAtomic),
