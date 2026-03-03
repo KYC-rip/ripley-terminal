@@ -51,6 +51,12 @@ const api = {
   saveGhostTrade: (txHash: string, tradeId: string) => ipcRenderer.invoke('save-ghost-trade', txHash, tradeId),
   getGhostTrades: () => ipcRenderer.invoke('get-ghost-trades'),
 
+  // XMR402 Payment Cache
+  saveXmr402Payment: (nonce: string, txid: string, proof: string, amount: string, returnUrl?: string) =>
+    ipcRenderer.invoke('save-xmr402-payment', nonce, txid, proof, amount, returnUrl),
+  getXmr402Payment: (nonce: string) => ipcRenderer.invoke('get-xmr402-payment', nonce),
+  getAllXmr402Payments: () => ipcRenderer.invoke('get-all-xmr402-payments'),
+
   updateAgentConfig: (config: any) => ipcRenderer.invoke('update-agent-config', config),
 
   onAgentActivity: (callback: (activity: any) => void) => {
@@ -72,8 +78,9 @@ const api = {
   },
 
   authorizeXmr402: (id: string, password: string | null) => ipcRenderer.invoke('authorize-xmr402', { id, password }),
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
 
-  sendXmr: (address: string, amountAtomic: string) => ipcRenderer.invoke('send-xmr', address, amountAtomic),
+  sendXmr: (address: string, amountAtomic: string, accountIndex?: number) => ipcRenderer.invoke('send-xmr', address, amountAtomic, accountIndex),
   getTxProof: (txHash: string, address: string, message: string) => ipcRenderer.invoke('get-tx-proof', txHash, address, message),
 
   confirmShutdown: () => ipcRenderer.send('confirm-shutdown')

@@ -34,6 +34,11 @@ function MainApp() {
   const [showConsole, setShowConsole] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
+  const [appVersion, setAppVersion] = useState('1.0');
+
+  useEffect(() => {
+    window.api.getAppInfo().then(info => setAppVersion(info.version));
+  }, []);
 
   const [appConfig, setAppConfig] = useState<any>(null);
 
@@ -571,7 +576,7 @@ function MainApp() {
               <div className={`w-1 h-1 rounded-full ${isSyncing ? 'bg-xmr-accent' : 'bg-xmr-green'}`}></div>
               {isSyncing ? 'Sync_In_Progress' : 'System_Operational'}
             </span>
-            <span className="opacity-75">© 2026 kyc.rip // ripley_terminal_v1.0</span>
+            <span className="opacity-75">© 2026 kyc.rip // ripley_terminal_v{appVersion}</span>
           </div>
         </footer>
         {showFeedbackModal && (

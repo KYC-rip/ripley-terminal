@@ -297,10 +297,34 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
-  ipcMain.handle('get-app-info', () => {
+  ipcMain.handle('clear-cache', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const userData = app.getPath('userData');
+
+    try {
+      // 1. Clear Nodes Cache
+      const nodesPath = path.join(userData, 'latest_nodes.json');
+      if (fs.existsSync(nodesPath)) fs.unlinkSync(nodesPath);
+
+      // 2. Clear Tor Data
+      const torDataPath = path.join(userData, 'tor_data');
+      if (fs.existsSync(torDataPath)) {
+        fs.rmSync(torDataPath, { recursive: true, force: true });
+      }
+
+      console.log('[Main] Tactical Cache Purge Complete.');
+      return { success: true };
+    } catch (e: any) {
+      console.error('[Main] Cache purge failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-app-info', async () => {
     return {
       version: app.getVersion(),
-      appDataPath: app.getPath('userData'),
+      appDataPath: app.getPath('appData'),
       walletsPath: join(app.getPath('userData'), 'wallets'),
       platform: process.platform
     };
@@ -372,6 +396,53 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle('save-xmr402-payment', async (_, nonce: string, txid: string, proof: string, amount: string, returnUrl?: string) => {
+    try {
+      const extStore = new Store(); // Use a fresh instance to ensure safe write
+      const payments = extStore.get('xmr402_payments', {}) as Record<string, any>;
+      // We key by txid so the ledger can easily look it up later, but we also embed the nonce.
+      payments[txid] = {
+        nonce,
+        amount,
+        proof,
+        returnUrl,
+        timestamp: Date.now()
+      };
+      extStore.set('xmr402_payments', payments);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-xmr402-payment', async (_, nonce: string) => {
+    try {
+      const extStore = new Store();
+      const payments = extStore.get('xmr402_payments', {}) as Record<string, any>;
+      // Find the payment object that has this nonce
+      const payment = Object.values(payments).find(p => p.nonce === nonce);
+      // We'll return the txid as well, so find the key
+      const txid = Object.keys(payments).find(key => payments[key].nonce === nonce);
+
+      if (payment && txid) {
+        return { success: true, payment: { txid, ...payment } };
+      }
+      return { success: false, error: 'Payment not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-all-xmr402-payments', async () => {
+    try {
+      const extStore = new Store();
+      const payments = extStore.get('xmr402_payments', {}) as Record<string, any>;
+      return { success: true, payments };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('update-agent-config', async (_, newAgentConfig: any) => {
     try {
       store.set('agent_config', newAgentConfig);
@@ -386,9 +457,9 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('send-xmr', async (_, address: string, amountAtomic: string) => {
+  ipcMain.handle('send-xmr', async (_, address: string, amountAtomic: string, accountIndex: number = 0) => {
     try {
-      const txHash = await WalletManager.transfer(address, amountAtomic);
+      const txHash = await WalletManager.transfer(address, amountAtomic, accountIndex);
       return { success: true, txid: txHash };
     } catch (e: any) {
       return { success: false, error: e.message };

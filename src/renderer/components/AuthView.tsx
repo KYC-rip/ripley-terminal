@@ -61,8 +61,26 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
   const [seedLanguage, setSeedLanguage] = useState('English');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  useEffect(() => {
+    window.api.getAppInfo().then(info => setAppVersion(info.version));
+  }, []);
 
   const activeIdentity = identities.find(i => i.id === activeId) || identities[0];
+
+  const handleClearCache = async () => {
+    setIsProcessing(true);
+    try {
+      await window.api.clearCache();
+      window.location.reload();
+    } catch (err: any) {
+      setError(`CACHE_PURGE_FAILED: ${err.message.toUpperCase()}`);
+      setIsProcessing(false);
+      setShowClearConfirm(false);
+    }
+  };
 
   const handleIdentityChange = (id: string) => {
     if (isProcessing) return;
@@ -117,9 +135,14 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           <h1 className="text-2xl font-black italic uppercase text-xmr-green tracking-tighter">
             {step === 'RESTORE' ? 'Identity_Recovery' : step === 'NEW_PASSWORD' ? 'Initialize_Vault' : (identities.length === 0 || step === 'LABEL') ? 'New_Tactical_ID' : 'Vault_Authorization'}
           </h1>
-          <div className="flex items-center justify-center gap-2 text-[11px] text-xmr-dim uppercase tracking-widest">
-            <Users size={10} />
-            <span>Active_ID: <span className="text-xmr-green font-black">{newName || activeIdentity?.name || 'INITIALIZING'}</span></span>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center justify-center gap-2 text-[11px] text-xmr-dim uppercase tracking-widest">
+              <Users size={10} />
+              <span>Active_ID: <span className="text-xmr-green font-black">{newName || activeIdentity?.name || 'INITIALIZING'}</span></span>
+            </div>
+            {appVersion && (
+              <span className="text-[9px] font-black text-xmr-dim/50 tracking-widest uppercase">Ripley_Terminal_v{appVersion}</span>
+            )}
           </div>
         </div>
 
@@ -152,21 +175,57 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
           {/* 🛡️ TACTICAL NETWORK TOGGLE: Direct control of main process RoutingMode */}
           {!isProcessing && (
-            <div className="mt-6 pt-4 border-t border-xmr-border/10 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                {routingMode === 'tor' ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
-                <span className="text-xs font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
+            <div className="mt-6 pt-4 border-t border-xmr-border/10 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  {routingMode === 'tor' ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
+                  <span className="text-xs font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleNetwork}
+                  className={`px-2 py-0.5 rounded border text-xs font-black transition-all cursor-pointer ${routingMode === 'tor'
+                    ? 'border-xmr-green/50 text-xmr-green hover:bg-xmr-green/10'
+                    : 'border-xmr-accent/50 text-xmr-accent hover:bg-xmr-accent/10'
+                    }`}
+                >
+                  {routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET_ACTIVE'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={toggleNetwork}
-                className={`px-2 py-0.5 rounded border text-xs font-black transition-all cursor-pointer ${routingMode === 'tor'
-                  ? 'border-xmr-green/50 text-xmr-green hover:bg-xmr-green/10'
-                  : 'border-xmr-accent/50 text-xmr-accent hover:bg-xmr-accent/10'
-                  }`}
-              >
-                {routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET_ACTIVE'}
-              </button>
+
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert size={12} className="text-xmr-accent/60" />
+                  <span className="text-xs font-black uppercase tracking-widest text-xmr-dim">Tactical_Purge</span>
+                </div>
+                {!showClearConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="text-[10px] font-black text-xmr-dim hover:text-xmr-accent uppercase tracking-widest transition-colors cursor-pointer border-b border-dashed border-xmr-dim/30"
+                  >
+                    Clear_Cache
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-black text-xmr-accent uppercase animate-pulse">Confirm?</span>
+                    <button
+                      type="button"
+                      onClick={handleClearCache}
+                      className="text-[10px] font-black text-xmr-accent hover:bg-xmr-accent/10 px-2 py-0.5 border border-xmr-accent/30 uppercase tracking-widest transition-all cursor-pointer"
+                    >
+                      YES
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(false)}
+                      className="text-[10px] font-black text-xmr-dim hover:text-xmr-green uppercase tracking-widest transition-colors cursor-pointer"
+                    >
+                      NO
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </Card>

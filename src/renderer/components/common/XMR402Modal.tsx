@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Lock, X, Zap, Bot, ExternalLink, ChevronRight, AlertCircle, Copy, Check } from 'lucide-react';
+import { Shield, Lock, X, Zap, Bot, ExternalLink, ChevronRight, AlertCircle, Copy, Check, Users, ChevronUp, ChevronDown } from 'lucide-react';
 import { useVault } from '../../hooks/useVault';
 
 export const XMR402Modal: React.FC = () => {
-  const { monero402Challenge, clearMonero402Challenge, balance, isStagenet } = useVault();
+  const { monero402Challenge, clearMonero402Challenge, balance, isStagenet, accounts, selectedAccountIndex, setSelectedAccountIndex } = useVault();
   const [password, setPassword] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{ txid: string, proof: string } | null>(null);
   const [copiedTxid, setCopiedTxid] = useState(false);
   const [copiedProof, setCopiedProof] = useState(false);
+  const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<string>('');
 
   if (!monero402Challenge) return null;
 
@@ -19,8 +21,10 @@ export const XMR402Modal: React.FC = () => {
   const handleAuthorize = async () => {
     setIsProcessing(true);
     setError(null);
+    setPaymentStep('Initializing...');
     try {
       if (type === 'agent') {
+        setPaymentStep('Authorizing AI Agent...');
         const res = await window.api.authorizeXmr402(id, password);
         if (res.success) {
           clearMonero402Challenge();
@@ -28,34 +32,74 @@ export const XMR402Modal: React.FC = () => {
           setError(res.error || 'Authorization failed.');
         }
       } else {
-        // Handle Deep Link Flow
-        const amountAtomic = (parseFloat(amount) * 1e12).toFixed(0);
-        
-        // 1. Execute XMR Transfer
-        const txRes = await window.api.sendXmr(address, amountAtomic);
-        if (!txRes.success) throw new Error(txRes.error || 'Transaction failed');
-        
-        // 2. Generate Proof using nonce
-        const proofRes = await window.api.getTxProof(txRes.txid || '', address, message);
-        if (!proofRes.success) throw new Error(proofRes.error || 'Proof generation failed');
+        // Deep Link Flow - Duplicate Prevention
+        setPaymentStep('Checking cached payments...');
+        const cacheRes = await (window as any).api.getXmr402Payment(message);
+        let finalTxid = '';
+        let finalProof = '';
 
-        // 3. Handle Transparent Handback or Fallback to Success View
-        if (returnUrl) {
+        if (cacheRes.success && cacheRes.payment) {
+          // Re-use cached payment
+          setPaymentStep('Cached payment found. Reusing...');
+          console.log('[XMR402] Cached payment found. Skipping physical execution.', cacheRes.payment);
+          finalTxid = cacheRes.payment.txid;
+          finalProof = cacheRes.payment.proof;
+        } else {
+          // 1. Execute new physical XMR Transfer
+          setPaymentStep('Broadcasting transaction...');
+          const amountAtomic = (parseFloat(amount) * 1e12).toFixed(0);
+          const txRes = await window.api.sendXmr(address, amountAtomic, selectedAccountIndex);
+          if (!txRes.success) throw new Error(txRes.error || 'Transaction failed');
+          finalTxid = txRes.txid || '';
+
+          // 2. Robust Proof Generation (Retry Loop for mempool race conditions)
+          setPaymentStep('Waiting for transaction to enter mempool...');
+          let proofRes: any = { success: false };
+          for (let i = 0; i < 4; i++) {
+            proofRes = await window.api.getTxProof(finalTxid, address, message);
+            if (proofRes.success && proofRes.signature) {
+              finalProof = proofRes.signature;
+              setPaymentStep('Cryptographic proof generated!');
+              break;
+            }
+            setPaymentStep(`Generating proof (Attempt ${i + 1}/4)...`);
+            console.warn(`[XMR402] Proof generation attempt ${i + 1} failed. Retrying in 2s...`);
+            await new Promise(r => setTimeout(r, 2000));
+          }
+
+          if (!finalProof) {
+            console.error('[XMR402] Proof generation completely failed after retries.');
+            // We do NOT throw here so the user at least gets the TXID,
+            // but we MUST NOT trigger the callback automatically.
+          }
+
+          // 3. Store Payment Record
+          await (window as any).api.saveXmr402Payment(message, finalTxid, finalProof, amount, returnUrl);
+        }
+
+        // 4. Handle Transparent Handback or Fallback to Success View
+        setPaymentStep('Finalizing protocol...');
+        if (returnUrl && finalProof) {
           try {
             const callbackUrl = new URL(decodeURIComponent(returnUrl));
-            callbackUrl.searchParams.set('xmr402_txid', txRes.txid || '');
-            callbackUrl.searchParams.set('xmr402_proof', proofRes.signature || '');
+            callbackUrl.searchParams.set('xmr402_txid', finalTxid);
+            callbackUrl.searchParams.set('xmr402_proof', finalProof);
             
             await window.api.openExternal(callbackUrl.toString());
             clearMonero402Challenge();
           } catch (e) {
             console.error('Invalid return_url:', returnUrl);
-            setSuccessData({ txid: txRes.txid || '', proof: proofRes.signature || '' });
+            setSuccessData({ txid: finalTxid, proof: finalProof });
           }
         } else {
+          // If no returnUrl OR if proof generation failed, show the fallback UI
+          // so the user can see the TXID. The ledger will let them retry the callback later.
+          if (returnUrl && !finalProof) {
+            console.warn('[XMR402] Skipping automatic callback due to missing proof.');
+          }
           setSuccessData({
-            txid: txRes.txid || '',
-            proof: proofRes.signature || ''
+            txid: finalTxid,
+            proof: finalProof
           });
         }
       }
@@ -63,6 +107,7 @@ export const XMR402Modal: React.FC = () => {
       setError(err.message);
     } finally {
       setIsProcessing(false);
+      setPaymentStep('');
     }
   };
 
@@ -82,6 +127,8 @@ export const XMR402Modal: React.FC = () => {
     }
     clearMonero402Challenge();
   };
+
+  const activeAccount = accounts.find(a => a.index === selectedAccountIndex) || accounts[0];
 
   return (
     <AnimatePresence>
@@ -168,7 +215,7 @@ export const XMR402Modal: React.FC = () => {
                 <div className="flex items-center justify-center p-4 bg-xmr-green/10 border border-xmr-green rounded-sm mb-4">
                   <div className="flex flex-col items-center">
                     <Check size={32} className="text-xmr-green mb-2" />
-                    <span className="text-xs font-black uppercase text-xmr-green tracking-widest">Protocol_Excuted_Successfully</span>
+                    <span className="text-xs font-black uppercase text-xmr-green tracking-widest">Protocol_Executed_Successfully</span>
                   </div>
                 </div>
                 
@@ -214,9 +261,51 @@ export const XMR402Modal: React.FC = () => {
                 {/* Auth Input */}
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-xmr-dim">
-                    <span>Vault_Access_Token</span>
-                    <span>Wallet_Balance: {balance.total} XMR</span>
-                  </div>
+                      <div className="flex items-center gap-2 cursor-pointer hover:text-xmr-green transition-colors" onClick={() => setShowAccountSelector(!showAccountSelector)}>
+                        <Users size={12} />
+                        <span>{activeAccount?.label || 'Account_0'}</span>
+                        {showAccountSelector ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                      </div>
+                      <span className={Number(activeAccount?.unlockedBalance) < Number(amount) ? 'text-red-500 animate-pulse' : 'text-xmr-green'}>
+                        Balance: {activeAccount?.unlockedBalance || '0.0000'} XMR
+                      </span>
+                    </div>
+
+                    <AnimatePresence>
+                      {showAccountSelector && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden bg-xmr-surface border border-xmr-border/40"
+                        >
+                          <div className="p-2 space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                            {accounts.map((acc) => (
+                              <button
+                                key={acc.index}
+                                onClick={() => {
+                                  setSelectedAccountIndex(acc.index);
+                                  setShowAccountSelector(false);
+                                }}
+                                className={`w-full flex justify-between items-center p-2 text-[10px] font-black uppercase tracking-wider transition-all ${acc.index === selectedAccountIndex
+                                  ? 'bg-xmr-green/10 text-xmr-green border border-xmr-green/30'
+                                  : 'hover:bg-xmr-base text-xmr-dim'
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="opacity-50">#{acc.index}</span>
+                                  {acc.label}
+                                </div>
+                                <span className={Number(acc.unlockedBalance) < Number(amount) ? 'text-red-500/50' : 'text-xmr-green/70'}>
+                                  {acc.unlockedBalance} XMR
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                       <Lock size={14} className="text-xmr-dim group-focus-within:text-xmr-green" />
@@ -241,12 +330,14 @@ export const XMR402Modal: React.FC = () => {
                 {/* Actions */}
                 <div className="pt-2 flex gap-4">
                   <button
-                    disabled={!password || isProcessing}
+                      disabled={!password || isProcessing || (Number(activeAccount?.unlockedBalance) < Number(amount))}
                     onClick={handleAuthorize}
-                    className="flex-grow py-4 bg-xmr-green text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,255,65,0.2)]"
+                      className="flex-grow py-4 bg-xmr-green text-xmr-base border border-xmr-green font-black uppercase text-xs tracking-[0.2em] hover:bg-xmr-base hover:text-xmr-green transition-all shadow-[0_0_20px_rgba(0,255,65,0.2)] hover:shadow-[0_0_25px_rgba(0,255,65,0.4)] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isProcessing ? <RefreshCw size={16} className="animate-spin" /> : <ChevronRight size={16} />}
-                    {isProcessing ? 'Generating_Cryptographic_Proof...' : 'Confirm_Execution'}
+                      {isProcessing ? <RefreshCw size={16} className="animate-spin shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
+                      <span className="truncate max-w-full inline-block">
+                        {isProcessing ? (paymentStep || 'Processing...') : 'Confirm_Execution'}
+                      </span>
                   </button>
                   <button
                     onClick={handleDeny}

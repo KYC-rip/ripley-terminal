@@ -257,10 +257,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       try {
         const u = new URL(url.replace('xmr402://', 'http://402/'));
         const address = u.pathname.replace('/', '');
-        const amount = u.searchParams.get('amount') || '';
+        let amount = u.searchParams.get('amount') || '';
         const message = u.searchParams.get('message') || u.searchParams.get('nonce') || '';
         const returnUrl = u.searchParams.get('return_url') || undefined;
         
+        // 🛡️ Amount Normalization: XMR vs Piconero
+        // If amount is a large integer (> 1M), assume it's atomic units (piconero)
+        if (amount && /^\d+$/.test(amount)) {
+          const num = BigInt(amount);
+          if (num >= BigInt(1000000)) {
+            // Convert to XMR string: divide by 1e12
+            const whole = num / BigInt(1e12);
+            const frac = num % BigInt(1e12);
+            amount = `${whole}.${frac.toString().padStart(12, '0')}`.replace(/\.?0+$/, "");
+          }
+        }
+
         setMonero402Challenge({
           id: 'deep-link',
           address,

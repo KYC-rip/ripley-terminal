@@ -47,6 +47,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
   const [txProofs, setTxProofs] = useState<Record<string, string>>({});
   const [isLoadingDetails, setIsLoadingDetails] = useState<Record<string, boolean>>({});
   const [ghostTrades, setGhostTrades] = useState<Record<string, { tradeId: string, timestamp: number }>>({});
+  const [xmr402Payments, setXmr402Payments] = useState<Record<string, any>>({});
 
   useEffect(() => {
     const fetchGhostTrades = async () => {
@@ -59,7 +60,18 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
         console.error("Failed to load ghost trades:", e);
       }
     };
+    const fetchXmr402Payments = async () => {
+      try {
+        const result = await (window as any).api.getAllXmr402Payments();
+        if (result.success) {
+          setXmr402Payments(result.payments || {});
+        }
+      } catch (e) {
+        console.error("Failed to load XMR402 payments:", e);
+      }
+    };
     fetchGhostTrades();
+    fetchXmr402Payments();
   }, [txs]);
 
   // Verification UI State
@@ -174,7 +186,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                 </h3>
                 <button
                   onClick={() => { setIsVerifyOpen(false); setVerifyResult(null); }}
-                  className="text-xmr-dim hover:text-white uppercase text-[10px] font-black tracking-widest"
+                  className="text-xmr-dim hover:text-white uppercase text-[10px] font-black tracking-widest cursor-pointer"
                 >
                   [Close]
                 </button>
@@ -282,6 +294,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                 {txs.map((tx) => {
                   const isExpanded = expandedTxId === tx.id;
                   const isIncoming = tx.type === 'in';
+                  const xmr402Info = xmr402Payments[tx.id];
 
                   return (
                     <div key={tx.id} className="flex flex-col transition-all duration-200">
@@ -304,6 +317,12 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               <span className="text-[9px] text-xmr-accent font-black uppercase tracking-tighter">Ghost</span>
                             </div>
                           )}
+                          {xmr402Info && (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-sm">
+                              <ShieldCheck size={10} className="text-blue-500" />
+                              <span className="text-[9px] text-blue-500 font-black uppercase tracking-tighter">XMR402</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className={`col-span-4 text-xs font-black ${isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}`}>
@@ -322,6 +341,30 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                       {/* Expanded Details */}
                       {isExpanded && (
                         <div className="px-4 py-4 bg-xmr-green/5 border-t border-b border-xmr-green/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                          {/* XMR402 Panel */}
+                          {xmr402Info && (
+                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-sm flex justify-between items-center">
+                              <div>
+                                <div className="text-[9px] text-blue-500 uppercase font-black tracking-widest">XMR402 Protocol Executed</div>
+                                <div className="text-xs text-white font-mono break-all opacity-80 mt-1">Nonce: {xmr402Info.nonce}</div>
+                              </div>
+                              {xmr402Info.returnUrl && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const callbackUrl = new URL(decodeURIComponent(xmr402Info.returnUrl));
+                                    callbackUrl.searchParams.set('xmr402_txid', tx.id);
+                                    if (xmr402Info.proof) callbackUrl.searchParams.set('xmr402_proof', xmr402Info.proof);
+                                    (window as any).api.openExternal(callbackUrl.toString());
+                                  }}
+                                  className="shrink-0 ml-4 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-sm transition-colors cursor-pointer flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                                >
+                                  <ExternalLink size={12} /> Retry Callback
+                                </button>
+                              )}
+                            </div>
+                          )}
+
                           {/* TXID */}
                           <div className="space-y-1">
                             <div className="flex justify-between items-center">
