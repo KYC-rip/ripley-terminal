@@ -1,7 +1,7 @@
 {
   "name": "ripley-terminal",
   "displayName": "Ripley Terminal",
-  "version": "1.0.33",
+  "version": "1.0.34",
   "description": "KYC.RIP Tactical Monero Desktop Wallet",
   "repository": {
     "type": "git",
@@ -56,7 +56,9 @@
     },
     "linux": {
       "icon": "public/icon.png",
-      "target": ["AppImage"]
+      "target": [
+        "AppImage"
+      ]
     },
     "extraResources": [
       {
