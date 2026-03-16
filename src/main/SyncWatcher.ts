@@ -12,6 +12,15 @@ export class SyncWatcher {
   private onLog?: (source: string, level: 'info' | 'error', message: string) => void;
   private loopCounter: number = 0;
 
+  // Daemon height cache — no need to hit the remote node every 2s
+  private cachedDaemonHeight: number = 0;
+  private lastDaemonHeightFetch: number = 0;
+  private static readonly DAEMON_HEIGHT_TTL = 30_000; // 30 seconds
+
+  // Padded sync state
+  private isSyncing: boolean = false;
+  private syncAborted: boolean = false;
+
   constructor(mainWindow: BrowserWindow, onLog?: (source: string, level: 'info' | 'error', message: string) => void) {
     this.mainWindow = mainWindow;
     this.onLog = onLog;
@@ -19,23 +28,26 @@ export class SyncWatcher {
 
   public start(): void {
     if (this.intervalId) return;
+    this.syncAborted = false;
     this.emitLog('Watcher', 'info', '👁️ Pulse monitoring started...');
     this.lastStoreTime = Date.now();
     this.loopCounter = 0;
+    // Kick off padded sync immediately, then start the polling loop
+    this.startPaddedSync();
     this.intervalId = setTimeout(() => this.runLoop(), 0);
   }
 
   private async runLoop(): Promise<void> {
     try {
-      if (!this.intervalId) return; // Guard for stop() during execution
+      if (!this.intervalId) return;
 
-  // 1. Always check height (Every 2s)
+      // 1. Check wallet height + cached daemon height
       await this.checkSyncStatus();
 
       // 2. Periodic tasks
       this.loopCounter++;
 
-      // Check balance every 3 cycles (~6s) or if it's the first time
+      // Check balance every 3 cycles (~6s) or first time
       if (this.loopCounter % 3 === 0 || this.lastKnownBalance === -1) {
         await this.checkBalance();
       }
@@ -44,7 +56,6 @@ export class SyncWatcher {
     } catch (e) {
       /* Loop resilience */
     } finally {
-      // Schedule next run
       if (this.intervalId !== null) {
         this.intervalId = setTimeout(() => this.runLoop(), 2000);
       }
@@ -59,12 +70,14 @@ export class SyncWatcher {
   }
 
   public stop(): void {
+    this.syncAborted = true;
     if (this.intervalId) {
       clearTimeout(this.intervalId);
     }
     this.intervalId = null;
     this.lastKnownBalance = -1;
     this.lastKnownHeight = -1;
+    this.isSyncing = false;
     this.emitLog('Watcher', 'info', '💤 Pulse monitoring suspended.');
   }
 
@@ -89,12 +102,125 @@ export class SyncWatcher {
     if (this.onLog) this.onLog(source, level, message);
   }
 
+  // ─── Daemon Height with TTL Cache ───
+  private async getDaemonHeight(): Promise<number> {
+    const now = Date.now();
+    if (now - this.lastDaemonHeightFetch < SyncWatcher.DAEMON_HEIGHT_TTL && this.cachedDaemonHeight > 0) {
+      return this.cachedDaemonHeight;
+    }
+    try {
+      const h = await NodeManager.fetchDaemonHeight();
+      if (h > 0) {
+        this.cachedDaemonHeight = h;
+        this.lastDaemonHeightFetch = now;
+      }
+      return this.cachedDaemonHeight;
+    } catch {
+      return this.cachedDaemonHeight;
+    }
+  }
+
+  // ─── Padded (Chunked) Sync ───
+  // Calls `refresh` in batches so the RPC actively scans blocks
+  // instead of relying on its slow passive background refresh.
+  private async startPaddedSync(): Promise<void> {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+
+    this.emitLog('Sync', 'info', '🚀 Starting padded sync...');
+
+    try {
+      // Get initial wallet height
+      const initialHeight = await (WalletManager as any).callRpc('get_height');
+      let currentHeight = initialHeight.height || 0;
+
+      // Fetch daemon height (fresh, ignore cache for initial sync)
+      this.lastDaemonHeightFetch = 0;
+      const targetHeight = await this.getDaemonHeight();
+
+      if (targetHeight <= 0) {
+        this.emitLog('Sync', 'info', '⏳ Daemon height unknown, falling back to passive sync');
+        this.isSyncing = false;
+        return;
+      }
+
+      const gap = targetHeight - currentHeight;
+      if (gap <= 10) {
+        this.emitLog('Sync', 'info', '✅ Wallet already synced');
+        this.isSyncing = false;
+        return;
+      }
+
+      this.emitLog('Sync', 'info', `📦 ${gap} blocks behind (${currentHeight} → ${targetHeight}), chunking refresh...`);
+
+      // Chunk loop — call refresh repeatedly until caught up
+      while (!this.syncAborted) {
+        try {
+          // refresh returns { blocks_fetched, received_money }
+          // It processes a batch of blocks and returns — not blocking forever
+          const result = await (WalletManager as any).callRpc('refresh', {
+            start_height: currentHeight
+          });
+
+          const fetched = result.blocks_fetched || 0;
+
+          if (fetched === 0) {
+            // Caught up or stalled — recheck daemon height
+            this.lastDaemonHeightFetch = 0; // Force refresh
+            const freshTarget = await this.getDaemonHeight();
+            const heightNow = await (WalletManager as any).callRpc('get_height');
+            currentHeight = heightNow.height || currentHeight;
+
+            if (freshTarget - currentHeight <= 10) {
+              this.emitLog('Sync', 'info', `✅ Padded sync complete at block ${currentHeight}`);
+              break;
+            }
+            // Small pause before retrying if no blocks fetched
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+
+          // Update tracked height
+          currentHeight += fetched;
+
+          // Push progress to UI
+          this.lastKnownHeight = currentHeight;
+          this.pushEvent({
+            type: 'SYNC_UPDATE',
+            payload: { height: currentHeight, daemonHeight: targetHeight }
+          });
+
+          // Refresh daemon height periodically during long syncs
+          if (this.loopCounter % 10 === 0) {
+            this.lastDaemonHeightFetch = 0;
+            await this.getDaemonHeight();
+          }
+        } catch (e: any) {
+          // refresh can timeout on slow nodes — just retry
+          this.emitLog('Sync', 'error', `⚠️ Refresh chunk failed: ${e.message}, retrying...`);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      // Final balance check after sync completes
+      if (!this.syncAborted) {
+        await this.checkBalance();
+        // Save progress immediately
+        await (WalletManager as any).callRpc('store', {}).catch(() => {});
+        this.lastStoreTime = Date.now();
+      }
+    } catch (e: any) {
+      this.emitLog('Sync', 'error', `❌ Padded sync error: ${e.message}`);
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
   private async checkSyncStatus(): Promise<void> {
     try {
-      // 1. Refresh daemon height actively so the UI progress percentage is accurate
-      const daemonHeight = await NodeManager.fetchDaemonHeight();
+      // Use cached daemon height (refreshed every 30s)
+      const daemonHeight = await this.getDaemonHeight();
 
-      // 2. Refresh local wallet height
       const result = await (WalletManager as any).callRpc('get_height');
       const isFirstRun = this.lastKnownHeight === -1;
 

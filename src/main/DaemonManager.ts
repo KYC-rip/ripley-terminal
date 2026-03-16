@@ -164,7 +164,9 @@ export class DaemonManager {
         '--wallet-dir', this.walletDir,
         '--rpc-bind-port', `${this.rpcPort}`,
         '--disable-rpc-login',
-        '--daemon-address', targetNode
+        '--daemon-address', targetNode,
+        '--max-concurrency', '4',
+        '--no-initial-sync'
       ];
 
       if (network === 'stagenet') {
