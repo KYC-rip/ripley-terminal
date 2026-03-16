@@ -12,6 +12,11 @@
     --color-xmr-error: var(--error-color);
 
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --radius-sm: var(--skin-radius-sm, 0.25rem);
+  --radius-md: var(--skin-radius-md, 0.5rem);
+  --radius-lg: var(--skin-radius-lg, 0.75rem);
+  --radius-xl: var(--skin-radius-xl, 1rem);
 }
 
 :root {
@@ -22,6 +27,10 @@
   --text-dim: #00661a;
   --text-accent: #ff6600;
   --border-color: #004d13;
+  --skin-radius-sm: 2px;
+  --skin-radius-md: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
 }
 
 .dark {
@@ -84,6 +93,118 @@
     --img-filter-idle: grayscale(20%) opacity(1);
     --img-filter-hover: grayscale(0%) scale(1.05);
     /* Slightly enlarge on hover for visual interest */
+}
+
+/* ─── SKIN RADIUS OVERRIDES ─── */
+.skin-terminal, :not(.skin-clean):not(.skin-monero) {
+  --skin-radius-sm: 2px;
+  --skin-radius-md: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
+}
+
+.skin-clean {
+  --skin-radius-sm: 6px;
+  --skin-radius-md: 10px;
+  --skin-radius-lg: 14px;
+  --skin-radius-xl: 20px;
+}
+
+.skin-monero {
+  --skin-radius-sm: 4px;
+  --skin-radius-md: 8px;
+  --skin-radius-lg: 10px;
+  --skin-radius-xl: 14px;
+}
+
+/* ─── SKIN: Clean (Professional / Financial) ─── */
+.dark.skin-clean {
+  --bg-primary: #0f172a;
+  --bg-panel: #1e293b;
+  --brand-color: #60a5fa;
+  --text-primary: #e2e8f0;
+  --text-dim: #64748b;
+  --text-accent: #2dd4bf;
+  --border-color: #334155;
+  --color-ghost: #818cf8;
+  --warning-color: #fbbf24;
+  --error-color: #f87171;
+  --scanline-opacity: 0;
+  --vignette-opacity: 0;
+  --chart-line: #60a5fa;
+  --chart-area-top: rgba(96, 165, 250, 0.15);
+  --chart-grid: rgba(100, 116, 139, 0.1);
+  --img-filter-idle: none;
+  --img-filter-hover: none;
+}
+
+.light.skin-clean {
+  --bg-primary: #ffffff;
+  --bg-panel: #f8fafc;
+  --brand-color: #2563eb;
+  --text-primary: #0f172a;
+  --text-dim: #64748b;
+  --text-accent: #0d9488;
+  --border-color: #e2e8f0;
+  --color-ghost: #6366f1;
+  --warning-color: #d97706;
+  --error-color: #ef4444;
+  --scanline-opacity: 0;
+  --vignette-opacity: 0;
+  --chart-line: #2563eb;
+  --chart-area-top: rgba(37, 99, 235, 0.08);
+  --chart-grid: rgba(0, 0, 0, 0.04);
+  --img-filter-idle: none;
+  --img-filter-hover: none;
+}
+
+/* ─── SKIN: Monero (Classic XMR Branding) ─── */
+.dark.skin-monero {
+  --bg-primary: #0c0a09;
+  --bg-panel: rgba(28, 25, 23, 0.9);
+  --brand-color: #ff6600;
+  --text-primary: #fafaf9;
+  --text-dim: #78716c;
+  --text-accent: #4ade80;
+  --border-color: #44403c;
+  --color-ghost: #fb923c;
+  --warning-color: #fbbf24;
+  --error-color: #f87171;
+  --scanline-opacity: 0;
+  --vignette-opacity: 0.3;
+  --chart-line: #ff6600;
+  --chart-area-top: rgba(255, 102, 0, 0.2);
+  --chart-grid: rgba(120, 113, 108, 0.15);
+  --img-filter-idle: sepia(20%) contrast(1.1);
+  --img-filter-hover: sepia(0%) contrast(1);
+}
+
+.light.skin-monero {
+  --bg-primary: #fafaf9;
+  --bg-panel: #ffffff;
+  --brand-color: #ea580c;
+  --text-primary: #1c1917;
+  --text-dim: #78716c;
+  --text-accent: #16a34a;
+  --border-color: #d6d3d1;
+  --color-ghost: #f97316;
+  --warning-color: #d97706;
+  --error-color: #ef4444;
+  --scanline-opacity: 0;
+  --vignette-opacity: 0;
+  --chart-line: #ea580c;
+  --chart-area-top: rgba(234, 88, 12, 0.08);
+  --chart-grid: rgba(0, 0, 0, 0.04);
+  --img-filter-idle: none;
+  --img-filter-hover: none;
+}
+
+/* High Contrast */
+.high-contrast {
+  --scanline-opacity: 0 !important;
+  --vignette-opacity: 0 !important;
+  --text-dim: var(--text-primary) !important;
+  --bg-panel: var(--bg-primary) !important;
 }
 
 @layer base {

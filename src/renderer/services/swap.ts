@@ -459,3 +459,123 @@ export const fetchBridgeStatus = async (id: string) => {
     throw e;
   }
 };
+
+// ─── V2 BRIDGE API ───
+
+export interface BridgeRoute {
+  engine: string;
+  provider: string;
+  amount_to: number;
+  amount_from?: number;
+  eta: number;
+  kyc: string;
+  log_policy?: string;
+  type?: string;
+  bridgeLabel?: string;
+  bridgeBadge?: string;
+  bridgeHighlight?: string;
+  ingressProvider?: string;
+  egressProvider?: string;
+  ingressKyc?: string;
+  egressKyc?: string;
+  requiresRefund?: boolean;
+  hops?: Array<{ name: string; logo?: string }>;
+  providerLogo?: string;
+}
+
+export interface BridgeEstimateV2 {
+  amount_to: number;
+  eta: number;
+  routes: BridgeRoute[];
+}
+
+export interface BridgeTradeV2 {
+  id: string;
+  status: string;
+  engine: string;
+  provider?: string;
+  fromTicker: string;
+  fromNetwork?: string;
+  toTicker: string;
+  toNetwork?: string;
+  fromAmount?: number;
+  toAmount?: number;
+  depositAddress?: string;
+  depositAmount?: number;
+  depositMemo?: string;
+  address_user?: string;
+  txIn?: string;
+  txOut?: string;
+  confirmations?: number;
+  createdAt?: string;
+  eta?: number;
+  secondTradeId?: string;
+  timing?: {
+    detectedAt?: string;
+    confirmedAt?: string;
+    sendingAt?: string;
+    finishedAt?: string;
+  };
+  details?: {
+    hashout?: string;
+    provider_logo?: string;
+    original_eta?: number;
+    second_trade_id?: string;
+    support?: { tx_url?: string; support_url?: string };
+  };
+  hops?: Array<{ name: string; logo?: string }>;
+}
+
+export async function fetchBridgeEstimateV2(
+  from: string,
+  to: string,
+  amount: number,
+  network_from = 'Mainnet',
+  network_to = 'Mainnet',
+  kyc: ComplianceLevel = 'ANY',
+  log: ComplianceLevel = 'ANY',
+  noCache = false,
+): Promise<BridgeEstimateV2> {
+  const params = new URLSearchParams({
+    from, to, network_from, network_to,
+    amount: amount.toString(),
+    kyc: kycMap[kyc], log: logMap[log],
+  });
+  if (noCache) params.set('no_cache', '1');
+
+  return apiClient<BridgeEstimateV2>(`/v2/exchange/bridge/estimate?${params.toString()}`);
+}
+
+export async function createBridgeTradeV2(payload: {
+  engine?: string;
+  from_currency: string;
+  from_network?: string;
+  to_currency: string;
+  to_network?: string;
+  amount_from: number;
+  address_to: string;
+  refund_address?: string;
+  address_memo?: string;
+  refund_memo?: string;
+}): Promise<BridgeTradeV2[]> {
+  return apiClient<BridgeTradeV2[]>('/v2/exchange/bridge/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchBridgeStatusV2(id: string, engine?: string): Promise<BridgeTradeV2[]> {
+  const params = engine ? `?engine=${engine}` : '';
+  const trade1 = await apiClient<BridgeTradeV2>(`/v2/exchange/status/${id}${params}`);
+  const secondId = trade1.secondTradeId || trade1.details?.second_trade_id;
+  if (secondId) {
+    try {
+      const trade2 = await apiClient<BridgeTradeV2>(`/v2/exchange/status/${secondId}${params}`);
+      return [trade1, trade2];
+    } catch {
+      return [trade1];
+    }
+  }
+  return [trade1];
+}

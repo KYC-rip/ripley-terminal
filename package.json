@@ -1,14 +1,14 @@
 {
-  "name": "ripley-terminal",
+  "name": "@ripley-run/terminal",
   "displayName": "Ripley Terminal",
   "version": "1.0.34",
-  "description": "KYC.RIP Tactical Monero Desktop Wallet",
+  "description": "Tactical Monero Desktop Wallet",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KYC-rip/ripley-terminal.git"
+    "url": "https://github.com/ripley-run/ripley-terminal.git"
   },
   "main": "./out/main/index.js",
-  "author": "KYC.RIP",
+  "author": "Ripley Run",
   "scripts": {
     "setup-bins": "node scripts/download-bins.js",
     "dev": "electron-vite dev",

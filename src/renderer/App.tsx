@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap, Bot } from 'lucide-react';
+import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap, Bot, Crosshair, ArrowDown } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -10,6 +10,9 @@ import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
 import { AgentTab } from './components/vault/AgentTab';
+import { GhostView } from './components/GhostView';
+import { VigilView } from './components/VigilView';
+import { SwapView } from './components/SwapView';
 import { XMR402Modal } from './components/common/XMR402Modal';
 import { VaultProvider } from './contexts/VaultContext';
 
@@ -30,7 +33,7 @@ const SkinOverlay = ({ config }: { config: any }) => {
 };
 
 function MainApp() {
-  const [view, setView] = useState<'home' | 'vault' | 'settings' | 'agent'>('home');
+  const [view, setView] = useState<'home' | 'vault' | 'settings' | 'agent' | 'ghost' | 'vigil' | 'swap'>('home');
   const [showConsole, setShowConsole] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -49,7 +52,7 @@ function MainApp() {
   } = vault;
 
   const { stats, loading: statsLoading } = useStats();
-  const { mode, cycleTheme, resolvedTheme } = useTheme();
+  const { mode, cycleTheme, resolvedTheme, skin, skinLabel, cycleSkin, contrast, toggleContrast } = useTheme();
 
   const activeIdentity = identities.find(i => i.id === activeId);
 
@@ -313,7 +316,7 @@ function MainApp() {
   return (
     <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
       <SkinOverlay config={appConfig} />
-      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, ${resolvedTheme === 'dark' ? '0.1' : '0.02'}) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: ${showScanlines ? 'block' : 'none'}; } `}</style>
+      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
       <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
@@ -372,6 +375,9 @@ function MainApp() {
 
         <nav className="flex-grow space-y-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <NavButton id="home" label="Dashboard" icon={Ghost} />
+          <NavButton id="ghost" label="Ghost_Protocol" icon={Ghost} />
+          <NavButton id="vigil" label="Ghost_Vigil" icon={Crosshair} />
+          <NavButton id="swap" label="Swap_Terminal" icon={ArrowDown} />
           <NavButton
             id="vault"
             label="Vault_Storage"
@@ -434,6 +440,12 @@ function MainApp() {
                 {mode === 'light' && <Sun size={10} />}
                 {mode === 'system' && <Monitor size={10} />}
                 {mode.toUpperCase()}
+              </button>
+            </div>
+            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+              <span className="text-xmr-dim">SKIN_MODE</span>
+              <button onClick={cycleSkin} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
+                {skinLabel.toUpperCase()}
               </button>
             </div>
             <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
@@ -525,6 +537,9 @@ function MainApp() {
 
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
                 <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} appConfig={appConfig} /></div>
+                <div className={view === 'ghost' ? 'block' : 'hidden'}><GhostView localXmrAddress={address} /></div>
+                <div className={view === 'vigil' ? 'block' : 'hidden'}><VigilView localXmrAddress={address} /></div>
+                <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView /></div>
 
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
                 <div className={view === 'agent' ? 'block' : 'hidden'}><AgentTab /></div>
