@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Tag, DollarSign, Copy, CheckCircle2, QrCode, ArrowDownToLine, Shuffle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useVault } from '../../contexts/VaultContext';
+import { getOrCreateSubaddress } from '../../services/subaddressService';
 
 interface ExistingAddress {
   address: string;
@@ -31,20 +32,20 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
   const [ccCopied, setCcCopied] = useState(false);
   const [directCopied, setDirectCopied] = useState(false);
 
-  // Auto-generate subaddress on mount (skip if viewing existing)
+  // Auto-generate or reuse subaddress on mount (skip if viewing existing)
   useEffect(() => {
     if (hasGeneratedRef.current) return;
     hasGeneratedRef.current = true;
     const gen = async () => {
       setIsGenerating(true);
       try {
-        const addr = await createSubaddress('Payment_Request');
+        const addr = await getOrCreateSubaddress('Payment', subaddresses, createSubaddress);
         if (addr) setGeneratedAddress(addr);
       } catch (e) { console.error("Subaddress generation failed", e); }
       finally { setIsGenerating(false); }
     };
     gen();
-  }, [createSubaddress]);
+  }, [createSubaddress, subaddresses]);
 
   // Resolve subaddress index for label updates
   useEffect(() => {
@@ -106,7 +107,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden rounded-lg">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-xmr-border/40">

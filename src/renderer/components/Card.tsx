@@ -29,7 +29,7 @@ export function Card({
 
   return (
     <div className={`
-      bg-xmr-surface border shadow-lg relative overflow-hidden group
+      bg-xmr-surface border shadow-lg relative overflow-hidden group rounded-lg
       ${borderClass}
       ${noPadding ? '' : 'p-6'}
       ${className}

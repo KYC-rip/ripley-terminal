@@ -90,7 +90,7 @@ function HoldToArmButton({
       onTouchEnd={handleEnd}
       disabled={disabled}
       className={`
-        relative w-full py-4 border rounded-sm font-mono text-[11px] font-black uppercase tracking-[0.25em]
+        relative w-full py-3 border rounded-sm font-mono text-[11px] font-black uppercase tracking-[0.25em]
         overflow-hidden transition-all select-none
         ${disabled
           ? 'border-xmr-border text-xmr-dim/30 cursor-not-allowed'
@@ -276,52 +276,52 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
   }, [data.amount, data.triggerPrice, isSnipe, inputPrice, outputPrice, data.outputCurrency, defaultXmr.ticker, defaultEvm.ticker]);
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 pt-2 w-full max-w-3xl mx-auto">
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 w-full max-w-3xl mx-auto">
 
       {/* ─── Mode Toggle ─── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => setMode('SNIPE')}
-          className={`relative overflow-hidden group p-4 border rounded-sm transition-all duration-300 flex items-center justify-center gap-4
+          className={`relative overflow-hidden group px-3 py-2.5 border rounded-sm transition-all duration-300 flex items-center gap-3
             ${isSnipe
               ? 'bg-xmr-green/10 border-xmr-green/50 text-xmr-green ring-1 ring-xmr-green/50'
               : 'bg-xmr-base border-xmr-border text-xmr-dim hover:border-xmr-dim/50 hover:text-current'
             }`}
         >
-          <div className="bg-current/10 p-2 rounded-full">
-            <Crosshair size={20} />
+          <div className="bg-current/10 p-1.5 rounded-full">
+            <Crosshair size={16} />
           </div>
           <div className="text-left flex-1">
-            <span className="block text-base font-bold tracking-wider">SNIPE</span>
-            <span className="text-[10px] uppercase tracking-wider opacity-60">Auto-buy when price dips</span>
+            <span className="block text-sm font-bold tracking-wider">SNIPE</span>
+            <span className="text-[9px] uppercase tracking-wider opacity-60">Auto-buy when price dips</span>
           </div>
           {isSnipe && <div className="absolute inset-0 bg-xmr-green/5 blur-xl" />}
         </button>
 
         <button
           onClick={() => setMode('EJECT')}
-          className={`relative overflow-hidden group p-4 border rounded-sm transition-all duration-300 flex items-center justify-center gap-4
+          className={`relative overflow-hidden group px-3 py-2.5 border rounded-sm transition-all duration-300 flex items-center gap-3
             ${!isSnipe
               ? 'bg-red-500/10 border-red-500/50 text-red-500 ring-1 ring-red-500/50'
               : 'bg-xmr-base border-xmr-border text-xmr-dim hover:border-xmr-dim/50 hover:text-current'
             }`}
         >
-          <div className="bg-current/10 p-2 rounded-full">
-            <LogOut size={20} />
+          <div className="bg-current/10 p-1.5 rounded-full">
+            <LogOut size={16} />
           </div>
           <div className="text-left flex-1">
-            <span className="block text-base font-bold tracking-wider">EJECT</span>
-            <span className="text-[10px] uppercase tracking-wider opacity-60">Auto-sell at target</span>
+            <span className="block text-sm font-bold tracking-wider">EJECT</span>
+            <span className="text-[9px] uppercase tracking-wider opacity-60">Auto-sell at target</span>
           </div>
           {!isSnipe && <div className="absolute inset-0 bg-red-500/5 blur-xl" />}
         </button>
       </div>
 
       {/* ─── Config Panel ─── */}
-      <div className="bg-xmr-base/30 border border-xmr-border rounded-lg p-4 flex flex-col gap-4 relative">
+      <div className="bg-xmr-base/30 border border-xmr-border rounded-lg p-3 flex flex-col gap-3 relative">
 
         {/* Header */}
-        <div className="flex justify-between items-end border-b border-xmr-border/30 pb-2 mb-1">
+        <div className="flex justify-between items-end border-b border-xmr-border/30 pb-1.5">
           <div className="flex items-center gap-2">
             <div className={`p-1 rounded ${useStop ? 'bg-xmr-ghost/20 text-xmr-ghost' : 'bg-xmr-dim/10 text-xmr-dim'}`}>
               <Activity size={12} />
@@ -343,9 +343,9 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
         </div>
 
         {/* ─── Price Inputs ─── */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           {/* Primary Target */}
-          <div className="flex-1 space-y-1.5">
+          <div className="flex-1 space-y-1">
             <label className="text-[10px] text-xmr-dim font-mono uppercase tracking-wider flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-xmr-green" />
               {isSnipe ? 'TARGET (BUY DIP)' : 'TARGET (TAKE PROFIT)'}
@@ -369,7 +369,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
 
           {/* Stop Loss (Toggleable) */}
           {useStop && (
-            <div className="flex-1 space-y-1.5 animate-in fade-in slide-in-from-right-2">
+            <div className="flex-1 space-y-1 animate-in fade-in slide-in-from-right-2">
               <label className="text-[10px] text-xmr-dim font-mono uppercase tracking-wider flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                 {isSnipe ? 'STOP (BREAKOUT)' : 'STOP (LOSS)'}
@@ -394,7 +394,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
         </div>
 
         {/* Toggle OCO */}
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end">
           <button
             onClick={() => {
               if (useStop) setData({ ...data, stopPrice: '' });
@@ -412,7 +412,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
           </button>
         </div>
 
-        <div className="h-px bg-xmr-border/50 my-1" />
+        <div className="h-px bg-xmr-border/50" />
 
         {/* ─── Exchange Inputs ─── */}
         <div className="flex flex-col relative gap-1">
@@ -451,7 +451,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
         </div>
 
         {/* ─── Target Address ─── */}
-        <div className="space-y-1.5 pt-2 border-t border-xmr-border/50">
+        <div className="space-y-1 pt-2 border-t border-xmr-border/50">
           <div className="flex justify-between">
             <label className="text-[10px] text-xmr-dim font-mono uppercase tracking-wider truncate max-w-[200px]">
               RECEIVE {data.outputCurrency?.ticker?.toUpperCase() || 'ASSET'} ADDRESS
@@ -498,7 +498,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
         </div>
 
         {/* ─── Compliance ─── */}
-        <div className="pt-4 border-t border-xmr-border/30">
+        <div className="pt-2 border-t border-xmr-border/30">
           <ComplianceSelector
             value={data.compliance || { kyc: 'ANY', log: 'ANY' }}
             onChange={(val) => setData({ ...data, compliance: val })}

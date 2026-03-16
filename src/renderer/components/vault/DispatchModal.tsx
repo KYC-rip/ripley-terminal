@@ -49,7 +49,7 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden rounded-lg">
         {/* ══ PASSWORD GATE ══ */}
         {showPasswordGate && (
           <DispatchPasswordGate

@@ -71,7 +71,7 @@ export function useCurrencies() {
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         try {
-          const data = await apiClient<Currency[]>("/v1/market/currencies", {
+          const data = await apiClient<Currency[]>("/v2/exchange/currencies", {
             signal: controller.signal
           });
           clearTimeout(timeoutId);

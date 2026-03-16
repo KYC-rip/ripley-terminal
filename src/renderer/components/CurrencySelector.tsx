@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, ChevronDown, Check, Coins } from "lucide-react";
+import { Search, ChevronDown, Check, Coins, X } from "lucide-react";
 import type { Currency } from "../hooks/useCurrencies";
 
 type ThemeColor = 'xmr-green' | 'xmr-ghost' | 'xmr-accent' | 'xmr-warning' | 'xmr-error';
@@ -15,6 +15,74 @@ interface Props {
   forceDark?: boolean;
   themeColor?: ThemeColor;
   hideBorder?: boolean;
+  variant?: 'dropdown' | 'drawer';
+  drawerTitle?: string;
+}
+
+function CurrencyList({ loading, displayList, filteredCount, selected, onSelect }: {
+  loading: boolean;
+  displayList: Currency[];
+  filteredCount: number;
+  selected: Currency;
+  onSelect: (c: Currency) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="py-8 text-center space-y-2">
+        <Coins className="w-8 h-8 text-[var(--local-brand)]/50 mx-auto animate-bounce" />
+        <div className="text-xs text-[var(--local-text-dim)] font-mono animate-pulse">SYNCING_ASSETS...</div>
+      </div>
+    );
+  }
+  if (displayList.length === 0) {
+    return <div className="py-8 text-center text-[var(--local-text-dim)] text-xs font-mono">[ NO_ASSET_FOUND ]</div>;
+  }
+  return (
+    <div className="space-y-1">
+      {displayList.map((c) => {
+        const isActive = selected.ticker === c.ticker && selected.network === c.network;
+        return (
+          <button
+            type="button"
+            key={`${c.ticker}-${c.network}`}
+            onClick={() => onSelect(c)}
+            className={`w-full flex items-center justify-between p-2 rounded-sm transition-colors group ${
+              isActive
+                ? "bg-[var(--local-bg-active)] border border-[var(--local-brand)]/30"
+                : "hover:bg-[var(--local-bg-active)] border border-transparent"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full bg-[var(--color-xmr-surface)] flex items-center justify-center border shrink-0 ${isActive ? 'border-[var(--local-brand)]' : 'border-[var(--local-border)]'}`}>
+                {c.image ? (
+                  <img src={c.image} className="w-6 h-6 rounded-full" loading="lazy" />
+                ) : (
+                  <div className="text-xs text-[var(--local-text-dim)]">{c.ticker.substring(0, 1).toUpperCase()}</div>
+                )}
+              </div>
+              <div className="text-left">
+                <div className={`font-bold text-sm ${isActive ? "text-[var(--local-brand)]" : "text-[var(--local-text-dim)] group-hover:text-[var(--local-brand)]"}`}>
+                  {c.ticker.toUpperCase()}
+                </div>
+                <div className="text-xs text-[var(--local-text-dim)] flex items-center gap-2">
+                  {c.name}
+                  <span className="bg-[var(--color-xmr-surface)] border border-[var(--local-border)] px-1 rounded text-[var(--local-text-dim)]/80">
+                    {c.network}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {isActive && <Check size={16} className="text-[var(--local-brand)]" />}
+          </button>
+        );
+      })}
+      {filteredCount > 100 && (
+        <div className="text-center py-2 text-xs text-[var(--local-text-dim)] border-t border-[var(--local-border)] mt-2">
+          + {filteredCount - 100} MORE COINS... SEARCH TO FIND
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function CurrencySelector({
@@ -26,6 +94,8 @@ export function CurrencySelector({
   forceDark = false,
   themeColor = 'xmr-green',
   hideBorder = false,
+  variant = 'dropdown',
+  drawerTitle = 'Select Asset',
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [_currencies, setCurrencies] = useState<Currency[]>([]);
@@ -64,7 +134,7 @@ export function CurrencySelector({
   useEffect(() => {
     if (isOpen && _currencies.length === 0 && !externalCurrencies) {
       setLoading(true);
-      fetch("https://api.kyc.rip/v1/market/currencies")
+      fetch("https://api.kyc.rip/v2/exchange/currencies")
         .then((res) => res.json())
         .then((data) => {
           setCurrencies(data);
@@ -189,7 +259,7 @@ export function CurrencySelector({
   return (
 
     <div
-      className={`w-full space-y-2 h-12 ${forceDark ? 'dark' : ''}`}
+      className={`w-full space-y-2 ${forceDark ? 'dark' : ''}`}
       style={themeStyle}
     >
       {label && (
@@ -247,139 +317,124 @@ export function CurrencySelector({
           />
         </button>
 
-        {/* Portal Dropdown */}
-        {isOpen &&
-          position &&
-          createPortal(
+        {/* ── Shared list content (used by both dropdown and drawer) ── */}
+        {isOpen && createPortal(
+          variant === 'drawer' ? (
+            /* ══════ DRAWER VARIANT ══════ */
+            <>
+              <div
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998]"
+                onClick={() => { setIsOpen(false); setSearch(""); }}
+                style={themeStyle}
+              />
+              <div
+                ref={portalRef}
+                className={`fixed top-0 right-0 h-full w-80 bg-[var(--color-xmr-surface)] border-l border-[var(--local-border)] z-[9999] flex flex-col shadow-2xl animate-in slide-in-from-right duration-200 ${forceDark ? 'dark' : ''}`}
+                style={themeStyle}
+              >
+                {/* Drawer header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--local-border)] bg-[var(--color-xmr-base)]/50">
+                  <div className="flex items-center gap-2">
+                    <Coins size={14} className="text-[var(--local-brand)]" />
+                    <span className="text-[11px] font-black uppercase tracking-widest text-[var(--local-brand)]">{drawerTitle}</span>
+                  </div>
+                  <button
+                    onClick={() => { setIsOpen(false); setSearch(""); }}
+                    className="text-[var(--local-text-dim)] hover:text-[var(--local-brand)] transition-colors cursor-pointer p-1"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
 
-            <div
-              ref={portalRef}
-              className={`fixed z-[9999] rounded-sm shadow-2xl flex flex-col min-w-[266px] w-fit max-h-[48vh] md:max-h-[40vh] animate-in fade-in zoom-in-95 duration-100
-                 ${forceDark ? 'dark' : ''} 
-                 bg-[var(--color-xmr-surface)] border border-[var(--local-border)]
-              `}
-              style={{
-                top: position?.top ?? 0,
-                left: position?.left ?? 0,
-                width: position?.width ?? "auto",
-                ...themeStyle // Pass theme style to portal
-              }}
-            >
-              {/* Search Input */}
-              <div className="p-3 border-b border-[var(--local-border)] sticky top-0 bg-[var(--color-xmr-surface)] z-10 rounded-t-lg">
-                <div className="relative">
-                  <Search
-                    size={16}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--local-text-dim)]"
-                  />
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="SEARCH ASSETS..."
-                    className="w-full rounded-sm pl-10 pr-4 py-2 text-sm focus:outline-none uppercase
-                        bg-[var(--color-xmr-base)] 
-                        border border-[var(--local-border)] 
-                        text-[var(--text-primary)] 
-                        focus:border-[var(--local-brand)]
-                        placeholder:text-[var(--local-text-dim)]
-                    "
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                {/* Search */}
+                <div className="p-3 border-b border-[var(--local-border)] bg-[var(--color-xmr-surface)]">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--local-text-dim)]" />
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      placeholder="SEARCH ASSETS..."
+                      className="w-full rounded-sm pl-9 pr-4 py-2 text-xs focus:outline-none uppercase bg-[var(--color-xmr-base)] border border-[var(--local-border)] text-[var(--text-primary)] focus:border-[var(--local-brand)] placeholder:text-[var(--local-text-dim)]"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="overflow-y-auto flex-1 custom-scrollbar p-1.5 bg-[var(--color-xmr-base)]">
+                  <CurrencyList
+                    loading={loading}
+                    displayList={displayList}
+                    filteredCount={filteredList.length}
+                    selected={selected}
+                    onSelect={(c) => { onSelect(c); setIsOpen(false); setSearch(""); }}
                   />
                 </div>
-              </div>
 
-              {/* List */}
-              <div className="overflow-y-auto flex-1 custom-scrollbar p-1 bg-[var(--color-xmr-base)]">
-                {loading ? (
-                  <div className="py-8 text-center space-y-2">
-                    <Coins className="w-8 h-8 text-[var(--local-brand)]/50 mx-auto animate-bounce" />
-                    <div className="text-xs text-[var(--local-text-dim)] font-mono animate-pulse">
-                      SYNCING_ASSETS...
-                    </div>
-                  </div>
-                ) : displayList.length === 0 ? (
-                  <div className="py-8 text-center text-[var(--local-text-dim)] text-xs font-mono">
-                    [ NO_ASSET_FOUND ]
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {displayList.map((c) => {
-                      const isActive =
-                        selected.ticker === c.ticker &&
-                        selected.network === c.network;
-                      return (
-                        <button
-                          type="button"
-                          key={`${c.ticker}-${c.network}`}
-                          onClick={() => {
-                            onSelect(c);
-                            setIsOpen(false);
-                            setSearch("");
-                          }}
-                          className={`w-full flex items-center justify-between p-2 rounded-sm transition-colors group 
-                            ${isActive
-                              ? "bg-[var(--local-bg-active)] border border-[var(--local-brand)]/30"
-                              : "hover:bg-[var(--local-bg-active)] border border-transparent"
-                            }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full bg-[var(--color-xmr-surface)] flex items-center justify-center border shrink-0 ${isActive ? 'border-[var(--local-brand)]' : 'border-[var(--local-border)]'}`}>
-                              {c.image ? (
-                                <img
-                                  src={c.image}
-                                  className="w-6 h-6 rounded-full"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <div className="text-xs text-[var(--local-text-dim)]">
-                                  {c.ticker.substring(0, 1).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-left">
-                              <div
-                                className={`font-bold text-sm ${isActive
-                                  ? "text-[var(--local-brand)]"
-                                  : "text-[var(--local-text-dim)] group-hover:text-[var(--local-brand)]"
-                                  }`}
-                              >
-                                {c.ticker.toUpperCase()}
-                              </div>
-                              <div className="text-xs text-[var(--local-text-dim)] flex items-center gap-2">
-                                {c.name}
-                                <span className="bg-[var(--color-xmr-surface)] border border-[var(--local-border)] px-1 rounded text-[var(--local-text-dim)]/80">
-                                  {c.network}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {isActive && (
-                            <Check size={16} className="text-[var(--local-brand)]" />
-                          )}
-                        </button>
-                      );
-                    })}
-                    {filteredList.length > 100 && (
-                      <div className="text-center py-2 text-xs text-[var(--local-text-dim)] border-t border-[var(--local-border)] mt-2">
-                        + {filteredList.length - 100} MORE COINS... SEARCH TO
-                        FIND
-                      </div>
-                    )}
+                {/* Footer */}
+                {!loading && (
+                  <div className="px-4 py-2 border-t border-[var(--local-border)] bg-[var(--color-xmr-surface)] text-[10px] text-[var(--local-text-dim)] flex justify-between font-mono uppercase tracking-wider">
+                    <span>Online</span>
+                    <span>{includedCurrencies.length} assets</span>
                   </div>
                 )}
               </div>
-
-              {/* Footer Status */}
-              {!loading && (
-                <div className="p-2 border-t border-[var(--local-border)] bg-[var(--color-xmr-surface)] text-xs text-[var(--local-text-dim)] flex justify-between rounded-b-lg font-mono">
-                  <span>STATUS: ONLINE</span>
-                  <span>{includedCurrencies.length} ASSETS</span>
+            </>
+          ) : (
+            /* ══════ DROPDOWN VARIANT ══════ */
+            position ? (
+              <div
+                ref={portalRef}
+                className={`fixed z-[9999] rounded-lg shadow-2xl flex flex-col max-h-[48vh] md:max-h-[40vh] animate-in fade-in zoom-in-95 duration-100
+                   ${forceDark ? 'dark' : ''}
+                   bg-[var(--color-xmr-surface)] border border-[var(--local-border)]
+                `}
+                style={{
+                  top: position.top,
+                  left: position.left,
+                  width: Math.max(position.width, 280),
+                  ...themeStyle
+                }}
+              >
+                {/* Search Input */}
+                <div className="p-3 border-b border-[var(--local-border)] sticky top-0 bg-[var(--color-xmr-surface)] z-10 rounded-t-lg">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--local-text-dim)]" />
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      placeholder="SEARCH ASSETS..."
+                      className="w-full rounded-sm pl-10 pr-4 py-2 text-sm focus:outline-none uppercase bg-[var(--color-xmr-base)] border border-[var(--local-border)] text-[var(--text-primary)] focus:border-[var(--local-brand)] placeholder:text-[var(--local-text-dim)]"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>,
-            document.body
-          )}
+
+                {/* List */}
+                <div className="overflow-y-auto flex-1 custom-scrollbar p-1 bg-[var(--color-xmr-base)]">
+                  <CurrencyList
+                    loading={loading}
+                    displayList={displayList}
+                    filteredCount={filteredList.length}
+                    selected={selected}
+                    onSelect={(c) => { onSelect(c); setIsOpen(false); setSearch(""); }}
+                  />
+                </div>
+
+                {/* Footer Status */}
+                {!loading && (
+                  <div className="p-2 border-t border-[var(--local-border)] bg-[var(--color-xmr-surface)] text-xs text-[var(--local-text-dim)] flex justify-between rounded-b-lg font-mono">
+                    <span>STATUS: ONLINE</span>
+                    <span>{includedCurrencies.length} ASSETS</span>
+                  </div>
+                )}
+              </div>
+            ) : null
+          ),
+          document.body
+        )}
       </div>
     </div>
   );

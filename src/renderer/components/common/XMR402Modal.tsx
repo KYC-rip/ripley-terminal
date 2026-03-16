@@ -142,7 +142,7 @@ export const XMR402Modal: React.FC = () => {
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="w-full max-w-lg bg-xmr-base border border-xmr-accent/30 shadow-[0_0_50px_rgba(0,255,65,0.1)] overflow-hidden"
+          className="w-full max-w-lg bg-xmr-base border border-xmr-accent/30 shadow-[0_0_50px_rgba(0,255,65,0.1)] overflow-hidden rounded-lg"
         >
           {/* Header */}
           <div className="bg-xmr-accent/10 border-b border-xmr-accent/20 p-4 flex justify-between items-center">

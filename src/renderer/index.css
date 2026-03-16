@@ -13,10 +13,14 @@
 
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
+  --radius: var(--skin-radius-md, 0.5rem);
+  --radius-xs: var(--skin-radius-sm, 0.125rem);
   --radius-sm: var(--skin-radius-sm, 0.25rem);
   --radius-md: var(--skin-radius-md, 0.5rem);
   --radius-lg: var(--skin-radius-lg, 0.75rem);
   --radius-xl: var(--skin-radius-xl, 1rem);
+  --radius-2xl: var(--skin-radius-xl, 1rem);
+  --radius-3xl: var(--skin-radius-xl, 1.5rem);
 }
 
 :root {
@@ -211,6 +215,15 @@
   body {
     @apply bg-xmr-base text-xmr-green font-mono transition-colors duration-300;
     overflow: hidden;
+  }
+
+  /* Skin-aware border-radius for all form controls & interactive elements */
+  input, textarea, select {
+    border-radius: var(--radius-sm);
+  }
+
+  button {
+    border-radius: var(--radius-sm);
   }
 
   /* Custom Scrollbar */

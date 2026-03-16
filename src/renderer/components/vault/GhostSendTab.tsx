@@ -204,7 +204,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
               <Ghost size={10} /> Receiver's Asset
             </label>
             {ghostCurrency && (
-              <CurrencySelector selected={ghostCurrency} onSelect={setGhostCurrency} label="" currencies={currencies} />
+              <CurrencySelector selected={ghostCurrency} onSelect={setGhostCurrency} label="" currencies={currencies} variant="drawer" drawerTitle="Receiver's Asset" />
             )}
           </div>
 

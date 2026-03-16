@@ -7,6 +7,8 @@ import { Card } from './Card';
 import { AddressDisplay } from './common/AddressDisplay';
 import { CurrencySelector } from './CurrencySelector';
 import { useVigilEngine } from '../hooks/useVigilEngine';
+import { useVault } from '../hooks/useVault';
+import { getOrCreateSubaddress } from '../services/subaddressService';
 // Lightweight notification (avoids react-hot-toast dependency)
 const notify = (msg: string) => console.log(`[Vigil] ${msg}`);
 
@@ -33,6 +35,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     completedTrade,
     depositInfo,
   } = useVigilEngine();
+  const { createSubaddress, subaddresses } = useVault();
 
   const [mode, setMode] = useState<'SNIPE' | 'EJECT'>('EJECT'); // Default EJECT for wallet app
   const [localConfig, setLocalConfig] = useState<VigilConfigData>({
@@ -59,13 +62,23 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
         inputCurrency: CurrencySelector.Monero,
       }));
     } else {
-      // SNIPE: output goes to local vault XMR address
-      setLocalConfig((prev) => ({
-        ...prev,
-        targetAddress: localXmrAddress,
-      }));
+      // SNIPE: output goes to a reusable vault subaddress
+      (async () => {
+        try {
+          const addr = await getOrCreateSubaddress('Vigil', subaddresses, createSubaddress);
+          setLocalConfig((prev) => ({
+            ...prev,
+            targetAddress: addr || localXmrAddress,
+          }));
+        } catch {
+          setLocalConfig((prev) => ({
+            ...prev,
+            targetAddress: localXmrAddress,
+          }));
+        }
+      })();
     }
-  }, [mode, localXmrAddress]);
+  }, [mode, localXmrAddress, createSubaddress, subaddresses]);
 
   // Restore config from active session if resuming
   useEffect(() => {
@@ -122,7 +135,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
 
   return (
     <div className={`
-      border rounded-xl overflow-hidden backdrop-blur-md min-h-[500px] flex flex-col relative shadow-xl transition-all duration-500
+      border rounded-xl overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
       ${isDanger
         ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
         : 'bg-xmr-surface border-xmr-border'
@@ -138,7 +151,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
       </div>
 
       {/* ─── Header ─── */}
-      <div className={`p-4 border-b flex justify-between items-center transition-colors
+      <div className={`px-4 py-2.5 border-b flex justify-between items-center transition-colors
         ${isDanger ? 'bg-red-500/10 border-red-500/30' : 'bg-xmr-base/30 border-xmr-border'}
       `}>
         <div className="flex items-center gap-2">
@@ -174,11 +187,11 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
       </div>
 
       {/* ─── Main Body ─── */}
-      <div className="flex-1 w-full px-2 py-4 mx-auto transition-all duration-500 ease-in-out max-w-4xl">
+      <div className="flex-1 w-full px-2 py-2 mx-auto transition-all duration-500 ease-in-out max-w-4xl">
 
         {/* IDLE: Configuration */}
         {vigilState === 'IDLE' && (
-          <div className="flex-1 p-2 relative flex flex-col items-center w-full">
+          <div className="flex-1 p-1 relative flex flex-col items-center w-full">
             <VigilConfig
               mode={mode}
               setMode={setMode}

@@ -70,8 +70,11 @@ export interface CreateTradeParams {
   toNetwork: string;
   destinationAddress: string;
   provider: string;
+  engine?: string;
+  extra?: any;
   fixed?: boolean;
   isPayment?: boolean;
+  memo?: string;
   source?: 'swap' | 'ghost vigil' |  'ghost vigil sweep' | 'dispenser' | 'ghost';
 }
 
@@ -88,8 +91,62 @@ export interface ExchangeResponse {
   network_from: string;
   network_to: string;
   provider: string;
+  engine?: string;
   id?: string;
   deposit_address?: string;
+  depositAddress?: string;
+  fromTicker?: string;
+  toTicker?: string;
+  amountFrom?: number;
+  amountTo?: number;
+  depositAmount?: number;
+  expiresAt?: string;
+  eta?: number;
+}
+
+/** Normalize v2 response → ExchangeResponse */
+function normalizeExchangeResponse(raw: any): ExchangeResponse {
+  return {
+    id: raw.id || raw.trade_id || '',
+    trade_id: raw.trade_id || raw.id || '',
+    status: (raw.status || '').toUpperCase(),
+    amount_from: raw.amount_from ?? raw.fromAmount ?? raw.depositAmount ?? 0,
+    amount_to: raw.amount_to ?? raw.toAmount ?? 0,
+    deposit_amount: raw.deposit_amount ?? raw.depositAmount ?? raw.fromAmount ?? 0,
+    address_provider: raw.address_provider ?? raw.depositAddress ?? raw.deposit_address ?? '',
+    address_user: raw.address_user ?? '',
+    ticker_from: raw.ticker_from ?? raw.fromTicker ?? '',
+    ticker_to: raw.ticker_to ?? raw.toTicker ?? '',
+    network_from: raw.network_from ?? raw.fromNetwork ?? '',
+    network_to: raw.network_to ?? raw.toNetwork ?? '',
+    provider: raw.provider || '',
+    engine: raw.engine,
+    depositAddress: raw.depositAddress ?? raw.address_provider ?? raw.deposit_address ?? '',
+    deposit_address: raw.deposit_address ?? raw.depositAddress ?? raw.address_provider ?? '',
+  };
+}
+
+/** Normalize v2 response → TradeStatus */
+function normalizeTradeStatus(raw: any): TradeStatusCentral {
+  return {
+    ...raw,
+    id: raw.id || raw.trade_id || '',
+    trade_id: raw.trade_id || raw.id || '',
+    status: (raw.status || 'WAITING').toUpperCase(),
+    ticker_from: raw.ticker_from || raw.fromTicker || '',
+    ticker_to: raw.ticker_to || raw.toTicker || '',
+    amount_from: raw.amount_from ?? raw.fromAmount ?? raw.depositAmount ?? 0,
+    amount_to: raw.amount_to ?? raw.toAmount ?? 0,
+    address_provider: raw.address_provider || raw.depositAddress || raw.deposit_address || '',
+    deposit_address: raw.deposit_address || raw.depositAddress || raw.address_provider || '',
+    address_user: raw.address_user || '',
+    tx_out: raw.tx_out || raw.txOut || undefined,
+    provider: raw.provider || '',
+    network_from: raw.network_from || raw.fromNetwork || '',
+    network_to: raw.network_to || raw.toNetwork || '',
+    confirmations: raw.confirmations || 0,
+    fixed: raw.fixed ?? false,
+  };
 }
 
 
@@ -174,16 +231,19 @@ export function createTrade(params: CreateTradeParams): Promise<ExchangeResponse
     });
   }
 
-  return client<ExchangeResponse>('/v1/exchange/create', {
+  return client<ExchangeResponse>('/v2/exchange/create', {
     body: {
+      ...params.extra,
       trade_id: params.id, amount_from: params.amountFrom, amount_to: params.amountTo,
       from_currency: params.fromTicker, from_network: params.fromNetwork,
       to_currency: params.toTicker, to_network: params.toNetwork,
       address_to: params.destinationAddress, fixed_rate: params.fixed || false,
+      address_memo: params.memo, to_currency_memo: !!params.memo,
       provider: params.provider, isPayment: params.isPayment || false,
-      source: params.source || 'swap'
+      source: params.source || 'swap',
+      engine: params.engine,
     }
-  });
+  }).then(normalizeExchangeResponse);
 }
 
 /**
@@ -241,7 +301,7 @@ export function getTradeStatus(id: string) {
     } as any);
   }
 
-  return client<TradeStatus>(`/v1/exchange/status/${id}`);
+  return client<TradeStatus>(`/v2/exchange/status/${id}`).then(normalizeTradeStatus) as Promise<TradeStatus>;
 }
 
 /**
@@ -282,7 +342,7 @@ export async function fetchQuote(
     kyc: kycMap[kyc], log: logMap[log],
   });
 
-  return client<ExchangeQuote>(`/v1/exchange/estimate?${params.toString()}`);
+  return client<ExchangeQuote>(`/v2/exchange/estimate?${params.toString()}`);
 }
 
 /**
@@ -403,7 +463,7 @@ export const fetchBridgeEstimate = async (from: string, to: string, amount: numb
 
   console.log(`requesting API: /v1/exchange/bridge/estimate?${params.toString()}`);
 
-  const data = await apiClient<BridgeEstimate>(`/v1/exchange/bridge/estimate?${params.toString()}`, {}, async (res) => {
+  const data = await apiClient<BridgeEstimate>(`/v2/exchange/bridge/estimate?${params.toString()}`, {}, async (res) => {
     if (!res.ok) {
       let errMsg = "Estimate Failed";
       try {
@@ -430,7 +490,7 @@ export const createBridgeTrade = async (payload: {
   refund_address: string;
 }) => {
   try {
-    const data = await apiClient<BridgeTrade[]>(`/v1/exchange/bridge/create`, {
+    const data = await apiClient<BridgeTrade[]>(`/v2/exchange/bridge/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -444,10 +504,10 @@ export const createBridgeTrade = async (payload: {
 
 export const fetchBridgeStatus = async (id: string) => {
   try {
-    const trade1 = await apiClient<BridgeTrade>(`/v1/exchange/status/${id}`);
+    const trade1 = await apiClient<BridgeTrade>(`/v2/exchange/status/${id}`);
     if (trade1.details && trade1.details.second_trade_id) {
       try {
-        const trade2 = await apiClient<BridgeTrade>(`/v1/exchange/status/${trade1.details.second_trade_id}`)
+        const trade2 = await apiClient<BridgeTrade>(`/v2/exchange/status/${trade1.details.second_trade_id}`)
         return [trade1, trade2] as BridgeTrade[];
       } catch (e) {
         console.warn("Failed to fetch second leg of bridge:", e);

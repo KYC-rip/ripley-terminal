@@ -161,7 +161,8 @@ app.whenReady().then(async () => {
   });
 
   mainWindow = new BrowserWindow({
-    width: 1200, height: 800,
+    width: 1200, height: 768,
+    minWidth: 1200, minHeight: 768,
     backgroundColor: '#050505',
     titleBarStyle: 'hiddenInset',
     show: false, // Hide until ready
@@ -326,7 +327,8 @@ app.whenReady().then(async () => {
       version: app.getVersion(),
       appDataPath: app.getPath('appData'),
       walletsPath: join(app.getPath('userData'), 'wallets'),
-      platform: process.platform
+      platform: process.platform,
+      isPackaged: app.isPackaged
     };
   });
 

@@ -229,7 +229,7 @@ export function CurrencyInput({
   return (
     <div className={`w-full font-mono transition-opacity duration-200 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
 
-      <div className="flex justify-between text-xs md:text-xs mb-2 px-1 uppercase tracking-widest text-xmr-dim">
+      <div className="flex justify-between text-xs md:text-xs mb-1 px-1 uppercase tracking-widest text-xmr-dim">
         <label className="font-bold">{label}</label>
         {currency?.balance && (
           <span
@@ -264,7 +264,7 @@ export function CurrencyInput({
           readOnly={readOnly}
           placeholder={placeholder}
           className={`
-            w-full bg-transparent p-3 md:p-4 text-sm md:text-md placeholder:text-xl font-bold outline-none text-xmr-dim placeholder-xmr-dim/30
+            w-full bg-transparent p-2.5 md:p-3 text-sm md:text-md placeholder:text-xl font-bold outline-none text-xmr-dim placeholder-xmr-dim/30
             ${readOnly ? 'cursor-default' : ''}
             ${animate ? 'text-xmr-green drop-shadow-[0_0_2px_rgba(0,255,65,0.5)]' : ''}
             transition-all duration-200 font-mono

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, X, RefreshCw, Download, Zap, Bot, Crosshair, ArrowDown } from 'lucide-react';
+import { Shield, Ghost, Lock, Settings, Sun, Moon, Monitor, Terminal as TerminalIcon, ChevronUp, ChevronDown, ChevronRight, X, RefreshCw, Download, Zap, Bot, Crosshair, ArrowDown } from 'lucide-react';
 import { useVault } from './hooks/useVault';
 import { useStats } from './hooks/useStats';
 import { useTheme } from './hooks/useTheme';
@@ -10,9 +10,8 @@ import { VaultView } from './components/VaultView';
 import { AuthView } from './components/AuthView';
 import { AddressDisplay } from './components/common/AddressDisplay';
 import { AgentTab } from './components/vault/AgentTab';
-import { GhostView } from './components/GhostView';
+import { ExchangeView } from './components/ExchangeView';
 import { VigilView } from './components/VigilView';
-import { SwapView } from './components/SwapView';
 import { XMR402Modal } from './components/common/XMR402Modal';
 import { VaultProvider } from './contexts/VaultContext';
 
@@ -33,14 +32,16 @@ const SkinOverlay = ({ config }: { config: any }) => {
 };
 
 function MainApp() {
-  const [view, setView] = useState<'home' | 'vault' | 'settings' | 'agent' | 'ghost' | 'vigil' | 'swap'>('home');
+  const [view, setView] = useState<'home' | 'vault' | 'settings' | 'agent' | 'exchange' | 'vigil'>('home');
   const [showConsole, setShowConsole] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [appVersion, setAppVersion] = useState('1.0');
+  const [isPackaged, setIsPackaged] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ exchange: true, tools: true });
 
   useEffect(() => {
-    window.api.getAppInfo().then(info => setAppVersion(info.version));
+    window.api.getAppInfo().then(info => { setAppVersion(info.version); setIsPackaged(info.isPackaged); });
   }, []);
 
   const [appConfig, setAppConfig] = useState<any>(null);
@@ -296,22 +297,41 @@ function MainApp() {
 
   const isSyncing = currentHeight < totalHeight - 1 && totalHeight > 0;
 
-  const NavButton = ({ id, label, icon: Icon, badge }: any) => (
+  const toggleGroup = (g: string) => setExpandedGroups(prev => ({ ...prev, [g]: !prev[g] }));
+
+  const NavButton = ({ id, label, icon: Icon, badge, compact }: any) => (
     <button
       onClick={() => setView(id)}
-      className={`w-full flex items-center justify-between px-6 py-4 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
+      className={`w-full flex items-center justify-between px-5 py-3 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon size={18} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
-        <span className="text-[11px] font-black uppercase tracking-[0.2em]">{label}</span>
+        <Icon size={16} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
+        <span className="text-[11px] font-black uppercase tracking-[0.15em]">{label}</span>
       </div>
       {badge && (
-        <span className="text-xs font-black bg-xmr-green/10 px-1.5 py-0.5 rounded border border-xmr-green/20 animate-pulse">
+        <span className="text-[9px] font-black bg-xmr-green/10 px-1.5 py-0.5 rounded-sm border border-xmr-green/20 animate-pulse">
           {badge}
         </span>
       )}
     </button>
   );
+
+  const NavGroup = ({ label, groupKey, children }: { label: string; groupKey: string; children: React.ReactNode }) => {
+    const childArray = React.Children.toArray(children).filter(Boolean);
+    if (childArray.length === 1) return <>{childArray[0]}</>;
+    return (
+      <div>
+        <button
+          onClick={() => toggleGroup(groupKey)}
+          className="w-full flex items-center gap-2 px-5 py-1.5 text-[9px] font-black uppercase tracking-[0.25em] text-xmr-dim/60 hover:text-xmr-dim transition-colors cursor-pointer"
+        >
+          <ChevronRight size={10} className={`transition-transform duration-200 ${expandedGroups[groupKey] ? 'rotate-90' : ''}`} />
+          {label}
+        </button>
+        {expandedGroups[groupKey] && children}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
@@ -319,160 +339,91 @@ function MainApp() {
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
-      <aside className="w-64 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
-        <div className="p-8 mt-4 pb-10 flex flex-col items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
+      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50 rounded-r-lg" style={{ WebkitAppRegion: 'drag' } as any}>
+        {/* ─── Header ─── */}
+        <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
-            <svg
-              viewBox="0 0 100 100"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`w-10 h-10 drop-shadow-[0_0_12px_rgba(0,255,65,0.4)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]`}
-            >
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 drop-shadow-[0_0_12px_rgba(0,255,65,0.4)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]">
               <defs>
                 <mask id="cutMask">
                   <rect width="100" height="100" fill="white" />
-                  <line
-                    x1="85" y1="15" x2="15" y2="85"
-                    stroke="black" strokeWidth="16" strokeLinecap="round"
-                    className="origin-center transition-all duration-300 ease-out group-hover:scale-x-125 group-hover:stroke-[24]"
-                  />
+                  <line x1="85" y1="15" x2="15" y2="85" stroke="black" strokeWidth="16" strokeLinecap="round" className="origin-center transition-all duration-300 ease-out group-hover:scale-x-125 group-hover:stroke-[24]" />
                 </mask>
               </defs>
               <g mask="url(#cutMask)" className="origin-center transition-all duration-500 ease-out group-hover:opacity-75">
                 <circle cx="50" cy="50" r="45" fill="none" stroke={resolvedTheme === 'light' ? '#0bc43a' : '#ffffff'} strokeWidth="6" />
-                <path
-                  d="M30,50 a20,20 0 0,1 40,0"
-                  fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="6" strokeLinecap="round"
-                  className="transition-transform duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom group-hover:-translate-y-3 group-hover:opacity-0"
-                />
-                <path
-                  d="M30,50 a20,20 0 0,0 40,0"
-                  fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="4" strokeLinecap="round" strokeDasharray="2 6"
-                  className="transition-all duration-[600ms] ease-out opacity-0 group-hover:opacity-100 group-hover:translate-y-3"
-                />
+                <path d="M30,50 a20,20 0 0,1 40,0" fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="6" strokeLinecap="round" className="transition-transform duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom group-hover:-translate-y-3 group-hover:opacity-0" />
+                <path d="M30,50 a20,20 0 0,0 40,0" fill="none" stroke={resolvedTheme === 'light' ? '#000000' : '#ffffff'} strokeWidth="4" strokeLinecap="round" strokeDasharray="2 6" className="transition-all duration-[600ms] ease-out opacity-0 group-hover:opacity-100 group-hover:translate-y-3" />
               </g>
-              <line
-                x1="85" y1="15" x2="15" y2="85"
-                stroke="#ff3333" strokeWidth="8" strokeLinecap="round"
-                className="origin-center transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.4] group-hover:shadow-[0_0_20px_rgba(255,51,51,0.8)]"
-              />
+              <line x1="85" y1="15" x2="15" y2="85" stroke="#ff3333" strokeWidth="8" strokeLinecap="round" className="origin-center transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.4]" />
             </svg>
-            <div className="absolute inset-0 bg-red-500/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100"></div>
           </div>
           <div className="text-center">
-            <div className="text-xs font-black tracking-[0.4em] text-xmr-green">RIPLEY_TERMINAL</div>
-            <div
-              className="text-[10px] text-xmr-dim font-bold tracking-[0.3em] uppercase mt-1 cursor-help"
-              title={activeIdentity?.name || 'TACTICAL_UPLINK'}
-            >
-              {activeIdentity?.name
-                ? activeIdentity.name.length > 15
-                  ? `${activeIdentity.name.substring(0, 15)}...`
-                  : activeIdentity.name
-                : 'TACTICAL_UPLINK'}
+            <div className="text-[11px] font-black tracking-[0.3em] text-xmr-green">RIPLEY_TERMINAL</div>
+            <div className="text-[9px] text-xmr-dim font-bold tracking-[0.2em] uppercase truncate max-w-[180px]" title={activeIdentity?.name || 'TACTICAL_UPLINK'}>
+              {activeIdentity?.name || 'TACTICAL_UPLINK'}
             </div>
           </div>
         </div>
 
-        <nav className="flex-grow space-y-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        {/* ─── Grouped Navigation ─── */}
+        <nav className="flex-grow overflow-y-auto custom-scrollbar space-y-1 pb-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <NavButton id="home" label="Dashboard" icon={Ghost} />
-          <NavButton id="ghost" label="Ghost_Protocol" icon={Ghost} />
-          <NavButton id="vigil" label="Ghost_Vigil" icon={Crosshair} />
-          <NavButton id="swap" label="Swap_Terminal" icon={ArrowDown} />
-          <NavButton
-            id="vault"
-            label="Vault_Storage"
-            icon={Shield}
-            badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null}
-          />
+          <NavButton id="vault" label="Vault" icon={Shield} badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null} />
 
-          <NavButton id="settings" label="Config_System" icon={Settings} />
+          <NavGroup label="Exchange" groupKey="exchange">
+            <NavButton id="exchange" label="Exchange" icon={ArrowDown} />
+            {!isPackaged && <NavButton id="vigil" label="Vigil / Limit" icon={Crosshair} />}
+          </NavGroup>
 
-          <NavButton id="agent" label="Agent_Gateway" icon={Bot} />
-
+          <NavGroup label="Tools" groupKey="tools">
+            <NavButton id="agent" label="Agent" icon={Bot} />
+            <NavButton id="settings" label="Settings" icon={Settings} />
+          </NavGroup>
           <button
             onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); }}
-            className={`w-full flex items-center justify-between px-6 py-4 border-l-2 border-transparent text-xmr-dim hover:text-xmr-accent hover:bg-xmr-accent/5 transition-all cursor-pointer group`}
+            className="w-full flex items-center gap-2.5 px-5 py-2.5 border-l-2 border-transparent text-xmr-dim hover:text-xmr-accent hover:bg-xmr-accent/5 transition-all cursor-pointer group"
           >
-            <div className="flex items-center gap-3">
-              <RefreshCw size={18} className="opacity-50 group-hover:opacity-100 group-hover:animate-spin-slow" />
-              <span className="text-[11px] font-black uppercase tracking-[0.2em]">Feedback?</span>
-            </div>
+            <RefreshCw size={15} className="opacity-50 group-hover:opacity-100 group-hover:animate-spin-slow" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em]">Feedback</span>
           </button>
         </nav>
 
-        <div className="p-6 space-y-4 border-t border-xmr-border/20 bg-xmr-green/[0.02]" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <div className="space-y-2">
-
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={lock}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-xs font-black"
-              >
-                <Lock size={14} className="group-hover:scale-110 transition-transform" />
-                LOCK_VAULT
-              </button>
-
-              <button
-                onClick={() => setShowConsole(!showConsole)}
-                className={`px-3 py-2 border transition-all cursor-pointer ${showConsole ? 'border-xmr-green text-xmr-green bg-xmr-green/10' : 'border-xmr-border text-xmr-dim hover:border-xmr-green'}`}
-              >
-                <TerminalIcon size={12} />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {/* 👤 Current identity and switching entry point */}
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                <span className="text-xmr-dim">ACTIVE_ID</span>
-                <button
-                  onClick={() => setView('settings')}
-                  className="text-xmr-green hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  {activeIdentity?.name.substring(0, 8) || 'UNKNOWN'} <RefreshCw size={8} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-xmr-dim">THEME_MODE</span>
-              <button onClick={cycleTheme} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
-                {mode === 'dark' && <Moon size={10} />}
-                {mode === 'light' && <Sun size={10} />}
-                {mode === 'system' && <Monitor size={10} />}
-                {mode.toUpperCase()}
-              </button>
-            </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-xmr-dim">SKIN_MODE</span>
-              <button onClick={cycleSkin} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-xmr-border hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green">
-                {skinLabel.toUpperCase()}
-              </button>
-            </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-xmr-dim">NETWORK_MODE</span>
-              <button
-                onClick={toggleTor}
-                className={`px-1.5 py-0.5 rounded border ${appConfig.routingMode === 'tor' ? 'border-xmr-green text-xmr-green' : 'border-xmr-accent text-xmr-accent'} cursor-pointer`}
-              >
-                {appConfig.routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET'}
-              </button>
-            </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-xmr-dim">SESSION_TIME</span>
-              <span className="text-xmr-green opacity-80">{uptime}</span>
-            </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-              <span className="text-xmr-dim">UPLINK_STATUS</span>
-              <span className={`flex items-center gap-1 font-black ${status === 'SYNCING' || status === 'READY' ? 'text-xmr-accent' : 'text-xmr-green'}`}>
-                <div className={`w-1 h-1 rounded-full ${status === 'SYNCING' || status === 'READY' ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`}></div>
-                {status === 'SYNCING' || status === 'READY' ? `SYNCING ${syncPercent ? syncPercent.toFixed(1) + '%' : ''}` : status}
-              </span>
-            </div>
+        {/* ─── Compact Bottom Panel ─── */}
+        <div className="px-4 py-3 border-t border-xmr-border/20 bg-xmr-green/[0.02] space-y-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          {/* Lock + Console row */}
+          <div className="flex gap-1.5">
+            <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
+              <Lock size={12} className="group-hover:scale-110 transition-transform" /> LOCK
+            </button>
+            <button onClick={() => setShowConsole(!showConsole)} className={`px-2.5 py-2 border transition-all cursor-pointer rounded-sm ${showConsole ? 'border-xmr-green text-xmr-green bg-xmr-green/10' : 'border-xmr-border text-xmr-dim hover:border-xmr-green'}`}>
+              <TerminalIcon size={12} />
+            </button>
           </div>
-          <div className="mt-2 border-t border-xmr-border/10 justify-end absolute bottom-2 left-6">
-            <div className="text-[10px] text-xmr-dim leading-relaxed uppercase italic " title={uplinkUrl}>
-              Uplink: {uplink || 'Scanning...'}
-            </div>
+
+          {/* Theme + Skin + Network in one compact grid */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <button onClick={cycleTheme} className="flex flex-col items-center gap-0.5 py-1.5 rounded-sm border border-xmr-border/50 hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green" title={`Theme: ${mode}`}>
+              {mode === 'dark' ? <Moon size={12} /> : mode === 'light' ? <Sun size={12} /> : <Monitor size={12} />}
+              <span className="text-[8px] font-black uppercase tracking-wide">{mode === 'system' ? 'SYS' : mode.substring(0, 4).toUpperCase()}</span>
+            </button>
+            <button onClick={cycleSkin} className="flex flex-col items-center gap-0.5 py-1.5 rounded-sm border border-xmr-border/50 hover:bg-xmr-green/10 transition-all cursor-pointer text-xmr-green" title={`Skin: ${skinLabel}`}>
+              <span className="text-[10px]">◈</span>
+              <span className="text-[8px] font-black uppercase tracking-wide">{skinLabel.substring(0, 4).toUpperCase()}</span>
+            </button>
+            <button onClick={toggleTor} className={`flex flex-col items-center gap-0.5 py-1.5 rounded-sm border cursor-pointer ${appConfig.routingMode === 'tor' ? 'border-xmr-green/50 text-xmr-green' : 'border-xmr-accent/50 text-xmr-accent'}`} title={appConfig.routingMode === 'tor' ? 'Tor Only' : 'Clearnet'}>
+              <Shield size={12} />
+              <span className="text-[8px] font-black uppercase tracking-wide">{appConfig.routingMode === 'tor' ? 'TOR' : 'CLR'}</span>
+            </button>
+          </div>
+
+          {/* Status row */}
+          <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-xmr-dim">
+            <span className="flex items-center gap-1">
+              <div className={`w-1 h-1 rounded-full ${status === 'SYNCING' || status === 'READY' ? 'bg-xmr-accent animate-pulse' : 'bg-xmr-green'}`} />
+              {status === 'SYNCING' || status === 'READY' ? `SYNC ${syncPercent ? syncPercent.toFixed(0) + '%' : ''}` : status}
+            </span>
+            <span className="text-xmr-dim/60">{uptime}</span>
           </div>
         </div>
       </aside>
@@ -537,9 +488,8 @@ function MainApp() {
 
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
                 <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} appConfig={appConfig} /></div>
-                <div className={view === 'ghost' ? 'block' : 'hidden'}><GhostView localXmrAddress={address} /></div>
-                <div className={view === 'vigil' ? 'block' : 'hidden'}><VigilView localXmrAddress={address} /></div>
-                <div className={view === 'swap' ? 'block' : 'hidden'}><SwapView /></div>
+                <div className={view === 'exchange' ? 'block' : 'hidden'}><ExchangeView localXmrAddress={address} /></div>
+                {!isPackaged && <div className={view === 'vigil' ? 'block' : 'hidden'}><VigilView localXmrAddress={address} /></div>}
 
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
                 <div className={view === 'agent' ? 'block' : 'hidden'}><AgentTab /></div>

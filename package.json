@@ -1,5 +1,5 @@
 {
-  "name": "@ripley-run/terminal",
+  "name": "ripley-terminal",
   "displayName": "Ripley Terminal",
   "version": "1.0.34",
   "description": "Tactical Monero Desktop Wallet",
