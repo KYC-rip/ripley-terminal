@@ -518,7 +518,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
 
   // ─── Log Console (shared) ───
   const LogConsole = ({ label }: { label: string }) => (
-    <div className="bg-xmr-base border border-xmr-border/20 rounded-lg overflow-hidden">
+    <div className="bg-xmr-base border border-xmr-border/20 rounded-md overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-xmr-border/20 bg-xmr-surface/30">
         <div className="flex items-center gap-2">
           <span className="relative flex h-1.5 w-1.5">

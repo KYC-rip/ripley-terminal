@@ -135,7 +135,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
 
   return (
     <div className={`
-      border rounded-xl overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
+      border rounded-lg overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
       ${isDanger
         ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
         : 'bg-xmr-surface border-xmr-border'

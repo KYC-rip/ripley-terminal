@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Book, PlusCircle, X } from 'lucide-react';
 import { Card } from '../Card';
+import { TableHeader } from './TableHeader';
 
 interface AddressBookProps {
   contacts: any[];
@@ -17,12 +18,12 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
   return (
     <>
       <Card noPadding className="h-[400px] flex flex-col">
-        <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+        <TableHeader>
           <span>Address_Book</span>
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-xmr-green hover:underline cursor-pointer">
             <PlusCircle size={10}/> ADD_NEW
           </button>
-        </div>
+        </TableHeader>
         <div className="flex-grow overflow-y-auto custom-scrollbar">
           {contacts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">

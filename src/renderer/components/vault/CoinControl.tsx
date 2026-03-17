@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Coins, Shield, Lock as LockIcon, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
+import { TableHeader } from './TableHeader';
 import { useVault } from '../../contexts/VaultContext';
 
 interface CoinControlProps {
@@ -26,10 +27,10 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
 
   return (
     <Card noPadding className="h-[400px] flex flex-col">
-      <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+      <TableHeader>
         <div className="flex items-center gap-2"><Coins size={12}/> <span>Deterministic_Outputs (UTXOs)</span></div>
         <span className="opacity-40">{outputs?.length || 0} Coins</span>
-      </div>
+      </TableHeader>
       <div className="flex-grow overflow-y-auto custom-scrollbar">
         <table className="w-full text-left border-collapse">
           <thead className="text-xs text-xmr-dim border-b border-xmr-border/10 sticky top-0 bg-xmr-surface uppercase">
