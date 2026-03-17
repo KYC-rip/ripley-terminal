@@ -92,7 +92,7 @@ export function VigilDashboard({
     <div className="w-full max-w-4xl mx-auto space-y-4 animate-in fade-in duration-300">
 
       {/* ─── Price Display ─── */}
-      <div className="relative bg-xmr-base/50 border border-xmr-border/30 rounded-lg p-6 overflow-hidden">
+      <div className="relative bg-xmr-base/50 border border-xmr-border/30 rounded-md p-6 overflow-hidden">
         {/* Background glow when triggered */}
         {isTriggered && (
           <div className="absolute inset-0 bg-red-500/5 animate-pulse" />
@@ -226,7 +226,7 @@ export function VigilDashboard({
       </div>
 
       {/* ─── Log Output ─── */}
-      <div className="bg-xmr-base border border-xmr-border/20 rounded-lg overflow-hidden">
+      <div className="bg-xmr-base border border-xmr-border/20 rounded-md overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-xmr-border/20 bg-xmr-surface/30">
           <div className="flex items-center gap-2">
             <span className="relative flex h-1.5 w-1.5">

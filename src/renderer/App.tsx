@@ -339,7 +339,7 @@ function MainApp() {
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
-      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50 rounded-r-lg" style={{ WebkitAppRegion: 'drag' } as any}>
+      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50 rounded-r-md" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* ─── Header ─── */}
         <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>

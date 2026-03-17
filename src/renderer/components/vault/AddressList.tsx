@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Edit2, Check, X, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
+import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
 
 interface AddressListProps {
@@ -49,7 +50,7 @@ export function AddressList({
 
   return (
     <Card noPadding className="h-[400px] flex flex-col">
-      <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+      <TableHeader>
         <div className="flex items-center gap-4">
           <span>Internal_Subaddresses</span>
           <span className="opacity-40">{subaddresses?.length || 0} Entries</span>
@@ -68,7 +69,7 @@ export function AddressList({
             </>
           )}
         </button>
-      </div>
+      </TableHeader>
       <div className="flex-grow overflow-y-auto custom-scrollbar">
         <table className="w-full text-left">
           <thead className="text-xs text-xmr-dim border-b border-xmr-border/10 sticky top-0 bg-xmr-surface uppercase">

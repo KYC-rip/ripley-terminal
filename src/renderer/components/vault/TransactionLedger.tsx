@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, Copy, ExternalLink, Info, Loader2, Key, ShieldCheck, Fingerprint, CheckCircle, ShieldAlert, Zap, Ghost } from 'lucide-react';
 import { Card } from '../Card';
+import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
 import { SubaddressInfo, useVault } from '../../contexts/VaultContext';
 import { RpcClient } from '../../services/rpcClient';
@@ -158,7 +159,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
 
   return (
     <Card noPadding className="h-[430px] flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-xmr-border/20 bg-xmr-green/5 text-[11px] font-black uppercase tracking-widest flex justify-between items-center shrink-0">
+      <TableHeader>
         <div className="flex items-center gap-2">
           <span>Transaction_History</span>
           <Info size={10} className="text-xmr-green opacity-40" />
@@ -173,7 +174,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
           </button>
           <span className="opacity-40">{txs?.length || 0} Records</span>
         </div>
-      </div>
+      </TableHeader>
 
       <div className="flex-grow flex flex-col min-h-0 relative">
         {/* Verification Drawer/Box */}

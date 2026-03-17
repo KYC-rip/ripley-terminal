@@ -318,7 +318,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
       </div>
 
       {/* ─── Config Panel ─── */}
-      <div className="bg-xmr-base/30 border border-xmr-border rounded-lg p-3 flex flex-col gap-3 relative">
+      <div className="bg-xmr-base/30 border border-xmr-border rounded-md p-3 flex flex-col gap-3 relative">
 
         {/* Header */}
         <div className="flex justify-between items-end border-b border-xmr-border/30 pb-1.5">
