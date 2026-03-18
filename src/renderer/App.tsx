@@ -575,7 +575,7 @@ function MainApp() {
                     setShowFeedbackModal(false);
                   }}
                   disabled={!feedbackText.trim()}
-                  className="flex-grow py-4 bg-xmr-accent text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-30 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-grow py-4 bg-xmr-accent text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw size={16} /> Submit_To_Uplink
                 </button>

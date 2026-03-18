@@ -30,7 +30,7 @@ export function ComplianceSelector({
     if (value.kyc === 'ANY' || value.log === 'ANY') {
        return { label: 'BEST RATE (RISK)', color: 'text-xmr-accent border-xmr-accent', bg: 'bg-xmr-accent/10' };
     }
-    return { label: 'BALANCED', color: 'text-blue-500 border-blue-500', bg: 'bg-blue-500/10' };
+    return { label: 'BALANCED', color: 'text-xmr-green border-xmr-green', bg: 'bg-xmr-green/10' };
   };
 
   const summary = getSummary();
@@ -47,7 +47,7 @@ export function ComplianceSelector({
 
     const activeStyles = {
       ANY: 'text-xmr-accent border-xmr-accent bg-xmr-accent/10 shadow-[0_0_10px_var(--color-xmr-accent)] shadow-xmr-accent/20',
-      STANDARD: 'text-blue-500 border-blue-500/50 bg-blue-500/10 dark:text-blue-400 shadow-blue-500/20',
+      STANDARD: 'text-xmr-green border-xmr-green/50 bg-xmr-green/10 shadow-[0_0_10px_var(--color-xmr-green)] shadow-xmr-green/20',
       STRICT: variant === 'vigil' 
         ? 'text-xmr-green border-xmr-green bg-xmr-green/10 shadow-[0_0_10px_var(--color-xmr-green)] shadow-xmr-green/20'
         : 'text-xmr-ghost border-xmr-ghost bg-xmr-ghost/10 shadow-[0_0_15px_var(--color-xmr-ghost)] shadow-xmr-ghost/20'
@@ -64,7 +64,7 @@ export function ComplianceSelector({
            <span className="flex items-center gap-2">{icon} {label}</span>
            <div className="flex gap-1">
               <div className={`h-1.5 w-1.5 rounded-full transition-colors ${currentLevel === 'ANY' ? 'bg-xmr-accent' : 'bg-xmr-border'}`} />
-              <div className={`h-1.5 w-1.5 rounded-full transition-colors ${currentLevel === 'STANDARD' ? 'bg-blue-500' : 'bg-xmr-border'}`} />
+              <div className={`h-1.5 w-1.5 rounded-full transition-colors ${currentLevel === 'STANDARD' ? 'bg-xmr-green' : 'bg-xmr-border'}`} />
               <div className={`h-1.5 w-1.5 rounded-full transition-colors ${currentLevel === 'STRICT' ? (variant === 'vigil' ? 'bg-xmr-green' : 'bg-xmr-ghost') : 'bg-xmr-border'}`} />
            </div>
         </div>

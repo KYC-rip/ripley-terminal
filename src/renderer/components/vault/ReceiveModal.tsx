@@ -3,6 +3,7 @@ import { X, Tag, DollarSign, Copy, CheckCircle2, QrCode, ArrowDownToLine, Shuffl
 import { QRCodeSVG } from 'qrcode.react';
 import { useVault } from '../../contexts/VaultContext';
 import { getOrCreateSubaddress } from '../../services/subaddressService';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 
 interface ExistingAddress {
   address: string;
@@ -29,8 +30,8 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
   // --- Cross Chain State ---
   const [ccAmount, setCcAmount] = useState('');
   const [ccLink, setCcLink] = useState('');
-  const [ccCopied, setCcCopied] = useState(false);
-  const [directCopied, setDirectCopied] = useState(false);
+  const { copied: ccCopied, copy: ccCopy } = useCopyToClipboard();
+  const { copied: directCopied, copy: directCopy } = useCopyToClipboard();
 
   // Auto-generate or reuse subaddress on mount (skip if viewing existing)
   useEffect(() => {
@@ -71,12 +72,6 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
   const handleLabelChange = (v: string) => {
     setLabel(v);
     if (generatedIndex !== null) setSubaddressLabel(generatedIndex, v || 'Payment_Request');
-  };
-
-  const copy = (text: string, setter: (v: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setter(true);
-    setTimeout(() => setter(false), 2000);
   };
 
   // Shared QR + Address display
@@ -173,7 +168,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
                   imgSize={40}
                   copyText={generatedAddress}
                   copied={directCopied}
-                  onCopy={() => copy(generatedAddress, setDirectCopied)}
+                  onCopy={() => directCopy(generatedAddress)}
                   sublabel="Scan or copy subaddress"
                 />
               )}
@@ -199,7 +194,7 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
                     imgSize={40}
                     copyText={ccLink || 'Generating link...'}
                     copied={ccCopied}
-                    onCopy={() => ccLink && copy(ccLink, setCcCopied)}
+                    onCopy={() => ccLink && ccCopy(ccLink)}
                     sublabel={ccLink ? 'Payer chooses their asset on kyc.rip' : undefined}
                   />
                 </div>

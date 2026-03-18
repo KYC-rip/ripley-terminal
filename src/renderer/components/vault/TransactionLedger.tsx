@@ -484,7 +484,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                                       }
                                     }}
                                     disabled={isLoadingDetails[tx.id]}
-                                    className="w-full py-2 bg-xmr-green/5 border border-xmr-green/20 text-xmr-green text-[10px] uppercase font-black tracking-widest hover:bg-xmr-green/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-30 cursor-pointer"
+                                    className="w-full py-2 bg-xmr-green/5 border border-xmr-green/20 text-xmr-green text-[10px] uppercase font-black tracking-widest hover:bg-xmr-green/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                                   >
                                     {isLoadingDetails[tx.id] ? (
                                       <>
