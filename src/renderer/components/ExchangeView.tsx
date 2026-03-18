@@ -800,7 +800,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           <button
             onClick={handleSwapCoins}
             disabled={!toCoin}
-            className={`bg-xmr-base border p-1 rounded-full hover:rotate-180 transition-all duration-300 cursor-pointer disabled:opacity-30 ${isGhost ? 'border-xmr-ghost/40 text-xmr-ghost hover:bg-xmr-ghost/10' : 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10'}`}
+            className={`bg-xmr-base border p-1 rounded-full hover:rotate-180 transition-all duration-300 cursor-pointer disabled:opacity-50 ${isGhost ? 'border-xmr-ghost/40 text-xmr-ghost hover:bg-xmr-ghost/10' : 'border-xmr-accent/40 text-xmr-accent hover:bg-xmr-accent/10'}`}
           >
             <ArrowDown size={12} />
           </button>
@@ -889,7 +889,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         <button
           disabled={!selectedRoute || !destAddress || isCreating || (isGhost && (selectedRoute as BridgeRoute)?.requiresRefund && !refundAddress)}
           onClick={handleExecute}
-          className={`w-full py-3 font-black uppercase tracking-[0.2em] text-sm rounded-md transition-all flex items-center justify-center gap-3 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] shadow-lg ${
+          className={`w-full py-3 font-black uppercase tracking-[0.2em] text-sm rounded-md transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] shadow-lg ${
             isGhost
               ? 'bg-xmr-ghost text-white hover:brightness-110 shadow-xmr-ghost/10'
               : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base shadow-xmr-accent/10'

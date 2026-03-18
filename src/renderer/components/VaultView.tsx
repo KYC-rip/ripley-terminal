@@ -242,8 +242,8 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
             </div>
           </Card>
           <div className="grid grid-cols-2 gap-4 font-black">
-            <button disabled={isSyncing} onClick={() => setModals(prev => ({ ...prev, receive: true }))} className="py-4 border border-xmr-green text-xmr-green font-black uppercase text-xs tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"><Download size={16} /> Receive</button>
-            <button disabled={isSyncing} onClick={() => setModals(prev => ({ ...prev, send: true }))} className="py-4 border border-xmr-accent text-xmr-accent font-black uppercase text-xs tracking-widest hover:bg-xmr-accent hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"><Send size={16} /> Dispatch</button>
+            <button disabled={isSyncing} onClick={() => setModals(prev => ({ ...prev, receive: true }))} className="py-4 border border-xmr-green text-xmr-green font-black uppercase text-xs tracking-widest hover:bg-xmr-green hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"><Download size={16} /> Receive</button>
+            <button disabled={isSyncing} onClick={() => setModals(prev => ({ ...prev, send: true }))} className="py-4 border border-xmr-accent text-xmr-accent font-black uppercase text-xs tracking-widest hover:bg-xmr-accent hover:text-xmr-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"><Send size={16} /> Dispatch</button>
           </div>
         </div>
       </div>

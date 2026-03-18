@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 
 interface AddressDisplayProps {
   address: string;
@@ -15,16 +16,12 @@ interface AddressDisplayProps {
  * Now with click-to-copy functionality.
  */
 export function AddressDisplay({ address, className = '', truncate = false, length = 12, showCopyIndicator = false }: AddressDisplayProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
-  const handleCopy = useCallback((e: React.MouseEvent) => {
+  const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!address) return;
-
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [address]);
+    copy(address);
+  };
 
   if (!address) return <span className="opacity-30 italic">WAITING_FOR_UPLINK...</span>;
 

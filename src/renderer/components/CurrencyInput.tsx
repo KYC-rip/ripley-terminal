@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X, Check } from 'lucide-react';
+import { Spinner } from './common/Spinner';
 import type { Currency } from '../hooks/useCurrencies';
 import { useFiatValue } from '../hooks/useFiatValue';
 
@@ -154,10 +155,10 @@ export function CurrencyInput({
   }, [searchTerm, isModalOpen, isListReady, filteredList]);
 
   const modalContent = (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-xmr-base/80 backdrop-blur-md animate-in fade-in duration-200 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-200 p-4">
       <div className="absolute inset-0" onClick={() => setIsModalOpen(false)}></div>
 
-      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-xl overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
+      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-lg overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
         {/* Header */}
         <div className="p-4 border-b border-xmr-border flex justify-between items-center bg-xmr-surface">
           <h3 className="font-bold text-xmr-green tracking-[0.2em] text-sm flex items-center gap-2">
@@ -185,7 +186,7 @@ export function CurrencyInput({
           {!isListReady ? (
 
             <div className="flex flex-col items-center justify-center h-48 space-y-2">
-              <div className="w-6 h-6 border-2 border-xmr-green border-t-transparent rounded-full animate-spin"></div>
+              <Spinner />
               <span className="text-xs text-xmr-dim animate-pulse">LOADING_ASSETS...</span>
             </div>
           ) : (
@@ -272,9 +273,7 @@ export function CurrencyInput({
         />
 
         <div className="pr-2 md:pr-3 flex items-center gap-2 shrink-0">
-          {loading && (
-            <div className="w-4 h-4 border-2 border-xmr-green border-t-transparent rounded-full animate-spin"></div>
-          )}
+          {loading && <Spinner size="sm" />}
 
           <button
             onClick={() => !disableSelector && setIsModalOpen(true)}
