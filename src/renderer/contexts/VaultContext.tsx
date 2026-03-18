@@ -110,6 +110,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [monero402Challenge, setMonero402Challenge] = useState<any>(null);
   const lastHeightRef = useRef<number>(0);
   const daemonHeightRef = useRef<number>(0);
+  const isRefreshing = useRef<boolean>(false);
 
   const determineSyncStatus = useCallback((height: number, daemonH: number) => {
     if (daemonH > 0) {
@@ -132,6 +133,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (isLocked || isInitializing) return;
+    // Concurrency guard: skip if another refresh is already in-flight
+    if (isRefreshing.current) return;
+    isRefreshing.current = true;
 
     try {
       const allAccs = await WalletService.getAccounts().catch(() => null);
@@ -179,17 +183,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     } catch (e: any) {
       console.warn("Sync gap detected:", e.message);
+    } finally {
+      isRefreshing.current = false;
     }
   }, [isLocked, isInitializing, selectedAccountIndex, determineSyncStatus]);
 
   // 🔄 Initial & Periodic Refresh
+  // Reduce frequency while syncing to avoid RPC contention with padded sync
   useEffect(() => {
     if (!isLocked && !isInitializing) {
       refresh();
-      const timer = setInterval(refresh, 10000);
+      const isSyncing = status === 'SYNCING';
+      const interval = isSyncing ? 30000 : 10000;
+      const timer = setInterval(refresh, interval);
       return () => clearInterval(timer);
     }
-  }, [isLocked, isInitializing, refresh]);
+  }, [isLocked, isInitializing, refresh, status]);
 
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
@@ -235,10 +244,23 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           setSyncPercent(p);
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
-          // 🛡️ Only update global state if the change belongs to the active account
-          // Since SyncWatcher currently emits for whichever account is active in RPC,
-          // we should double-check or just refresh to be safe.
-          refresh();
+          // During sync, just update balance inline instead of triggering a full
+          // refresh (5 RPC calls) that competes with padded sync for the wallet-rpc
+          const isSyncing = daemonHeightRef.current > 0 &&
+            (daemonHeightRef.current - lastHeightRef.current) > 5;
+          if (isSyncing) {
+            const pico = event.payload.balance;
+            const unlocked = event.payload.unlocked ?? pico;
+            const fmt = (v: number) => {
+              if (v < 0) return '0.0000';
+              const w = Math.floor(v / 1e12);
+              const f = v % 1e12;
+              return `${w}.${f.toString().padStart(12, '0')}`;
+            };
+            setBalance({ total: fmt(pico), unlocked: fmt(unlocked) });
+          } else {
+            refresh();
+          }
         }
       });
       return () => cleanup();
