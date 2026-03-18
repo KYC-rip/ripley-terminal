@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Scissors, MoreVertical, Plus } from 'lucide-react';
-import { Card } from './Card';
+import { RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Scissors, MoreVertical, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AddressBook } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';
 import { CoinControl } from './vault/CoinControl';
 import { TransactionLedger } from './vault/TransactionLedger';
 import { VaultModals } from './vault/VaultModals';
 import { type VaultContextType } from '../contexts/VaultContext';
-import { AddressDisplay } from './common/AddressDisplay';
 import { WalletService } from '../services/walletService';
 import { useFiatValue } from '../hooks/useFiatValue';
 
@@ -34,6 +32,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
   const [dispatchSubIndex, setDispatchSubIndex] = useState<number | undefined>(undefined);
   const [showCardMenu, setShowCardMenu] = useState(false);
+  const [showAccountList, setShowAccountList] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
@@ -53,6 +52,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   }, [activeId, appConfig]);
 
   const cardMenuRef = useRef<HTMLDivElement>(null);
+  const accountListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (requestedAction) {
       if (requestedAction === 'OPEN_SEND') setModals(prev => ({ ...prev, send: true }));
@@ -67,6 +67,9 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     function handleClickOutside(event: MouseEvent) {
       if (cardMenuRef.current && !cardMenuRef.current.contains(event.target as Node)) {
         setShowCardMenu(false);
+      }
+      if (accountListRef.current && !accountListRef.current.contains(event.target as Node)) {
+        setShowAccountList(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -135,14 +138,22 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const isSyncing = status === 'SYNCING' || status === 'READY';
   const isFullySynced = status === 'SYNCED';
 
-  const cycleAccount = () => {
+  const currentAccIdx = accounts.findIndex(a => a.index === selectedAccountIndex);
+  const prevAccount = () => {
     if (accounts.length <= 1) return;
-    const currentIdx = accounts.findIndex(a => a.index === selectedAccountIndex);
-    const nextIdx = (currentIdx + 1) % accounts.length;
+    const prevIdx = (currentAccIdx - 1 + accounts.length) % accounts.length;
+    setSelectedAccountIndex(accounts[prevIdx].index);
+  };
+  const nextAccount = () => {
+    if (accounts.length <= 1) return;
+    const nextIdx = (currentAccIdx + 1) % accounts.length;
     setSelectedAccountIndex(accounts[nextIdx].index);
   };
 
   const hasNoBalance = parseFloat(currentAcc?.unlockedBalance || '0') <= 0;
+  const totalBalance = accounts.reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+  const totalUnlocked = accounts.reduce((sum, acc) => sum + parseFloat(acc.unlockedBalance || '0'), 0);
+  const { fiatText: totalFiat } = useFiatValue('XMR', totalBalance.toFixed(12), true);
 
   const quickActions = [
     { label: 'Dispatch', icon: Send, onClick: () => setModals(prev => ({ ...prev, send: true })), disabled: isSyncing },
@@ -175,192 +186,234 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
         </div>
       )}
 
-      {/* 2. CARD STACK + IDENTITY STATUS */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 relative z-10 font-black font-mono">
+      {/* 2. ACCOUNT CARD + QUICK ACTIONS */}
+      <div className="relative z-10 font-black font-mono space-y-4">
 
-        {/* LEFT: Card Stack + Quick Actions */}
-        <div className="flex flex-col gap-5">
+        {/* Full-width account card */}
+        <div className="relative" style={{ perspective: '800px' }}>
+          {/* Background cards (stack effect) */}
+          {accounts.length >= 3 && (
+            <div className="absolute top-0 left-8 right-8 h-full bg-xmr-surface border border-xmr-border/15 rounded-lg" style={{ transform: 'translateY(-6px) scale(0.96)', opacity: 0.25 }} />
+          )}
+          {accounts.length >= 2 && (
+            <div className="absolute top-0 left-4 right-4 h-full bg-xmr-surface border border-xmr-border/20 rounded-lg" style={{ transform: 'translateY(-3px) scale(0.98)', opacity: 0.4 }} />
+          )}
 
-          {/* Card Stack */}
-          <div className="relative h-[220px] cursor-pointer" style={{ perspective: '800px' }} onClick={cycleAccount}>
-            {/* Background card 3 (deepest) */}
-            {accounts.length >= 3 && (
-              <div
-                className="absolute top-0 left-6 right-6 h-[200px] bg-xmr-surface border border-xmr-border/15 rounded-lg"
-                style={{ transform: 'translateY(0px) scale(0.92)', opacity: 0.3 }}
-              />
-            )}
-            {/* Background card 2 */}
-            {accounts.length >= 2 && (
-              <div
-                className="absolute top-0 left-3.5 right-3.5 h-[200px] bg-xmr-surface border border-xmr-border/20 rounded-lg"
-                style={{ transform: 'translateY(6px) scale(0.96)', opacity: 0.5 }}
-              />
-            )}
+          {/* Main card */}
+          <div className={`relative bg-gradient-to-br from-xmr-green/5 via-xmr-green/8 to-xmr-green/3 bg-xmr-surface border border-xmr-green/40 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-150 ${switching ? 'opacity-70 scale-[0.99]' : 'opacity-100 scale-100'}`}>
+            {/* Top glow */}
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-xmr-green/50 to-transparent rounded-t-lg" />
+            {/* Watermark */}
+            <div className="absolute right-6 bottom-3 text-8xl font-black text-xmr-green/[0.03] tracking-tighter select-none pointer-events-none">XMR</div>
 
-            {/* Main card (active account) */}
-            <div
-              className={`absolute top-0 left-0 right-0 h-[200px] bg-gradient-to-br from-xmr-green/5 via-xmr-green/8 to-xmr-green/3 bg-xmr-surface border border-xmr-green/40 rounded-lg p-6 flex flex-col justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-150 ${switching ? 'scale-[0.97] opacity-70' : 'scale-100 opacity-100'}`}
-              style={{ transform: `translateY(14px) ${switching ? 'scale(0.97)' : 'scale(1)'}` }}
-            >
-              {/* Top glow */}
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-xmr-green/50 to-transparent rounded-t-lg" />
-
-              {/* Watermark */}
-              <div className="absolute right-5 bottom-4 text-7xl font-black text-xmr-green/5 tracking-tighter select-none pointer-events-none">XMR</div>
-
-              {/* Card header */}
-              <div className="flex justify-between items-start relative z-10">
-                <div>
-                  <div className="text-[11px] text-xmr-dim font-bold tracking-[0.2em] uppercase">ACCT #{String(selectedAccountIndex).padStart(2, '0')}</div>
-                  {editingAccountId === selectedAccountIndex ? (
-                    <input
-                      autoFocus
-                      value={editAccountName}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setEditAccountName(e.target.value)}
-                      onBlur={async () => {
-                        if (editAccountName.trim() && editAccountName !== currentAcc?.label) {
-                          await vault.renameAccount(selectedAccountIndex, editAccountName.trim());
-                        }
-                        setEditingAccountId(null);
-                      }}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter') {
+            {/* Card content: 2-column layout inside */}
+            <div className="flex relative z-10">
+              {/* Left: account info + balance */}
+              <div className="flex-1 p-6 pr-0">
+                {/* Header row */}
+                <div className="flex items-start gap-3 mb-4">
+                  {/* Prev arrow */}
+                  {accounts.length > 1 && (
+                    <button onClick={prevAccount} className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full border border-xmr-border/30 text-xmr-dim hover:text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer shrink-0">
+                      <ChevronLeft size={14} />
+                    </button>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] text-xmr-dim font-bold tracking-[0.2em] uppercase">ACCT #{String(selectedAccountIndex).padStart(2, '0')}</div>
+                    {editingAccountId === selectedAccountIndex ? (
+                      <input
+                        autoFocus
+                        value={editAccountName}
+                        onChange={(e) => setEditAccountName(e.target.value)}
+                        onBlur={async () => {
                           if (editAccountName.trim() && editAccountName !== currentAcc?.label) {
                             await vault.renameAccount(selectedAccountIndex, editAccountName.trim());
                           }
                           setEditingAccountId(null);
-                        } else if (e.key === 'Escape') {
-                          setEditingAccountId(null);
-                        }
-                      }}
-                      className="bg-xmr-base border border-xmr-green text-xmr-green text-sm font-black p-1 uppercase outline-none mt-0.5 w-48"
-                    />
-                  ) : (
-                    <div className="text-sm font-black uppercase tracking-[0.15em] text-xmr-green mt-0.5">
-                      {currentAcc?.label || 'UNTITLED_IDENTITY'}
-                    </div>
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            if (editAccountName.trim() && editAccountName !== currentAcc?.label) {
+                              await vault.renameAccount(selectedAccountIndex, editAccountName.trim());
+                            }
+                            setEditingAccountId(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingAccountId(null);
+                          }
+                        }}
+                        className="bg-xmr-base border border-xmr-green text-xmr-green text-sm font-black p-1 uppercase outline-none mt-0.5 w-48"
+                      />
+                    ) : (
+                      <div className="text-base font-black uppercase tracking-[0.15em] text-xmr-green mt-0.5 truncate">
+                        {currentAcc?.label || 'UNTITLED_ACCOUNT'}
+                      </div>
+                    )}
+                  </div>
+                  {/* Next arrow */}
+                  {accounts.length > 1 && (
+                    <button onClick={nextAccount} className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full border border-xmr-border/30 text-xmr-dim hover:text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer shrink-0">
+                      <ChevronRight size={14} />
+                    </button>
                   )}
+                  {/* Three-dot menu */}
+                  <div className="relative shrink-0" ref={cardMenuRef}>
+                    <button
+                      onClick={() => setShowCardMenu(!showCardMenu)}
+                      className="w-7 h-7 flex items-center justify-center border border-xmr-border/20 rounded-md text-xmr-dim hover:text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                    {showCardMenu && (
+                      <div className="absolute right-0 top-9 bg-xmr-base border border-xmr-border/50 rounded-md shadow-xl z-50 min-w-[180px] py-1 animate-in fade-in zoom-in-95 duration-150">
+                        <button
+                          onClick={() => { setEditAccountName(currentAcc?.label || ''); setEditingAccountId(selectedAccountIndex); setShowCardMenu(false); }}
+                          className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Edit2 size={10} /> Rename
+                        </button>
+                        <button
+                          onClick={() => { handleOpenCreateModal(); setShowCardMenu(false); }}
+                          className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-accent hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Plus size={10} /> New Account
+                        </button>
+                        <div className="border-t border-xmr-border/20 my-1" />
+                        <button
+                          onClick={() => { revealSeed(); setShowCardMenu(false); }}
+                          className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-dim hover:text-xmr-accent hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Key size={10} /> Backup Seed
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Three-dot menu */}
-                <div className="relative" ref={cardMenuRef}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowCardMenu(!showCardMenu); }}
-                    className="w-7 h-7 flex items-center justify-center border border-xmr-border/20 rounded-md text-xmr-dim hover:text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer"
-                  >
-                    <MoreVertical size={14} />
-                  </button>
-                  {showCardMenu && (
-                    <div className="absolute right-0 top-9 bg-xmr-base border border-xmr-border/50 rounded-md shadow-xl z-50 min-w-[180px] py-1 animate-in fade-in zoom-in-95 duration-150">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditAccountName(currentAcc?.label || '');
-                          setEditingAccountId(selectedAccountIndex);
-                          setShowCardMenu(false);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/10 transition-all flex items-center gap-2 cursor-pointer"
-                      >
-                        <Edit2 size={10} /> Rename
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenCreateModal();
-                          setShowCardMenu(false);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-accent hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer"
-                      >
-                        <Plus size={10} /> New Account
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Balance */}
-              <div className="flex flex-col gap-0.5 relative z-10">
-                <div className="flex items-baseline gap-2.5">
+                {/* Balance */}
+                <div className="flex items-baseline gap-2.5 mb-1">
                   <span className="text-4xl font-black text-xmr-green leading-none">{currentAccBalance}</span>
                   <span className="text-base text-xmr-dim font-bold">XMR</span>
                 </div>
                 {usdValue && (
-                  <div className="text-xs font-bold text-xmr-dim/60 uppercase tracking-[0.1em]">
-                    {usdValue} USD
-                  </div>
+                  <div className="text-xs font-bold text-xmr-dim/60 uppercase tracking-[0.1em] mb-3">{usdValue} USD</div>
                 )}
+
+                {/* Address */}
+                <div className="text-[10px] text-xmr-dim/30 tracking-wider">
+                  {currentAcc?.baseAddress?.substring(0, 12)}...{currentAcc?.baseAddress?.substring((currentAcc?.baseAddress?.length || 8) - 8)}
+                </div>
               </div>
 
-              {/* Card footer */}
-              <div className="flex justify-between items-end relative z-10">
-                <div className="text-[10px] text-xmr-dim/30 tracking-wider">
-                  {currentAcc?.baseAddress?.substring(0, 8)}...{currentAcc?.baseAddress?.substring((currentAcc?.baseAddress?.length || 8) - 6)}
+              {/* Right: portfolio summary + status */}
+              <div className="w-[280px] shrink-0 border-l border-xmr-border/15 p-5 flex flex-col justify-between">
+                {/* Portfolio total */}
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-xmr-dim/60 mb-1">Portfolio ({accounts.length} accts)</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xl font-black text-xmr-green">{totalBalance.toFixed(4)}</span>
+                    <span className="text-[10px] text-xmr-dim font-bold">XMR</span>
+                  </div>
+                  {totalFiat && <div className="text-[10px] font-bold text-xmr-dim/40 uppercase tracking-wider">{totalFiat} USD</div>}
                 </div>
-                {/* Dot indicators */}
-                <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  {accounts.map(acc => (
-                    <button
-                      key={acc.index}
-                      onClick={() => setSelectedAccountIndex(acc.index)}
-                      className={`w-[7px] h-[7px] rounded-full transition-all cursor-pointer ${acc.index === selectedAccountIndex
-                        ? 'bg-xmr-green shadow-[0_0_8px_var(--color-xmr-green)]'
-                        : 'bg-xmr-green/30 hover:bg-xmr-green/60'
-                      }`}
-                      title={acc.label || `Account ${acc.index}`}
-                    />
-                  ))}
+
+                {/* Status rows */}
+                <div className="space-y-1 mt-3 pt-3 border-t border-xmr-border/15">
+                  <div className="flex justify-between text-[10px] uppercase font-black">
+                    <span className="text-xmr-dim/40">Uplink:</span>
+                    <span className={`flex items-center gap-1 ${isSyncing ? 'text-xmr-accent' : 'text-xmr-green'}`}>
+                      {isSyncing && <Loader2 size={8} className="animate-spin" />}
+                      {status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] uppercase font-black">
+                    <span className="text-xmr-dim/40">Height:</span>
+                    <span className="text-xmr-green">{currentHeight || '---'}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] uppercase font-black">
+                    <span className="text-xmr-dim/40">Unlocked:</span>
+                    <span className="text-xmr-green">{parseFloat(currentAcc?.unlockedBalance || '0').toFixed(4)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] uppercase font-black">
+                    <span className="text-xmr-dim/40">Outputs:</span>
+                    <span className="text-xmr-green">{outputs?.length || 0}</span>
+                  </div>
+                </div>
+
+                {/* All accounts trigger */}
+                <div className="relative mt-3 pt-3 border-t border-xmr-border/15" ref={accountListRef}>
+                  <button
+                    onClick={() => setShowAccountList(!showAccountList)}
+                    className="w-full flex items-center justify-between text-[10px] font-black text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer uppercase tracking-widest px-2.5 py-1.5 border border-xmr-border/20 rounded hover:border-xmr-green/40"
+                  >
+                    <span>All Accounts</span>
+                    <span className="text-xmr-green/60">{currentAccIdx + 1}/{accounts.length}</span>
+                  </button>
+                  {showAccountList && (
+                    <div className="absolute bottom-10 right-0 bg-xmr-base border border-xmr-border/50 rounded-md shadow-2xl z-50 w-[340px] max-h-[400px] flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      <div className="px-4 py-3 border-b border-xmr-border/30 bg-xmr-green/5">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-xmr-dim">All Accounts ({accounts.length})</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-xmr-dim">Total</span>
+                        </div>
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-[10px] text-xmr-dim/50 uppercase tracking-wider">Unlocked: {totalUnlocked.toFixed(4)}</span>
+                          <div className="text-right">
+                            <span className="text-sm font-black text-xmr-green">{totalBalance.toFixed(4)} XMR</span>
+                            {totalFiat && <div className="text-[10px] text-xmr-dim/60 font-bold">{totalFiat} USD</div>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto custom-scrollbar flex-1">
+                        {accounts.map(acc => (
+                          <button
+                            key={acc.index}
+                            onClick={() => { setSelectedAccountIndex(acc.index); setShowAccountList(false); }}
+                            className={`w-full px-4 py-2.5 flex items-center justify-between text-left transition-all cursor-pointer hover:bg-xmr-green/10 border-b border-xmr-border/10 ${acc.index === selectedAccountIndex ? 'bg-xmr-green/5 border-l-2 border-l-xmr-green' : ''}`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-[10px] text-xmr-dim font-bold shrink-0 w-6">{String(acc.index).padStart(2, '0')}</span>
+                              <span className="text-[11px] text-xmr-green font-black uppercase truncate">{acc.label || 'UNTITLED'}</span>
+                            </div>
+                            <div className="text-right shrink-0 ml-3">
+                              <div className="text-[11px] text-xmr-green font-bold">{parseFloat(acc.balance).toFixed(4)}</div>
+                              <div className="text-[9px] text-xmr-dim/50 font-bold">XMR</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => { handleOpenCreateModal(); setShowAccountList(false); }}
+                        className="px-4 py-2.5 text-center text-[10px] text-xmr-accent font-black uppercase tracking-widest hover:bg-xmr-accent/10 transition-all cursor-pointer border-t border-xmr-border/30 shrink-0"
+                      >
+                        + New Account
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Quick Actions Row */}
-          <div className="flex gap-3 justify-center">
-            {quickActions.map(action => (
-              <button
-                key={action.label}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                className="flex flex-col items-center gap-1.5 group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="w-[52px] h-[52px] rounded-full border border-xmr-green/30 flex items-center justify-center bg-xmr-base text-xmr-green group-hover:border-xmr-green/80 group-hover:bg-xmr-green/10 group-hover:scale-105 transition-all disabled:group-hover:scale-100">
-                  <action.icon size={18} className={action.spin ? 'animate-spin' : ''} />
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-[0.15em] text-xmr-dim group-hover:text-xmr-green transition-colors">
-                  {action.label}
-                </span>
-              </button>
-            ))}
           </div>
         </div>
 
-        {/* RIGHT: Identity Status (enhanced with Unlocked + Outputs) */}
-        <Card className="flex flex-col justify-between p-4! h-fit">
-          <div className="flex justify-between items-start font-black">
-            <span className="text-xs text-xmr-dim uppercase tracking-widest font-black">Identity_Status</span>
-            <button onClick={revealSeed} className="text-xmr-green hover:text-xmr-accent transition-all cursor-pointer">
-              <Key size={16} />
-            </button>
-          </div>
-          <div className="p-3 bg-xmr-base border border-xmr-border/30 rounded-sm font-black overflow-hidden mt-3">
-            <div className="flex justify-between items-center mb-1 font-black"><span className="text-xs opacity-50 text-xmr-green font-black uppercase">SESSION_ADDRESS</span></div>
-            <AddressDisplay address={address} className="text-[11px] " />
-          </div>
-          <div className="space-y-1.5 border-t border-xmr-border/20 pt-4 mt-3 font-black">
-            <div className="flex justify-between text-[11px] uppercase font-black">
-              <span className="opacity-40 text-xmr-green">Uplink:</span>
-              <span className={`font-black flex items-center gap-1.5 ${isSyncing ? 'text-xmr-accent animate-pulse' : 'text-xmr-green'}`}>
-                {isSyncing && <Loader2 size={10} className="animate-spin" />}
-                {status}
+        {/* Quick Actions Row */}
+        <div className="flex gap-3 justify-center">
+          {quickActions.map(action => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              disabled={action.disabled}
+              className="flex flex-col items-center gap-1.5 group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <div className="w-[48px] h-[48px] rounded-full border border-xmr-green/30 flex items-center justify-center bg-xmr-base text-xmr-green group-hover:border-xmr-green/80 group-hover:bg-xmr-green/10 group-hover:scale-105 transition-all">
+                <action.icon size={16} className={action.spin ? 'animate-spin' : ''} />
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-xmr-dim group-hover:text-xmr-green transition-colors">
+                {action.label}
               </span>
-            </div>
-            <div className="flex justify-between text-[11px] uppercase font-black"><span className="opacity-40 text-xmr-green">Height:</span><span className="text-xmr-green">{currentHeight || '---'}</span></div>
-            <div className="flex justify-between text-[11px] uppercase font-black"><span className="opacity-40 text-xmr-green">Unlocked:</span><span className="text-xmr-green">{parseFloat(currentAcc?.unlockedBalance || '0').toFixed(4)}</span></div>
-            <div className="flex justify-between text-[11px] uppercase font-black"><span className="opacity-40 text-xmr-green">Outputs:</span><span className="text-xmr-green">{outputs?.length || 0}</span></div>
-          </div>
-        </Card>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 3. TABS NAVIGATION */}
