@@ -169,14 +169,6 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   return (
     <div className="max-w-6xl mx-auto space-y-6 py-2 pt-0 animate-in fade-in zoom-in-95 duration-300 font-black relative">
 
-      {/* 1. HEADER */}
-      <div className="flex justify-between items-end border-b border-xmr-border/30 pb-4 relative z-10 font-black">
-        <div>
-          <button onClick={() => setView('home')} className="text-xs text-xmr-dim hover:text-xmr-green mb-1 flex items-center gap-1 cursor-pointer font-black transition-all uppercase tracking-widest">[ DASHBOARD ]</button>
-          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-xmr-green font-mono leading-none">Vault_Storage</h2>
-        </div>
-      </div>
-
       {/* SYNC STATUS BANNER — only for heavy syncs (>1000 blocks behind) */}
       {isHeavySync && (
         <div className="flex items-center gap-3 px-4 py-3 bg-xmr-accent/10 border border-xmr-accent/30 rounded-sm animate-pulse">
@@ -294,16 +286,33 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
 
                 {/* Balance */}
                 <div className="flex items-baseline gap-2.5 mb-1">
-                  <span className="text-4xl font-black text-xmr-green leading-none">{currentAccBalance}</span>
-                  <span className="text-base text-xmr-dim font-bold">XMR</span>
+                  <span className="text-4xl font-black text-xmr-green leading-none" style={{ fontFamily: 'var(--font-display)' }}>{currentAccBalance}</span>
+                  <span className="text-sm text-xmr-dim font-medium" style={{ fontFamily: 'var(--font-display)' }}>XMR</span>
                 </div>
                 {usdValue && (
-                  <div className="text-xs font-bold text-xmr-dim/60 uppercase tracking-[0.1em] mb-3">{usdValue} USD</div>
+                  <div className="text-xs font-bold text-xmr-dim/60 uppercase tracking-[0.1em] mb-2">{usdValue} USD</div>
                 )}
 
                 {/* Address */}
-                <div className="text-[10px] text-xmr-dim/30 tracking-wider">
+                <div className="text-[10px] text-xmr-dim/30 tracking-wider mb-3">
                   {currentAcc?.baseAddress?.substring(0, 12)}...{currentAcc?.baseAddress?.substring((currentAcc?.baseAddress?.length || 8) - 8)}
+                </div>
+
+                {/* Quick Actions — inline in card */}
+                <div className="flex gap-2 flex-wrap">
+                  {quickActions.map(action => (
+                    <button
+                      key={action.label}
+                      onClick={action.onClick}
+                      disabled={action.disabled}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-xmr-green/20 bg-xmr-base/40 text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed group"
+                    >
+                      <action.icon size={14} className={action.spin ? 'animate-spin' : ''} />
+                      <span className="text-[9px] font-bold uppercase tracking-[0.12em] group-hover:text-xmr-green transition-colors">
+                        {action.label}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -313,7 +322,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                 <div>
                   <div className="text-[9px] font-black uppercase tracking-widest text-xmr-dim/60 mb-1">Portfolio ({accounts.length} accts)</div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-black text-xmr-green">{totalBalance.toFixed(4)}</span>
+                    <span className="text-xl font-black text-xmr-green" style={{ fontFamily: 'var(--font-display)' }}>{totalBalance.toFixed(4)}</span>
                     <span className="text-[10px] text-xmr-dim font-bold">XMR</span>
                   </div>
                   {totalFiat && <div className="text-[10px] font-bold text-xmr-dim/40 uppercase tracking-wider">{totalFiat} USD</div>}
@@ -399,41 +408,25 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
           </div>
         </div>
 
-        {/* Quick Actions Row */}
-        <div className="flex gap-3 justify-center">
-          {quickActions.map(action => (
+      </div>
+
+      {/* 3. TABS + CONTENT */}
+      <div className="min-h-[400px] border border-xmr-border/20 rounded-lg overflow-hidden bg-xmr-surface/30">
+        {/* Tab bar — inside the content border */}
+        <div className="flex gap-1 items-center px-3 py-2 border-b border-xmr-border/15 bg-xmr-surface/50">
+          {['ledger', 'coins', 'addresses', 'contacts'].map((t) => (
             <button
-              key={action.label}
-              onClick={action.onClick}
-              disabled={action.disabled}
-              className="flex flex-col items-center gap-1.5 group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              key={t}
+              onClick={() => setTab(t as any)}
+              className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
             >
-              <div className="w-[48px] h-[48px] rounded-full border border-xmr-green/30 flex items-center justify-center bg-xmr-base text-xmr-green group-hover:border-xmr-green/80 group-hover:bg-xmr-green/10 group-hover:scale-105 transition-all">
-                <action.icon size={16} className={action.spin ? 'animate-spin' : ''} />
-              </div>
-              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-xmr-dim group-hover:text-xmr-green transition-colors">
-                {action.label}
-              </span>
+              {t}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* 3. TABS NAVIGATION */}
-      <div className="flex gap-4 border-b border-xmr-border/20">
-        {['ledger', 'coins', 'addresses', 'contacts'].map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t as any)}
-            className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${tab === t ? 'border-xmr-green text-xmr-green bg-xmr-green/5' : 'border-transparent text-xmr-dim hover:text-xmr-green'}`}
-          >
-            {t.replace('_', ' ')}
-          </button>
-        ))}
-      </div>
-
-      {/* 4. TAB CONTENT */}
-      <div className="min-h-[400px]">
+        {/* Tab content */}
+        <div>
         {tab === 'ledger' && <TransactionLedger txs={txs} subaddresses={subaddresses} />}
         {tab === 'coins' && <CoinControl outputs={outputs} onSendFromCoin={(_keyImage, _amount) => { setModals(prev => ({ ...prev, send: true })); }} />}
         {tab === 'addresses' && <AddressList
@@ -454,6 +447,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
           onDispatch={(addr) => { setDispatchAddr(addr); setModals(prev => ({ ...prev, send: true })); }}
           handleCopy={handleCopy}
         />}
+        </div>
       </div>
 
       {/* 5. MODALS */}

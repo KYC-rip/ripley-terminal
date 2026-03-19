@@ -339,7 +339,7 @@ function MainApp() {
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
-      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50 rounded-r-md" style={{ WebkitAppRegion: 'drag' } as any}>
+      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* ─── Header ─── */}
         <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
@@ -365,6 +365,24 @@ function MainApp() {
             </div>
           </div>
         </div>
+
+        {/* ─── Portfolio Card ─── */}
+        {vault.accounts.length > 0 && (
+          <div
+            className="mx-3 mt-1 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-lg cursor-pointer hover:border-xmr-green/30 transition-all"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={() => setView('vault')}
+          >
+            <div className="text-[8px] font-bold uppercase tracking-[0.25em] text-xmr-dim mb-1">Total Portfolio</div>
+            <div className="font-[var(--font-display)] text-base font-black text-xmr-green leading-tight">
+              {vault.accounts.reduce((sum, a) => sum + parseFloat(a.balance || '0'), 0).toFixed(4)}
+              <span className="text-[9px] text-xmr-dim font-normal ml-1">XMR</span>
+            </div>
+            <div className="text-[8px] text-xmr-dim/50 mt-0.5 uppercase tracking-wider">
+              {vault.accounts.length} accounts
+            </div>
+          </div>
+        )}
 
         {/* ─── Grouped Navigation ─── */}
         <nav className="flex-grow overflow-y-auto custom-scrollbar space-y-1 pb-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
