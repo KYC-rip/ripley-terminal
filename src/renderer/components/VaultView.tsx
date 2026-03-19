@@ -136,7 +136,10 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   };
 
   const isSyncing = status === 'SYNCING' || status === 'READY';
-  const isFullySynced = status === 'SYNCED';
+  const blocksLeft = totalHeight > 0 && currentHeight > 0 ? totalHeight - currentHeight : 0;
+  // Only block actions for large syncs (>1000 blocks ≈ 1.4 days behind)
+  // Small gaps (<1000 blocks) catch up in seconds — no need to lock the UI
+  const isHeavySync = isSyncing && blocksLeft > 1000;
 
   const currentAccIdx = accounts.findIndex(a => a.index === selectedAccountIndex);
   const prevAccount = () => {
@@ -156,10 +159,10 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const { fiatText: totalFiat } = useFiatValue('XMR', totalBalance.toFixed(12), true);
 
   const quickActions = [
-    { label: 'Dispatch', icon: Send, onClick: () => setModals(prev => ({ ...prev, send: true })), disabled: isSyncing },
-    { label: 'Receive', icon: Download, onClick: () => setModals(prev => ({ ...prev, receive: true })), disabled: isSyncing },
-    { label: 'Churn', icon: Wind, onClick: () => setModals(prev => ({ ...prev, churn: true })), disabled: isSyncing || isSending || hasNoBalance },
-    { label: 'Splinter', icon: Scissors, onClick: () => setModals(prev => ({ ...prev, splinter: true })), disabled: isSyncing || isSending || hasNoBalance },
+    { label: 'Dispatch', icon: Send, onClick: () => setModals(prev => ({ ...prev, send: true })), disabled: isHeavySync },
+    { label: 'Receive', icon: Download, onClick: () => setModals(prev => ({ ...prev, receive: true })), disabled: isHeavySync },
+    { label: 'Churn', icon: Wind, onClick: () => setModals(prev => ({ ...prev, churn: true })), disabled: isHeavySync || isSending || hasNoBalance },
+    { label: 'Splinter', icon: Scissors, onClick: () => setModals(prev => ({ ...prev, splinter: true })), disabled: isHeavySync || isSending || hasNoBalance },
     { label: 'Sync', icon: RefreshCw, onClick: refresh, disabled: false, spin: isSyncing || isSending },
   ];
 
@@ -174,13 +177,13 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
         </div>
       </div>
 
-      {/* SYNC STATUS BANNER */}
-      {isSyncing && (
+      {/* SYNC STATUS BANNER — only for heavy syncs (>1000 blocks behind) */}
+      {isHeavySync && (
         <div className="flex items-center gap-3 px-4 py-3 bg-xmr-accent/10 border border-xmr-accent/30 rounded-sm animate-pulse">
           <Loader2 size={14} className="text-xmr-accent animate-spin shrink-0" />
           <span className="text-xs font-black text-xmr-accent uppercase tracking-widest leading-relaxed">
             Synchronizing_Ledger... Height: {currentHeight || '---'}
-            {totalHeight > 0 && currentHeight > 0 ? ` ( ${Math.max(0, totalHeight - currentHeight)} BLOCKS LEFT : ${syncPercent?.toFixed(2)}% )` : ''}
+            {blocksLeft > 0 ? ` ( ${blocksLeft} BLOCKS LEFT : ${syncPercent?.toFixed(2)}% )` : ''}
             — Send/Receive disabled until sync completes
           </span>
         </div>

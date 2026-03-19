@@ -193,7 +193,7 @@ export class NodeManager {
       const url = `${baseUrl.replace(/\/$/, '')}/json_rpc`;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Longer timeout to prevent disconnection
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       const response = await net.fetch(url, {
         method: 'POST',
         body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
