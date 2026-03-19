@@ -5,6 +5,8 @@ import { AddressList } from './vault/AddressList';
 import { CoinControl } from './vault/CoinControl';
 import { TransactionLedger } from './vault/TransactionLedger';
 import { VaultModals } from './vault/VaultModals';
+import { DispatchModal } from './vault/DispatchModal';
+import { ReceiveModal } from './vault/ReceiveModal';
 import { type VaultContextType } from '../contexts/VaultContext';
 import { WalletService } from '../services/walletService';
 import { useFiatValue } from '../hooks/useFiatValue';
@@ -37,6 +39,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const [editAccountName, setEditAccountName] = useState('');
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [activePanel, setActivePanel] = useState<'send' | 'receive' | null>(null);
 
   const currentAcc = accounts.find(a => a.index === selectedAccountIndex);
   const currentAccBalance = currentAcc?.balance || '0.0000';
@@ -55,8 +58,8 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const accountListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (requestedAction) {
-      if (requestedAction === 'OPEN_SEND') setModals(prev => ({ ...prev, send: true }));
-      else if (requestedAction === 'OPEN_RECEIVE') setModals(prev => ({ ...prev, receive: true }));
+      if (requestedAction === 'OPEN_SEND') setActivePanel('send');
+      else if (requestedAction === 'OPEN_RECEIVE') setActivePanel('receive');
       else if (requestedAction === 'OPEN_CHURN') setModals(prev => ({ ...prev, churn: true }));
       else if (requestedAction === 'OPEN_SPLINTER') setModals(prev => ({ ...prev, splinter: true }));
       vault.setRequestedAction(null);
@@ -159,8 +162,8 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const { fiatText: totalFiat } = useFiatValue('XMR', totalBalance.toFixed(12), true);
 
   const quickActions = [
-    { label: 'Dispatch', icon: Send, onClick: () => setModals(prev => ({ ...prev, send: true })), disabled: isHeavySync },
-    { label: 'Receive', icon: Download, onClick: () => setModals(prev => ({ ...prev, receive: true })), disabled: isHeavySync },
+    { label: 'Dispatch', icon: Send, onClick: () => setActivePanel('send'), disabled: isHeavySync },
+    { label: 'Receive', icon: Download, onClick: () => setActivePanel('receive'), disabled: isHeavySync },
     { label: 'Churn', icon: Wind, onClick: () => setModals(prev => ({ ...prev, churn: true })), disabled: isHeavySync || isSending || hasNoBalance },
     { label: 'Splinter', icon: Scissors, onClick: () => setModals(prev => ({ ...prev, splinter: true })), disabled: isHeavySync || isSending || hasNoBalance },
     { label: 'Sync', icon: RefreshCw, onClick: refresh, disabled: false, spin: isSyncing || isSending },
@@ -410,44 +413,61 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
 
       </div>
 
-      {/* 3. TABS + CONTENT */}
+      {/* 3. TABS + CONTENT (or inline Send/Receive panel) */}
       <div className="min-h-[400px] border border-xmr-border/20 rounded-lg overflow-hidden bg-xmr-surface/30">
-        {/* Tab bar — inside the content border */}
-        <div className="flex gap-1 items-center px-3 py-2 border-b border-xmr-border/15 bg-xmr-surface/50">
-          {['ledger', 'coins', 'addresses', 'contacts'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t as any)}
-              className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {activePanel === 'send' ? (
+          <DispatchModal
+            inline
+            onClose={() => { setActivePanel(null); setDispatchSubIndex(undefined); }}
+            initialAddress={dispatchAddr}
+            sourceSubaddressIndex={dispatchSubIndex}
+          />
+        ) : activePanel === 'receive' ? (
+          <ReceiveModal
+            inline
+            onClose={() => { setActivePanel(null); setSelectedSubaddress(null); }}
+            existingAddress={selectedSubaddress || undefined}
+          />
+        ) : (
+          <>
+            {/* Tab bar */}
+            <div className="flex gap-1 items-center px-3 py-2 border-b border-xmr-border/15 bg-xmr-surface/50">
+              {['ledger', 'coins', 'addresses', 'contacts'].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t as any)}
+                  className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
 
-        {/* Tab content */}
-        <div>
-        {tab === 'ledger' && <TransactionLedger txs={txs} subaddresses={subaddresses} />}
-        {tab === 'coins' && <CoinControl outputs={outputs} onSendFromCoin={(_keyImage, _amount) => { setModals(prev => ({ ...prev, send: true })); }} />}
-        {tab === 'addresses' && <AddressList
-          subaddresses={hideZeroBalances ? subaddresses.filter(s => parseFloat(s.balance) > 0 || s.index === 0) : subaddresses}
-          handleCopy={handleCopy}
-          onUpdateLabel={setSubaddressLabel}
-          onRowClick={(s) => { setSelectedSubaddress(s); setModals(prev => ({ ...prev, receive: true })); }}
-          onVanishSubaddress={vanishSubaddress}
-          onSendFrom={(idx) => { setDispatchSubIndex(idx); setModals(prev => ({ ...prev, send: true })); }}
-          isSyncing={status === 'SYNCING'}
-          hideZeroBalances={hideZeroBalances}
-          onToggleFilter={handleToggleFilter}
-        />}
-        {tab === 'contacts' && <AddressBook
-          contacts={contacts}
-          onAddContact={(c) => saveContacts([...contacts, c])}
-          onRemoveContact={(idx) => saveContacts(contacts.filter((_, i) => i !== idx))}
-          onDispatch={(addr) => { setDispatchAddr(addr); setModals(prev => ({ ...prev, send: true })); }}
-          handleCopy={handleCopy}
-        />}
-        </div>
+            {/* Tab content */}
+            <div>
+              {tab === 'ledger' && <TransactionLedger txs={txs} subaddresses={subaddresses} />}
+              {tab === 'coins' && <CoinControl outputs={outputs} onSendFromCoin={(_keyImage, _amount) => { setActivePanel('send'); }} />}
+              {tab === 'addresses' && <AddressList
+                subaddresses={hideZeroBalances ? subaddresses.filter(s => parseFloat(s.balance) > 0 || s.index === 0) : subaddresses}
+                handleCopy={handleCopy}
+                onUpdateLabel={setSubaddressLabel}
+                onRowClick={(s) => { setSelectedSubaddress(s); setActivePanel('receive'); }}
+                onVanishSubaddress={vanishSubaddress}
+                onSendFrom={(idx) => { setDispatchSubIndex(idx); setActivePanel('send'); }}
+                isSyncing={status === 'SYNCING'}
+                hideZeroBalances={hideZeroBalances}
+                onToggleFilter={handleToggleFilter}
+              />}
+              {tab === 'contacts' && <AddressBook
+                contacts={contacts}
+                onAddContact={(c) => saveContacts([...contacts, c])}
+                onRemoveContact={(idx) => saveContacts(contacts.filter((_, i) => i !== idx))}
+                onDispatch={(addr) => { setDispatchAddr(addr); setActivePanel('send'); }}
+                handleCopy={handleCopy}
+              />}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 5. MODALS */}

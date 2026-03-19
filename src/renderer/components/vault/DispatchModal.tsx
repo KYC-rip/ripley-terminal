@@ -9,11 +9,12 @@ interface DispatchModalProps {
   onClose: () => void;
   initialAddress?: string;
   sourceSubaddressIndex?: number;
+  inline?: boolean;
 }
 
 type Tab = 'direct' | 'ghost';
 
-export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIndex }: DispatchModalProps) {
+export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIndex, inline }: DispatchModalProps) {
   const { activeId, outputs } = useVault();
   const [tab, setTab] = useState<Tab>('direct');
 
@@ -47,9 +48,8 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden rounded-lg">
+  const content = (
+      <div className={`w-full ${inline ? '' : 'max-w-xl'} bg-xmr-surface ${inline ? '' : 'border border-xmr-border'} relative flex flex-col ${inline ? 'h-full' : 'max-h-[85vh]'} overflow-hidden ${inline ? '' : 'rounded-lg'}`}>
         {/* ══ PASSWORD GATE ══ */}
         {showPasswordGate && (
           <DispatchPasswordGate
@@ -113,6 +113,13 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
           {tab === 'ghost' && <GhostSendTab onRequirePassword={requirePassword} onClose={onClose} />}
         </div>
       </div>
+  );
+
+  if (inline) return content;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
+      {content}
     </div>
   );
 }

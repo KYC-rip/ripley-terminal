@@ -14,9 +14,10 @@ interface ExistingAddress {
 interface ReceiveModalProps {
   onClose: () => void;
   existingAddress?: ExistingAddress;
+  inline?: boolean;
 }
 
-export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
+export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalProps) {
   const { createSubaddress, setSubaddressLabel, subaddresses } = useVault();
   const [tab, setTab] = useState<'direct' | 'cross'>('direct');
 
@@ -100,9 +101,8 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden rounded-lg">
+  const content = (
+      <div className={`w-full ${inline ? '' : 'max-w-xl'} bg-xmr-surface ${inline ? '' : 'border border-xmr-border'} relative flex flex-col ${inline ? 'h-full' : 'max-h-[85vh]'} overflow-hidden ${inline ? '' : 'rounded-lg'}`}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-xmr-border/40">
@@ -203,6 +203,13 @@ export function ReceiveModal({ onClose, existingAddress }: ReceiveModalProps) {
           )}
         </div>
       </div>
+  );
+
+  if (inline) return content;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
+      {content}
     </div>
   );
 }
