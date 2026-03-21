@@ -110,6 +110,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [monero402Challenge, setMonero402Challenge] = useState<any>(null);
   const lastHeightRef = useRef<number>(0);
   const daemonHeightRef = useRef<number>(0);
+  const isRefreshing = useRef<boolean>(false);
 
   const determineSyncStatus = useCallback((height: number, daemonH: number) => {
     if (daemonH > 0) {
@@ -132,12 +133,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (isLocked || isInitializing) return;
+    // Concurrency guard: skip if another refresh is already in-flight
+    if (isRefreshing.current) return;
+    isRefreshing.current = true;
 
     try {
+      // During active sync, only fetch accounts + balance — skip heavy calls
+      // (transfers, subaddresses, outputs) that compete with padded sync RPC
+      const isSyncActive = daemonHeightRef.current > 0 &&
+        (daemonHeightRef.current - lastHeightRef.current) > 5;
+
       const allAccs = await WalletService.getAccounts().catch(() => null);
       if (allAccs) {
         setAccounts(allAccs);
-        // 🛡️ Sync the global balance state for the currently selected account
         const currentAcc = allAccs.find(a => a.index === selectedAccountIndex);
         if (currentAcc) {
           setBalance({
@@ -147,49 +155,62 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Use allSettled: a single RPC failure (e.g. get_transfers over flaky Tor)
-      // must NOT prevent balance/height/addresses from displaying
-      const results = await Promise.allSettled([
-        WalletService.getBalance(selectedAccountIndex),
-        WalletService.getHeight(selectedAccountIndex),
-        WalletService.getTransactions(selectedAccountIndex),
-        WalletService.getSubaddresses(selectedAccountIndex),
-        WalletService.getOutputs(selectedAccountIndex)
-      ]);
+      if (isSyncActive) {
+        // Lightweight: only height check during sync, rest comes via wallet-events
+        const heightRes = await WalletService.getHeight(selectedAccountIndex).catch(() => null);
+        if (heightRes) {
+          setCurrentHeight(heightRes);
+          lastHeightRef.current = heightRes;
+          const { status: s, percent: p } = determineSyncStatus(heightRes, daemonHeightRef.current);
+          setStatus(s);
+          setSyncPercent(p);
+        }
+      } else {
+        // Full refresh when synced — all 5 calls in parallel
+        const results = await Promise.allSettled([
+          WalletService.getBalance(selectedAccountIndex),
+          WalletService.getHeight(selectedAccountIndex),
+          WalletService.getTransactions(selectedAccountIndex),
+          WalletService.getSubaddresses(selectedAccountIndex),
+          WalletService.getOutputs(selectedAccountIndex)
+        ]);
 
-      const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
+        const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
 
-      if (balRes.status === 'fulfilled') setBalance(balRes.value);
-      if (heightRes.status === 'fulfilled') {
-        const h = heightRes.value;
-        setCurrentHeight(h);
-        lastHeightRef.current = h;
-
-        // Recalculate sync status during refresh
-        const { status: s, percent: p } = determineSyncStatus(h, daemonHeightRef.current);
-        setStatus(s);
-        setSyncPercent(p);
+        if (balRes.status === 'fulfilled') setBalance(balRes.value);
+        if (heightRes.status === 'fulfilled') {
+          const h = heightRes.value;
+          setCurrentHeight(h);
+          lastHeightRef.current = h;
+          const { status: s, percent: p } = determineSyncStatus(h, daemonHeightRef.current);
+          setStatus(s);
+          setSyncPercent(p);
+        }
+        if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
+        if (addrRes.status === 'fulfilled') {
+          setSubaddresses(addrRes.value);
+          setAddress(addrRes.value[0]?.address || '');
+        }
+        if (outsRes.status === 'fulfilled') setOutputs(outsRes.value);
       }
-      if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
-      if (addrRes.status === 'fulfilled') {
-        setSubaddresses(addrRes.value);
-        setAddress(addrRes.value[0]?.address || '');
-      }
-      if (outsRes.status === 'fulfilled') setOutputs(outsRes.value);
-
     } catch (e: any) {
       console.warn("Sync gap detected:", e.message);
+    } finally {
+      isRefreshing.current = false;
     }
   }, [isLocked, isInitializing, selectedAccountIndex, determineSyncStatus]);
 
   // 🔄 Initial & Periodic Refresh
+  // During sync: lightweight poll every 45s. After sync: full refresh every 10s.
   useEffect(() => {
     if (!isLocked && !isInitializing) {
       refresh();
-      const timer = setInterval(refresh, 10000);
+      const isSyncing = status === 'SYNCING';
+      const interval = isSyncing ? 45000 : 10000;
+      const timer = setInterval(refresh, interval);
       return () => clearInterval(timer);
     }
-  }, [isLocked, isInitializing, refresh]);
+  }, [isLocked, isInitializing, refresh, status]);
 
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
@@ -235,10 +256,23 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           setSyncPercent(p);
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
-          // 🛡️ Only update global state if the change belongs to the active account
-          // Since SyncWatcher currently emits for whichever account is active in RPC,
-          // we should double-check or just refresh to be safe.
-          refresh();
+          // During sync, just update balance inline instead of triggering a full
+          // refresh (5 RPC calls) that competes with padded sync for the wallet-rpc
+          const isSyncing = daemonHeightRef.current > 0 &&
+            (daemonHeightRef.current - lastHeightRef.current) > 5;
+          if (isSyncing) {
+            const pico = event.payload.balance;
+            const unlocked = event.payload.unlocked ?? pico;
+            const fmt = (v: number) => {
+              if (v < 0) return '0.0000';
+              const w = Math.floor(v / 1e12);
+              const f = v % 1e12;
+              return `${w}.${f.toString().padStart(12, '0')}`;
+            };
+            setBalance({ total: fmt(pico), unlocked: fmt(unlocked) });
+          } else {
+            refresh();
+          }
         }
       });
       return () => cleanup();

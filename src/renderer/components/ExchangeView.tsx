@@ -145,7 +145,8 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         generatingSubRef.current = false;
       }
     })();
-  }, [toCoin, localXmrAddress, createSubaddress, subaddresses, isGhost]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- subaddresses intentionally excluded to prevent infinite loop (createSubaddress updates subaddresses)
+  }, [toCoin, localXmrAddress, isGhost]);
 
   // ─── Debounced quote/estimate ───
   useEffect(() => {

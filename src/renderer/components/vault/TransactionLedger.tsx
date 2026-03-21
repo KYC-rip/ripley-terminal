@@ -41,6 +41,34 @@ function getRelativeTime(timestamp: number) {
   return `${Math.floor(diffInDays / 365)}y ago`;
 }
 
+function getDateLabel(timestamp: number): string {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return `Today — ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday — ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  }
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function groupByDate(txs: Transaction[]): { label: string; txs: Transaction[] }[] {
+  const groups: Map<string, Transaction[]> = new Map();
+  for (const tx of txs) {
+    const key = new Date(tx.timestamp).toDateString();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(tx);
+  }
+  return Array.from(groups.entries()).map(([key, txs]) => ({
+    label: getDateLabel(txs[0].timestamp),
+    txs,
+  }));
+}
+
 export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerProps) {
   const { getTxKey, getTxProof, checkTxKey, checkTxProof, addLog } = useVault();
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
@@ -291,8 +319,13 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
               <span>No_Ledger_Activity_Found</span>
             </div>
           ) : (
-            <div className="divide-y divide-xmr-border/5">
-                {txs.map((tx) => {
+            <div>
+              {groupByDate(txs).map((group) => (
+                <div key={group.label}>
+                  <div className="sticky top-0 z-[2] px-4 py-2 text-[9px] font-bold uppercase tracking-[0.2em] text-xmr-dim/60 bg-xmr-base border-b border-xmr-border/10">
+                    {group.label}
+                  </div>
+                  {group.txs.map((tx) => {
                   const isExpanded = expandedTxId === tx.id;
                   const isIncoming = tx.type === 'in';
                   const xmr402Info = xmr402Payments[tx.id];
@@ -301,40 +334,49 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                     <div key={tx.id} className="flex flex-col transition-all duration-200">
                       <div
                         onClick={() => toggleExpand(tx.id)}
-                        className={`grid grid-cols-12 px-4 py-3 items-center cursor-pointer hover:bg-xmr-green/5 transition-colors group ${isExpanded ? 'bg-xmr-green/5' : ''}`}
+                        className={`flex items-center px-4 py-3 cursor-pointer hover:bg-xmr-green/5 transition-colors group border-b border-xmr-border/5 relative ${isExpanded ? 'bg-xmr-green/5' : ''}`}
                       >
-                        <div className="col-span-3 flex items-center gap-2 text-xs font-black">
+                        {/* Color indicator bar on hover */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isIncoming ? 'bg-xmr-green' : 'bg-xmr-accent'}`} />
+
+                        {/* Type indicator */}
+                        <div className={`w-7 h-7 rounded-md flex items-center justify-center mr-3 shrink-0 ${isIncoming ? 'bg-xmr-green/8 border border-xmr-green/20' : 'bg-xmr-accent/8 border border-xmr-accent/20'}`}>
                           {isIncoming ? (
-                            <ArrowDownLeft size={14} className="text-xmr-green" />
+                            <ArrowDownLeft size={13} className="text-xmr-green" />
                           ) : (
-                            <ArrowUpRight size={14} className="text-xmr-accent" />
-                          )}
-                          <span className={isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}>
-                            {tx.type.toUpperCase()}
-                          </span>
-                          {ghostTrades[tx.id] && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded-sm">
-                              <Ghost size={10} className="text-xmr-accent" />
-                              <span className="text-[9px] text-xmr-accent font-black uppercase tracking-tighter">Ghost</span>
-                            </div>
-                          )}
-                          {xmr402Info && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-sm">
-                              <ShieldCheck size={10} className="text-blue-500" />
-                              <span className="text-[9px] text-blue-500 font-black uppercase tracking-tighter">XMR402</span>
-                            </div>
+                            <ArrowUpRight size={13} className="text-xmr-accent" />
                           )}
                         </div>
 
-                        <div className={`col-span-4 text-xs font-black ${isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}`}>
-                          {isIncoming ? '+' : '-'}{tx.amount} XMR
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wide">
+                            <span className={isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}>
+                              {isIncoming ? 'Received' : 'Dispatched'}
+                            </span>
+                            {ghostTrades[tx.id] && (
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded text-xmr-accent font-black tracking-wider">Ghost</span>
+                            )}
+                            {xmr402Info && (
+                              <span className="text-[7px] px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-500 font-black tracking-wider">XMR402</span>
+                            )}
+                          </div>
+                          <div className="text-[9px] text-xmr-dim/40 mt-0.5 truncate">
+                            {isIncoming && tx.address ? `from ${tx.address.substring(0, 8)}...${tx.address.substring(tx.address.length - 6)}` : tx.destinations?.[0] ? `to ${tx.destinations[0].address.substring(0, 8)}...${tx.destinations[0].address.substring(tx.destinations[0].address.length - 6)}` : tx.type.toUpperCase()}
+                            {tx.fee && !isIncoming && ` · fee: ${tx.fee}`}
+                          </div>
                         </div>
 
-                        <div className="col-span-2 text-[11px] font-black opacity-30">
-                          [{tx.confirmations}]
+                        {/* Amount */}
+                        <div className="text-right shrink-0 ml-4">
+                          <div className={`text-[13px] font-black ${isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}`}>
+                            {isIncoming ? '+' : '-'}{tx.amount}
+                          </div>
+                          <div className="text-[9px] text-xmr-dim/40 font-bold">XMR</div>
                         </div>
 
-                        <div className="col-span-3 text-right opacity-40 text-[11px] font-black font-mono">
+                        {/* Time */}
+                        <div className="w-16 text-right shrink-0 ml-3 text-[9px] text-xmr-dim/40 font-bold">
                           {getRelativeTime(tx.timestamp)}
                         </div>
                       </div>
@@ -554,7 +596,9 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -36,7 +36,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
       setStep('AUTH');
       setHasInitialized(true);
     } else if (!hasInitialized && identities.length === 0) {
-      setStep('LABEL');
+      // First launch: skip to password creation directly (Exodus-style)
+      setNewName('My_Wallet');
+      setStep('NEW_PASSWORD');
     }
   }, [identities.length, hasInitialized]);
 
@@ -132,8 +134,8 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
           <div className="inline-block p-3 rounded-full bg-xmr-green/10 border border-xmr-green/20 mb-1">
             {step === 'AUTH' ? <Shield size={40} className={isProcessing ? 'animate-pulse' : ''} /> : <ShieldCheck size={40} />}
           </div>
-          <h1 className="text-2xl font-black italic uppercase text-xmr-green tracking-tighter">
-            {step === 'RESTORE' ? 'Identity_Recovery' : step === 'NEW_PASSWORD' ? 'Initialize_Vault' : (identities.length === 0 || step === 'LABEL') ? 'New_Tactical_ID' : 'Vault_Authorization'}
+          <h1 className="text-2xl font-black uppercase text-xmr-green tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            {step === 'RESTORE' ? 'Restore Wallet' : step === 'NEW_PASSWORD' ? (identities.length === 0 ? 'Create Your Wallet' : 'Set Password') : step === 'LABEL' ? 'Name Your Wallet' : 'Unlock Vault'}
           </h1>
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center justify-center gap-2 text-[11px] text-xmr-dim uppercase tracking-widest">

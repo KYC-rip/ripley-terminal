@@ -133,11 +133,17 @@ export function AuthForm({
 
       <div className="flex flex-col gap-3">
         <button disabled={isProcessing || !password || (step !== 'AUTH' && !confirmPassword)} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.3em] hover:bg-white hover:text-black transition-all flex items-center justify-center gap-3 group disabled:opacity-50 cursor-pointer">
-          {isProcessing ? <><RefreshCw size={18} className="animate-spin" /> Authorizing...</> : <><Key size={18} className="group-hover:scale-110 transition-transform" /> {step === 'RESTORE' ? 'Initiate_Recovery' : step === 'NEW_PASSWORD' ? 'Establish_Vault' : 'Unlock_Identity'}</>}
+          {isProcessing ? <><RefreshCw size={18} className="animate-spin" /> Authorizing...</> : <><Key size={18} className="group-hover:scale-110 transition-transform" /> {step === 'RESTORE' ? 'Restore Wallet' : step === 'NEW_PASSWORD' ? 'Create Wallet' : 'Unlock'}</>}
         </button>
-        
-        {!isProcessing && step !== 'AUTH' && (
-           <button type="button" onClick={() => setStep('MODE')} className="w-full text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back_To_Strategy</button>
+
+        {!isProcessing && step === 'NEW_PASSWORD' && isInitialSetup && (
+           <button type="button" onClick={() => setStep('RESTORE')} className="w-full text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><Download size={12}/> Restore from Seed</button>
+        )}
+        {!isProcessing && step === 'RESTORE' && (
+           <button type="button" onClick={() => setStep('NEW_PASSWORD')} className="w-full text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
+        )}
+        {!isProcessing && step !== 'AUTH' && step !== 'NEW_PASSWORD' && step !== 'RESTORE' && (
+           <button type="button" onClick={() => setStep('MODE')} className="w-full text-[11px] text-xmr-dim hover:text-xmr-green uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"><ArrowLeft size={12}/> Back</button>
         )}
       </div>
     </form>

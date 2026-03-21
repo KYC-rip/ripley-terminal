@@ -9,11 +9,12 @@ interface DispatchModalProps {
   onClose: () => void;
   initialAddress?: string;
   sourceSubaddressIndex?: number;
+  inline?: boolean;
 }
 
 type Tab = 'direct' | 'ghost';
 
-export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIndex }: DispatchModalProps) {
+export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIndex, inline }: DispatchModalProps) {
   const { activeId, outputs } = useVault();
   const [tab, setTab] = useState<Tab>('direct');
 
@@ -47,9 +48,8 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
-      <div className="w-full max-w-xl bg-xmr-surface border border-xmr-border relative flex flex-col max-h-[85vh] overflow-hidden rounded-lg">
+  const content = (
+      <div className={`w-full ${inline ? '' : 'max-w-xl bg-xmr-surface border border-xmr-border rounded-lg'} relative flex flex-col ${inline ? 'h-full' : 'max-h-[85vh]'} overflow-hidden`}>
         {/* ══ PASSWORD GATE ══ */}
         {showPasswordGate && (
           <DispatchPasswordGate
@@ -65,37 +65,30 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
           />
         )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-xmr-border/40">
-          <div>
-            <h3 className="text-lg font-black italic uppercase text-xmr-accent tracking-tight">Dispatch_Sequence</h3>
-            <p className="text-[11px] text-xmr-dim uppercase tracking-widest mt-0.5">
-              {sourceSubaddressIndex !== undefined ? `Source: Subaddress #${sourceSubaddressIndex}` : 'Outbound transfer'}
-            </p>
+        {/* Header — matches tab bar style when inline */}
+        <div className={`flex items-center justify-between ${inline ? 'px-3 py-2 bg-xmr-surface/50' : 'px-6 py-4'} border-b border-xmr-border/${inline ? '15' : '40'}`}>
+          <div className="flex gap-1 items-center">
+            {/* Sub-tabs: Direct / Ghost */}
+            {[
+              { id: 'direct' as const, label: 'Direct XMR', icon: <Send size={12} /> },
+              { id: 'ghost' as const, label: 'Ghost Send', icon: <Ghost size={12} /> },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg flex items-center gap-1.5 cursor-pointer ${
+                  tab === t.id
+                    ? 'text-xmr-accent border border-xmr-accent/30 bg-xmr-accent/5'
+                    : 'text-xmr-dim hover:text-xmr-accent border border-transparent'
+                }`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
           </div>
           <button onClick={onClose} className="text-xmr-dim hover:text-xmr-accent transition-colors cursor-pointer p-1">
             <X size={20} />
           </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-xmr-border/30">
-          {[
-            { id: 'direct' as const, label: 'Direct XMR', icon: <Send size={12} /> },
-            { id: 'ghost' as const, label: 'Ghost Send', icon: <Ghost size={12} /> },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                tab === t.id
-                  ? 'text-xmr-accent border-b-2 border-xmr-accent bg-xmr-accent/5'
-                  : 'text-xmr-dim hover:text-xmr-accent/70'
-              }`}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
         </div>
 
         {/* Body */}
@@ -113,6 +106,13 @@ export function DispatchModal({ onClose, initialAddress = '', sourceSubaddressIn
           {tab === 'ghost' && <GhostSendTab onRequirePassword={requirePassword} onClose={onClose} />}
         </div>
       </div>
+  );
+
+  if (inline) return content;
+
+  return (
+    <div className="fixed top-0 bottom-0 right-0 left-[14rem] z-[100] flex items-center justify-center p-4 bg-xmr-base/90 backdrop-blur-md animate-in zoom-in-95 duration-300 font-black">
+      {content}
     </div>
   );
 }

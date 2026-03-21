@@ -37,7 +37,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
               Real_Market_Price (No-KYC)
            </div>
            <div className="relative inline-block">
-              <h1 className="text-8xl font-black text-xmr-accent tracking-tighter italic">
+              <h1 className="text-8xl font-black text-xmr-accent tracking-tighter" style={{ fontFamily: 'var(--font-display)' }}>
                 ${loading ? '---.--' : stats?.price.street}
               </h1>
               {!loading && stats?.price.premium && (

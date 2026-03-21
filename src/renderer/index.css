@@ -12,6 +12,7 @@
     --color-xmr-error: var(--error-color);
 
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-display: "DM Sans", system-ui, sans-serif;
 
   --radius: var(--skin-radius-md, 0.5rem);
   --radius-xs: var(--skin-radius-sm, 0.125rem);
