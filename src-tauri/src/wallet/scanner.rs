@@ -168,6 +168,10 @@ impl BlockScanner {
     }
 }
 
+// RingCT fork height — blocks before this have no RingCT outputs.
+// monero-wallet only scans RingCT outputs, so scanning earlier blocks is pointless.
+const RINGCT_FORK_HEIGHT: u64 = 1_220_516;
+
 async fn scan_loop(
     app: AppHandle,
     daemon: monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>,
@@ -209,7 +213,12 @@ async fn scan_loop(
             emit_log(&app, "Sync", "info", &format!("📦 New wallet: starting near daemon tip ({})", daemon_height));
             scan_height = daemon_height.saturating_sub(10);
         }
-        // scan_height == 0 is valid for restores — scan from genesis
+
+        // Skip pre-RingCT blocks — monero-wallet can only scan RingCT outputs
+        if scan_height < RINGCT_FORK_HEIGHT {
+            emit_log(&app, "Sync", "info", &format!("⏩ Skipping to RingCT fork (block {}), pre-RingCT blocks have no scannable outputs", RINGCT_FORK_HEIGHT));
+            scan_height = RINGCT_FORK_HEIGHT;
+        }
 
         if scan_height >= daemon_height {
             crate::emit_sync_status(&app, "SYNCED", scan_height, daemon_height, 100.0, &node_label);
