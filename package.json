@@ -22,7 +22,10 @@
     "predev": "npm run setup-bins",
     "prestart": "npm run setup-bins",
     "deploy:public": "cd .. && ./deploy-public.sh",
-    "deploy:subtree": "cd .. && git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main"
+    "deploy:subtree": "cd .. && git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build",
+    "dev:renderer": "vite --config vite.config.ts"
   },
   "build": {
     "publish": [
@@ -71,6 +74,11 @@
     ]
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "electron-store": "^11.0.2",
     "ethers": "6.16.0",
     "framer-motion": "12.34.0",
