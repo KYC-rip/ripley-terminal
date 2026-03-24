@@ -257,4 +257,27 @@ impl WalletState {
     pub async fn get_spend_key(&self) -> Option<Zeroizing<Scalar>> {
         self.inner.read().await.spend_key.clone()
     }
+
+    /// Compute total balance from scanned outputs (in atomic units / piconero).
+    pub async fn compute_balance(&self) -> u64 {
+        let inner = self.inner.read().await;
+        inner.scanned_outputs.iter()
+            .map(|o| o.commitment().amount)
+            .sum()
+    }
+
+    /// Format piconero to XMR string.
+    pub fn format_xmr(atomic: u64) -> String {
+        let whole = atomic / 1_000_000_000_000;
+        let frac = atomic % 1_000_000_000_000;
+        format!("{}.{:012}", whole, frac)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+
+    /// Get the number of scanned outputs.
+    pub async fn output_count(&self) -> usize {
+        self.inner.read().await.scanned_outputs.len()
+    }
 }

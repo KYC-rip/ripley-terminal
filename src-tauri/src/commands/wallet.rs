@@ -1,5 +1,5 @@
-use tauri::State;
-use crate::wallet::{WalletState, MoneroAccount, SubaddressInfo, Transaction, WalletOutput, PreparedTx, SyncStatus, TxDestination};
+use tauri::{AppHandle, Manager, State};
+use crate::wallet::{WalletState, BlockScanner, MoneroAccount, SubaddressInfo, Transaction, WalletOutput, PreparedTx, SyncStatus, TxDestination};
 
 // ── Wallet Lifecycle ──
 
@@ -17,11 +17,25 @@ pub async fn create_wallet(
 
 #[tauri::command]
 pub async fn open_wallet(
+    app: AppHandle,
     state: State<'_, WalletState>,
     name: String,
     password: String,
 ) -> Result<serde_json::Value, String> {
     state.unlock(&name, &password).await?;
+
+    // Start background block scanner
+    // TODO: Get daemon URL from config instead of hardcoding
+    let daemon_url = "https://node.monero.one".to_string();
+    let scan_height = state.get_scan_height().await;
+
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        if let Err(e) = BlockScanner::start(app_clone, &daemon_url, scan_height).await {
+            log::error!("Failed to start block scanner: {}", e);
+        }
+    });
+
     Ok(serde_json::json!({ "success": true }))
 }
 
@@ -66,13 +80,14 @@ pub async fn rename_account(
 
 #[tauri::command]
 pub async fn get_balance(
-    _state: State<'_, WalletState>,
+    state: State<'_, WalletState>,
     _account_index: u32,
 ) -> Result<serde_json::Value, String> {
-    // TODO: Compute from tracked outputs
+    let total = state.compute_balance().await;
+    let formatted = WalletState::format_xmr(total);
     Ok(serde_json::json!({
-        "total": "0.000000000000",
-        "unlocked": "0.000000000000"
+        "total": formatted,
+        "unlocked": formatted
     }))
 }
 
