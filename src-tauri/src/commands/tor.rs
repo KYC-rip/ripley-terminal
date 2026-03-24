@@ -10,5 +10,6 @@ pub async fn get_tor_status(state: State<'_, TorState>) -> Result<serde_json::Va
 #[tauri::command]
 pub async fn restart_tor(state: State<'_, TorState>) -> Result<String, String> {
     state.disconnect().await;
-    state.connect().await
+    state.connect().await?;
+    Ok("Tor connected".to_string())
 }

@@ -1,17 +1,18 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use arti_client::{TorClient, TorClientConfig};
+use tor_rtcompat::PreferredRuntime;
+
 /// Tor state manager using arti-client (pure Rust Tor implementation).
-/// Replaces the bundled Tor binary entirely.
+/// Replaces the bundled Tor binary entirely — no subprocess, no 61MB binary.
 pub struct TorState {
     inner: Arc<RwLock<TorInner>>,
 }
 
 struct TorInner {
     status: TorStatus,
-    socks_port: u16,
-    // TODO: When arti-client is integrated:
-    // client: Option<arti_client::TorClient<tor_rtcompat::PreferredRuntime>>,
+    client: Option<TorClient<PreferredRuntime>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -27,7 +28,7 @@ impl TorState {
         Self {
             inner: Arc::new(RwLock::new(TorInner {
                 status: TorStatus::Disconnected,
-                socks_port: 9150,
+                client: None,
             })),
         }
     }
@@ -36,37 +37,43 @@ impl TorState {
         self.inner.read().await.status.clone()
     }
 
-    pub async fn get_socks_port(&self) -> u16 {
-        self.inner.read().await.socks_port
-    }
-
-    /// Bootstrap the Tor connection using arti-client.
-    /// Returns a SOCKS5 proxy address that can be used for daemon connections.
-    pub async fn connect(&self) -> Result<String, String> {
+    /// Bootstrap the Tor network connection using arti-client.
+    ///
+    /// After connecting, the daemon RPC transport (simple-request) can be
+    /// configured to route through Tor by using arti's SOCKS proxy or
+    /// by using the TorClient directly for stream isolation.
+    pub async fn connect(&self) -> Result<(), String> {
         let mut inner = self.inner.write().await;
         inner.status = TorStatus::Bootstrapping { percent: 0 };
 
-        // TODO: Implement with arti-client:
-        //
-        // let config = TorClientConfig::default();
-        // let client = TorClient::create_bootstrapped(config).await
-        //     .map_err(|e| format!("Tor bootstrap failed: {}", e))?;
-        //
-        // inner.client = Some(client);
-        // inner.status = TorStatus::Connected;
-        //
-        // For now, arti runs as a SOCKS proxy.
-        // The daemon RPC client uses reqwest with socks5 proxy pointing here.
+        // Use default arti config (downloads consensus, builds circuits)
+        let config = TorClientConfig::default();
 
-        inner.status = TorStatus::Connected;
-        let addr = format!("socks5://127.0.0.1:{}", inner.socks_port);
-        log::info!("Tor connected via arti at {}", addr);
-        Ok(addr)
+        match TorClient::create_bootstrapped(config).await {
+            Ok(client) => {
+                inner.client = Some(client);
+                inner.status = TorStatus::Connected;
+                log::info!("Tor connected via arti (pure Rust)");
+                Ok(())
+            }
+            Err(e) => {
+                let msg = format!("Tor bootstrap failed: {}", e);
+                inner.status = TorStatus::Error { message: msg.clone() };
+                log::error!("{}", msg);
+                Err(msg)
+            }
+        }
+    }
+
+    /// Get the arti TorClient for making connections.
+    /// Used by the daemon RPC transport to route requests through Tor.
+    pub async fn get_client(&self) -> Option<TorClient<PreferredRuntime>> {
+        self.inner.read().await.client.clone()
     }
 
     pub async fn disconnect(&self) {
         let mut inner = self.inner.write().await;
-        // TODO: Drop the arti client
+        inner.client = None;
         inner.status = TorStatus::Disconnected;
         log::info!("Tor disconnected");
     }
