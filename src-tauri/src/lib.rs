@@ -13,6 +13,16 @@ pub fn emit_log(app: &AppHandle, source: &str, level: &str, message: &str) {
     }));
 }
 
+/// Emit sync status through the core-log channel (workaround for custom events
+/// not reaching JS listeners from background tokio tasks in Tauri v2).
+pub fn emit_sync_status(app: &AppHandle, status: &str, height: u64, daemon_height: u64, percent: f64, node_label: &str) {
+    let _ = app.emit("core-log", serde_json::json!({
+        "source": "SYNC_DATA",
+        "level": "info",
+        "message": format!("{}|{}|{}|{:.1}|{}", status, height, daemon_height, percent, node_label),
+    }));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

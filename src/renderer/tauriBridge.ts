@@ -95,29 +95,28 @@ function createTauriApi() {
       return () => { unlisten?.(); };
     },
     onWalletEvent: (callback: any) => {
+      // Workaround: Tauri v2 custom events don't reach JS from background tokio tasks.
+      // Sync data is piggybacked on core-log with source="SYNC_DATA".
       let unlisten: UnlistenFn | null = null;
-      // Map Tauri events to the format VaultContext expects
-      listen('sync-update', (event) => {
+      listen('core-log', (event) => {
         const p = event.payload as any;
-        console.log('[TauriBridge] sync-update received:', p.height, '/', p.daemonHeight || p.daemon_height);
-        callback({
-          type: 'SYNC_UPDATE',
-          payload: {
-            height: p.height,
-            daemonHeight: p.daemon_height || p.daemonHeight,
-            nodeLabel: p.node_label || p.nodeLabel || '',
-            nodeUrl: p.node_url || p.nodeUrl || '',
+        if (p.source === 'SYNC_DATA') {
+          // Parse: "STATUS|height|daemonHeight|percent|nodeLabel"
+          const parts = (p.message as string).split('|');
+          if (parts.length >= 5) {
+            callback({
+              type: 'SYNC_UPDATE',
+              payload: {
+                height: parseInt(parts[1]),
+                daemonHeight: parseInt(parts[2]),
+                nodeLabel: parts[4],
+              }
+            });
           }
-        });
+        }
       }).then(fn => unlisten = fn);
 
-      let unlisten2: UnlistenFn | null = null;
-      listen('balance-changed', (event) => {
-        const p = event.payload as any;
-        callback({ type: 'BALANCE_CHANGED', payload: { balance: p.balance, unlocked: p.unlocked } });
-      }).then(fn => unlisten2 = fn);
-
-      return () => { unlisten?.(); unlisten2?.(); };
+      return () => { unlisten?.(); };
     },
     onVaultShutdown: (callback: any) => {
       let unlisten: UnlistenFn | null = null;
