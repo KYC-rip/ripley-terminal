@@ -217,8 +217,30 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
     if (window.api.onCoreLog) {
-      const cleanup = window.api.onCoreLog((data) => {
-        // Backend data usually looks like { source: 'TOR', level: 'info', message: '...' }
+      const cleanup = window.api.onCoreLog((data: any) => {
+        // Tauri: sync data piggybacks on core-log with source="SYNC_DATA"
+        if (data?.source === 'SYNC_DATA') {
+          console.log('🎯 SYNC_DATA HIT:', data.message);
+          const parts = (data.message as string).split('|');
+          if (parts.length >= 5) {
+            const h = parseInt(parts[1]);
+            const dh = parseInt(parts[2]);
+            const nl = parts[4];
+            setCurrentHeight(h);
+            lastHeightRef.current = h;
+            if (dh > 0) {
+              daemonHeightRef.current = dh;
+              setTotalHeight(dh);
+            }
+            const { status: s, percent: p } = determineSyncStatus(h, dh);
+            setStatus(s);
+            setSyncPercent(p);
+            if (nl) setNodeLabel(nl);
+          }
+          return; // Don't show SYNC_DATA in the log panel
+        }
+
+        // Regular log handling
         const typeMap: Record<string, string> = {
           'info': 'info',
           'error': 'error',
@@ -234,14 +256,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      return () => cleanup(); // Auto-cleanup listener on unmount to prevent leaks
+      return () => cleanup();
     }
-  }, [addLog]);
+  }, [addLog, determineSyncStatus]);
 
   // 🔄 Wallet Event Listener (Real-time updates from SyncWatcher)
   useEffect(() => {
-    if (window.api.onWalletEvent) {
-      const cleanup = window.api.onWalletEvent((event) => {
+    if (window.api?.onWalletEvent) {
+      const cleanup = window.api.onWalletEvent((event: any) => {
         if (event.type === 'SYNC_UPDATE' && event.payload?.height) {
           const newHeight = event.payload.height;
           const daemonH = event.payload.daemonHeight || 0;

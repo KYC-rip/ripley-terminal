@@ -290,7 +290,7 @@ impl WalletState {
         inner.sync_status.daemon_height = daemon_height;
         if daemon_height > 0 {
             inner.sync_status.sync_percent = (height as f64 / daemon_height as f64) * 100.0;
-            inner.sync_status.status = if daemon_height - height <= 5 {
+            inner.sync_status.status = if daemon_height.saturating_sub(height) <= 5 {
                 "SYNCED".to_string()
             } else {
                 "SYNCING".to_string()
