@@ -101,31 +101,30 @@ pub async fn get_height(state: State<'_, WalletState>) -> Result<u64, String> {
 
 #[tauri::command]
 pub async fn get_subaddresses(
-    _state: State<'_, WalletState>,
+    state: State<'_, WalletState>,
     _account_index: u32,
 ) -> Result<Vec<SubaddressInfo>, String> {
-    // TODO: Derive subaddresses from account keys
-    Ok(vec![])
+    Ok(state.get_subaddresses().await)
 }
 
 #[tauri::command]
 pub async fn create_subaddress(
-    _state: State<'_, WalletState>,
-    _label: Option<String>,
+    state: State<'_, WalletState>,
+    label: Option<String>,
     _account_index: Option<u32>,
 ) -> Result<String, String> {
-    // TODO: Derive next subaddress
-    Err("Not yet implemented".into())
+    let info = state.create_subaddress(label.as_deref().unwrap_or("Payment")).await?;
+    Ok(info.address)
 }
 
 #[tauri::command]
 pub async fn set_subaddress_label(
-    _state: State<'_, WalletState>,
-    _index: u32,
-    _label: String,
+    state: State<'_, WalletState>,
+    index: u32,
+    label: String,
     _account_index: u32,
 ) -> Result<(), String> {
-    // TODO: Update label in state
+    state.set_subaddress_label(index, &label).await;
     Ok(())
 }
 
