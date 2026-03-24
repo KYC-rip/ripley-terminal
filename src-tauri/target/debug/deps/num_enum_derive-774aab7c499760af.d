@@ -1,9 +1,0 @@
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/num_enum_derive-774aab7c499760af.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/enum_attributes.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/parsing.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/utils.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/variant_attributes.rs
-
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libnum_enum_derive-774aab7c499760af.dylib: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/enum_attributes.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/parsing.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/utils.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/variant_attributes.rs
-
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/lib.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/enum_attributes.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/parsing.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/utils.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum_derive-0.7.6/src/variant_attributes.rs:

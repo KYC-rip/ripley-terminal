@@ -1,9 +1,0 @@
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/tor_log_ratelim-1976666c801b592c.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/logstate.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/macros.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/ratelim.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/../README.md
-
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libtor_log_ratelim-1976666c801b592c.rmeta: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/logstate.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/macros.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/ratelim.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/../README.md
-
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/lib.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/logstate.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/macros.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/ratelim.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-log-ratelim-0.40.0/src/../README.md:

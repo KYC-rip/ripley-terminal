@@ -1,9 +1,0 @@
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/derive_deftly-1ba19f773486456b.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../README.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/reference.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/implementation.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../CHANGELOG.md
-
-/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libderive_deftly-1ba19f773486456b.rmeta: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../README.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/reference.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/implementation.md /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../CHANGELOG.md
-
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/lib.rs:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../README.md:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/reference.md:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../doc/implementation.md:
-/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-1.6.0/src/../CHANGELOG.md:
