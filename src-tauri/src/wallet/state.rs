@@ -108,10 +108,9 @@ impl WalletState {
         let entropy_hex = hex::encode(<[u8; 32]>::from(*spend_key));
         let wallet_data = WalletFileData {
             seed_entropy: entropy_hex,
-            // For new wallets (no restore), start near current height to avoid full blockchain scan.
-            // Use a conservative estimate — Monero mainnet is ~3.3M+ blocks as of 2026.
-            // For restores, use the provided height (or 0 for full scan).
-            scan_height: restore_height.unwrap_or(if seed_phrase.is_some() { 0 } else { 3_300_000 }),
+            // For new wallets, use u64::MAX as sentinel — scanner auto-adjusts to daemon tip.
+            // For restores, use provided height (or 0 for full scan).
+            scan_height: restore_height.unwrap_or(if seed_phrase.is_some() { 0 } else { u64::MAX }),
             accounts: vec![AccountLabel { index: 0, label: "Primary".into() }],
             subaddress_labels: vec![],
         };
