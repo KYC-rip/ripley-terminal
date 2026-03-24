@@ -100,8 +100,9 @@ async fn scan_loop(
     node_url: String,
     node_label: String,
 ) -> Result<(), String> {
-    // Larger batches = faster sync. Each batch is one HTTP request to the daemon.
-    let batch_size: u64 = 200;
+    // Dynamic batch size based on gap — bigger gap = bigger batches for speed.
+    // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
+    let base_batch: u64 = 50;
 
     emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
 
@@ -133,7 +134,18 @@ async fn scan_loop(
             continue;
         }
 
-        // Fetch blocks in batches
+        // Dynamic batch size: bigger gap = bigger batches
+        let gap = daemon_height - scan_height;
+        let batch_size = if gap > 100_000 {
+            1000  // Major catchup: 1000 blocks per request
+        } else if gap > 10_000 {
+            500   // Moderate catchup
+        } else if gap > 1_000 {
+            200   // Small catchup
+        } else {
+            base_batch // Near tip: small batches for responsiveness
+        };
+
         let batch_end = (scan_height + batch_size).min(daemon_height);
         let range = (scan_height as usize)..=(batch_end as usize);
 
