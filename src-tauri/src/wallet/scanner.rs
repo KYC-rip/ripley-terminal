@@ -188,12 +188,16 @@ async fn scan_loop(
         }
 
         if scan_height >= daemon_height {
-            let _ = app.emit("sync-update", SyncStatus {
+            let status = SyncStatus {
                 status: "SYNCED".to_string(),
                 height: scan_height,
                 daemon_height,
                 sync_percent: 100.0, node_label: node_label.clone(), node_url: node_url.clone(),
-            });
+            };
+            match app.emit("sync-update", &status) {
+                Ok(_) => emit_log(&app, "Sync", "info", &format!("📡 Emitted SYNCED at height {}", scan_height)),
+                Err(e) => emit_log(&app, "Sync", "error", &format!("❌ Failed to emit sync-update: {:?}", e)),
+            }
             sleep(Duration::from_secs(10)).await;
             continue;
         }
@@ -280,11 +284,14 @@ async fn scan_loop(
         } else {
             0.0
         };
-        let _ = app.emit("sync-update", SyncStatus {
+        match app.emit("sync-update", &SyncStatus {
             status: "SYNCING".to_string(),
             height: scan_height,
             daemon_height,
             sync_percent: percent, node_label: node_label.clone(), node_url: node_url.clone(),
-        });
+        }) {
+            Ok(_) => {},
+            Err(e) => emit_log(&app, "Sync", "error", &format!("❌ Failed to emit sync-update: {:?}", e)),
+        }
     }
 }

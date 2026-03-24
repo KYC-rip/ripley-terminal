@@ -305,5 +305,16 @@ export function installTauriBridge() {
   if (isTauri) {
     (window as any).api = createTauriApi();
     console.log('[TauriBridge] Installed — all window.api calls routed to Tauri invoke()');
+
+    // Debug: listen for ALL events to verify they arrive
+    listen('sync-update', (e) => {
+      console.log('[TauriBridge:DEBUG] sync-update RAW:', e.payload);
+    });
+    listen('balance-changed', (e) => {
+      console.log('[TauriBridge:DEBUG] balance-changed RAW:', e.payload);
+    });
+    listen('core-log', (e) => {
+      console.log('[TauriBridge:DEBUG] core-log RAW:', (e.payload as any)?.message?.substring(0, 50));
+    });
   }
 }
