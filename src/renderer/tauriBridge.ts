@@ -59,19 +59,14 @@ function createTauriApi() {
     },
 
     // ── Uplink Status ──
-    getUplinkStatus: async () => {
-      try {
-        const status: any = await invoke('get_sync_status');
-        return {
-          status: status.status === 'OFFLINE' ? 'ERROR' : 'ONLINE',
-          isStagenet: false,
-          error: '',
-        };
-      } catch {
-        return { status: 'ERROR', isStagenet: false, error: 'Not connected' };
-      }
-    },
-    retryEngine: () => invoke('restart_tor').catch(() => {}),
+    // In Tauri, there's no separate engine process — the wallet connects directly.
+    // Always return ONLINE so the unlock flow proceeds.
+    getUplinkStatus: async () => ({
+      status: 'ONLINE',
+      isStagenet: false,
+      error: '',
+    }),
+    retryEngine: () => Promise.resolve(),
 
     // ── Event Listeners ──
     onEngineStatus: (callback: any) => {

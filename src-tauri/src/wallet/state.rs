@@ -108,7 +108,10 @@ impl WalletState {
         let entropy_hex = hex::encode(<[u8; 32]>::from(*spend_key));
         let wallet_data = WalletFileData {
             seed_entropy: entropy_hex,
-            scan_height: restore_height.unwrap_or(0),
+            // For new wallets (no restore), start near current height to avoid full blockchain scan.
+            // Use a conservative estimate — Monero mainnet is ~3.3M+ blocks as of 2026.
+            // For restores, use the provided height (or 0 for full scan).
+            scan_height: restore_height.unwrap_or(if seed_phrase.is_some() { 0 } else { 3_300_000 }),
             accounts: vec![AccountLabel { index: 0, label: "Primary".into() }],
             subaddress_labels: vec![],
         };
@@ -156,6 +159,9 @@ impl WalletState {
         }
 
         // Set up accounts from saved labels
+        let addr_str = primary_address.to_string();
+        log::info!("Primary address derived: {}", addr_str);
+
         let accounts: Vec<MoneroAccount> = wallet_data.accounts.iter().map(|a| {
             MoneroAccount {
                 index: a.index,
@@ -163,7 +169,7 @@ impl WalletState {
                 balance: "0".to_string(),
                 unlocked_balance: "0".to_string(),
                 base_address: if a.index == 0 {
-                    primary_address.to_string()
+                    addr_str.clone()
                 } else {
                     String::new()
                 },
