@@ -27,12 +27,14 @@ pub async fn open_wallet(
     state.unlock(&name, &password).await?;
     emit_log(&app, "Wallet", "success", "✅ Vault unlocked. Deriving keys...");
 
-    // Pick a random clearnet node
+    // Pick a random clearnet node (HTTP — avoids TLS cert issues with simple-request)
     let nodes = vec![
-        ("kyc.rip", "https://rpc-mainnet.kyc.rip"),
-        ("monero.one", "https://node.monero.one"),
-        ("cakewallet", "https://xmr-node.cakewallet.com:18081"),
-        ("sethforprivacy", "https://node.sethforprivacy.com:18089"),
+        ("plowsof", "http://node.monerodevs.org:18089"),
+        ("ravfx", "http://ravfx.its-a-node.org:18081"),
+        ("rucknium", "http://rucknium.me:18081"),
+        ("selsta", "http://selsta1.featherwallet.net:18081"),
+        ("xmr.rocks", "http://node.xmr.rocks:18089"),
+        ("baz", "http://node3-us.monero.love:18081"),
     ];
     let (node_label, daemon_url) = nodes[rand::random::<usize>() % nodes.len()];
 
