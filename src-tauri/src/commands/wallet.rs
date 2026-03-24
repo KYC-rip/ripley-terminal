@@ -28,7 +28,11 @@ pub async fn open_wallet(
     emit_log(&app, "Wallet", "success", "✅ Vault unlocked. Deriving keys...");
 
     let scan_height = state.get_scan_height().await;
-    emit_log(&app, "Sync", "info", &format!("📦 Starting scanner from height {}...", scan_height));
+    if scan_height == u64::MAX {
+        emit_log(&app, "Sync", "info", "📦 New wallet — starting scanner near daemon tip...");
+    } else {
+        emit_log(&app, "Sync", "info", &format!("📦 Resuming scan from height {}...", scan_height));
+    }
 
     let app_clone = app.clone();
     BlockScanner::start(app_clone, "", "", scan_height).await?;

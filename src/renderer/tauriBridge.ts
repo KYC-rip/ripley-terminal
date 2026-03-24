@@ -99,6 +99,7 @@ function createTauriApi() {
       // Map Tauri events to the format VaultContext expects
       listen('sync-update', (event) => {
         const p = event.payload as any;
+        console.log('[TauriBridge] sync-update received:', p.height, '/', p.daemonHeight || p.daemon_height);
         callback({
           type: 'SYNC_UPDATE',
           payload: {

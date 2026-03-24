@@ -164,7 +164,11 @@ async fn scan_loop(
     // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
     let base_batch: u64 = 50;
 
-    emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
+    if scan_height == u64::MAX {
+        emit_log(&app, "Sync", "info", "🔍 New wallet — will sync from daemon tip");
+    } else {
+        emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
+    }
 
     loop {
         // Get daemon height
