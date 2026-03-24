@@ -14,30 +14,56 @@ use crate::emit_log;
 use super::state::WalletState;
 use super::types::SyncStatus;
 
+/// Node list for rotation on failure.
+const NODES: &[(&str, &str)] = &[
+    ("plowsof", "http://node.monerodevs.org:18089"),
+    ("ravfx", "http://ravfx.its-a-node.org:18081"),
+    ("rucknium", "http://rucknium.me:18081"),
+    ("selsta", "http://selsta1.featherwallet.net:18081"),
+    ("xmr.rocks", "http://node.xmr.rocks:18089"),
+    ("baz", "http://node3-us.monero.love:18081"),
+];
+
 /// Background blockchain scanner.
 pub struct BlockScanner;
 
 impl BlockScanner {
-    /// Connect to daemon and start the scan loop as a background task.
+    /// Try connecting to nodes in rotation until one works, then start scanning.
     pub async fn start(
         app: AppHandle,
-        daemon_url: &str,
-        node_label: &str,
+        _daemon_url: &str,
+        _node_label: &str,
         from_height: u64,
     ) -> Result<(), String> {
-        emit_log(&app, "Network", "info", &format!("🔗 Connecting to {}...", node_label));
-
-        let daemon = SimpleRequestTransport::new(daemon_url.to_string()).await
-            .map_err(|e| format!("Failed to connect to daemon: {:?}", e))?;
-
-        emit_log(&app, "Network", "success", &format!("✅ Connected to {} ({})", node_label, daemon_url));
-        log::info!("BlockScanner connected to daemon: {}", daemon_url);
-
-        let url = daemon_url.to_string();
-        let label = node_label.to_string();
+        let app_clone = app.clone();
         tokio::spawn(async move {
-            if let Err(e) = scan_loop(app, daemon, from_height, url, label).await {
-                log::error!("BlockScanner error: {}", e);
+            let mut node_idx = rand::random::<usize>() % NODES.len();
+
+            loop {
+                let (label, url) = NODES[node_idx % NODES.len()];
+                emit_log(&app_clone, "Network", "info", &format!("🔗 Connecting to {}...", label));
+
+                match SimpleRequestTransport::new(url.to_string()).await {
+                    Ok(daemon) => {
+                        emit_log(&app_clone, "Network", "success", &format!("✅ Connected to {} ({})", label, url));
+
+                        match scan_loop(app_clone.clone(), daemon, from_height, url.to_string(), label.to_string()).await {
+                            Ok(()) => break, // Clean exit
+                            Err(e) => {
+                                emit_log(&app_clone, "Sync", "error", &format!("⚠️ Node {} failed: {}", label, e));
+                                // Rotate to next node
+                                node_idx += 1;
+                                emit_log(&app_clone, "Network", "info", "🔄 Rotating to next node...");
+                                sleep(Duration::from_secs(2)).await;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        emit_log(&app_clone, "Network", "error", &format!("❌ {} failed: {:?}", label, e));
+                        node_idx += 1;
+                        sleep(Duration::from_secs(2)).await;
+                    }
+                }
             }
         });
 

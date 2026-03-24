@@ -27,30 +27,11 @@ pub async fn open_wallet(
     state.unlock(&name, &password).await?;
     emit_log(&app, "Wallet", "success", "✅ Vault unlocked. Deriving keys...");
 
-    // Pick a random clearnet node (HTTP — avoids TLS cert issues with simple-request)
-    let nodes = vec![
-        ("plowsof", "http://node.monerodevs.org:18089"),
-        ("ravfx", "http://ravfx.its-a-node.org:18081"),
-        ("rucknium", "http://rucknium.me:18081"),
-        ("selsta", "http://selsta1.featherwallet.net:18081"),
-        ("xmr.rocks", "http://node.xmr.rocks:18089"),
-        ("baz", "http://node3-us.monero.love:18081"),
-    ];
-    let (node_label, daemon_url) = nodes[rand::random::<usize>() % nodes.len()];
-
-    emit_log(&app, "Network", "info", &format!("🌐 Connecting to {} ({})", node_label, daemon_url));
-
     let scan_height = state.get_scan_height().await;
-    emit_log(&app, "Sync", "info", &format!("📦 Starting scan from height {}...", scan_height));
+    emit_log(&app, "Sync", "info", &format!("📦 Starting scanner from height {}...", scan_height));
 
     let app_clone = app.clone();
-    let label = node_label.to_string();
-    let url = daemon_url.to_string();
-    tokio::spawn(async move {
-        if let Err(e) = BlockScanner::start(app_clone.clone(), &url, &label, scan_height).await {
-            emit_log(&app_clone, "Sync", "error", &format!("❌ Scanner failed: {}", e));
-        }
-    });
+    BlockScanner::start(app_clone, "", "", scan_height).await?;
 
     Ok(serde_json::json!({ "success": true }))
 }
