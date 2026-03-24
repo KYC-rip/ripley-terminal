@@ -185,11 +185,12 @@ async fn scan_loop(
             }
         };
 
-        if scan_height == 0 || scan_height > daemon_height {
-            // Invalid scan height — start from near current
-            emit_log(&app, "Sync", "info", &format!("📦 Daemon at height {}, adjusting scan start", daemon_height));
+        if scan_height == u64::MAX || scan_height > daemon_height {
+            // New wallet sentinel (u64::MAX) or somehow ahead — start near tip
+            emit_log(&app, "Sync", "info", &format!("📦 New wallet: starting near daemon tip ({})", daemon_height));
             scan_height = daemon_height.saturating_sub(10);
         }
+        // scan_height == 0 is valid for restores — scan from genesis
 
         if scan_height >= daemon_height {
             crate::emit_sync_status(&app, "SYNCED", scan_height, daemon_height, 100.0, &node_label);
