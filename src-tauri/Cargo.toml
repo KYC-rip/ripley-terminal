@@ -1,0 +1,55 @@
+[package]
+name = "ripley-terminal"
+version = "2.0.0"
+description = "Tactical Monero Desktop Wallet"
+authors = ["KYC.rip"]
+edition = "2021"
+
+[lib]
+name = "ripley_terminal_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Core framework
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-deep-link = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Monero wallet - pure Rust, no C++ FFI
+# NOTE: These are v0.0.1 placeholders on crates.io. For real integration,
+# use git dependency pointing to monero-oxide/monero-oxide repo.
+# monero-wallet = { git = "https://github.com/monero-oxide/monero-oxide", path = "monero-oxide/wallet" }
+# monero-oxide = { git = "https://github.com/monero-oxide/monero-oxide", path = "monero-oxide" }
+
+# Tor as library (no bundled binary)
+arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls"] }
+tor-rtcompat = { version = "0.40", features = ["tokio"] }
+
+# Time
+chrono = "0.4"
+
+# HTTP client (for daemon RPC)
+reqwest = { version = "0.12", features = ["json", "socks"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# State persistence
+directories = "6"

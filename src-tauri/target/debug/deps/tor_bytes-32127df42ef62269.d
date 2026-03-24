@@ -1,0 +1,11 @@
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/tor_bytes-32127df42ef62269.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/err.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/impls.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/reader.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/secretbuf.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/writer.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/../README.md
+
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libtor_bytes-32127df42ef62269.rmeta: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/err.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/impls.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/reader.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/secretbuf.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/writer.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/../README.md
+
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/lib.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/err.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/impls.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/reader.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/secretbuf.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/writer.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-bytes-0.40.0/src/../README.md:

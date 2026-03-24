@@ -1,0 +1,12 @@
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/enumset-d08c217c51f89078.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/macros.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/derive.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/mod.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/array.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/primitive.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/set.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/traits.rs
+
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libenumset-d08c217c51f89078.rmeta: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/macros.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/derive.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/mod.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/array.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/primitive.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/set.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/traits.rs
+
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/lib.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/macros.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/derive.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/mod.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/array.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/repr/primitive.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/set.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enumset-1.1.10/src/traits.rs:

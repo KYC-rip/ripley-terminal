@@ -1,0 +1,10 @@
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/coarsetime-14adc1ecf5e60f53.d: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/clock.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/duration.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/helpers.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/instant.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/updater.rs
+
+/Users/anton/Projects/kyc-rip/packages/ripley-terminal/src-tauri/target/debug/deps/libcoarsetime-14adc1ecf5e60f53.rmeta: /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/lib.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/clock.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/duration.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/helpers.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/instant.rs /Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/updater.rs
+
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/lib.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/clock.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/duration.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/helpers.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/instant.rs:
+/Users/anton/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coarsetime-0.1.37/src/updater.rs:

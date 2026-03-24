@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicktomlin/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Ripley Terminal",
+  "version": "2.0.0",
+  "identifier": "com.kycrip.ripley-terminal",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev:renderer",
+    "beforeBuildCommand": "npm run build:renderer"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ripley Terminal",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.kyc.rip https://api.xmr.bio https://kyc.rip"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["monero", "ripley", "xmr402"]
+      }
+    }
+  }
+}
