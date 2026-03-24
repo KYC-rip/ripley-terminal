@@ -14,37 +14,56 @@ use crate::emit_log;
 use super::state::WalletState;
 use super::types::SyncStatus;
 
-/// Node list for racing + rotation.
-const NODES: &[(&str, &str)] = &[
-    ("plowsof", "http://node.monerodevs.org:18089"),
-    ("ravfx", "http://ravfx.its-a-node.org:18081"),
-    ("rucknium", "http://rucknium.me:18081"),
-    ("selsta", "http://selsta1.featherwallet.net:18081"),
-    ("xmr.rocks", "http://node.xmr.rocks:18089"),
-    ("baz", "http://node3-us.monero.love:18081"),
-];
+/// Load all clearnet nodes from bundled nodes.json.
+/// Returns Vec<(label, url)>.
+fn load_nodes() -> Vec<(String, String)> {
+    let json_str = include_str!("../../../resources/nodes.json");
+    let parsed: serde_json::Value = serde_json::from_str(json_str).unwrap_or_default();
 
-/// Race all nodes — first to connect wins.
+    let mut nodes = vec![];
+    if let Some(clearnet) = parsed.get("mainnet").and_then(|m| m.get("clearnet")).and_then(|c| c.as_object()) {
+        for (label, addresses) in clearnet {
+            if let Some(addrs) = addresses.as_array() {
+                for addr in addrs {
+                    if let Some(addr_str) = addr.as_str() {
+                        // Skip HTTPS nodes — simple-request has TLS cert issues
+                        if addr_str.starts_with("https://") {
+                            continue;
+                        }
+                        // Add http:// prefix if missing
+                        let url = if addr_str.starts_with("http://") {
+                            addr_str.to_string()
+                        } else {
+                            format!("http://{}", addr_str)
+                        };
+                        nodes.push((label.clone(), url));
+                    }
+                }
+            }
+        }
+    }
+    nodes
+}
+
+/// Race ALL nodes — first to connect wins.
 async fn race_nodes(app: &AppHandle) -> Option<(String, String, monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>)> {
     use tokio::sync::mpsc;
 
-    emit_log(app, "Network", "info", &format!("🏁 Racing {} nodes...", NODES.len()));
+    let nodes = load_nodes();
+    emit_log(app, "Network", "info", &format!("🏁 Racing {} nodes...", nodes.len()));
 
     let (tx, mut rx) = mpsc::channel(1);
 
-    for &(label, url) in NODES {
+    for (label, url) in nodes {
         let tx = tx.clone();
-        let label = label.to_string();
-        let url = url.to_string();
         tokio::spawn(async move {
             if let Ok(daemon) = SimpleRequestTransport::new(url.clone()).await {
                 let _ = tx.send((label, url, daemon)).await;
             }
         });
     }
-    drop(tx); // Drop sender so rx completes if all fail
+    drop(tx);
 
-    // Wait for first successful connection (or timeout after 15s)
     tokio::select! {
         result = rx.recv() => result,
         _ = sleep(Duration::from_secs(15)) => None,
