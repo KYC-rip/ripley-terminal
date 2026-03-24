@@ -14,7 +14,7 @@ use crate::emit_log;
 use super::state::WalletState;
 use super::types::SyncStatus;
 
-/// Node list for rotation on failure.
+/// Node list for racing + rotation.
 const NODES: &[(&str, &str)] = &[
     ("plowsof", "http://node.monerodevs.org:18089"),
     ("ravfx", "http://ravfx.its-a-node.org:18081"),
@@ -24,11 +24,39 @@ const NODES: &[(&str, &str)] = &[
     ("baz", "http://node3-us.monero.love:18081"),
 ];
 
+/// Race all nodes — first to connect wins.
+async fn race_nodes(app: &AppHandle) -> Option<(String, String, monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>)> {
+    use tokio::sync::mpsc;
+
+    emit_log(app, "Network", "info", &format!("🏁 Racing {} nodes...", NODES.len()));
+
+    let (tx, mut rx) = mpsc::channel(1);
+
+    for &(label, url) in NODES {
+        let tx = tx.clone();
+        let label = label.to_string();
+        let url = url.to_string();
+        tokio::spawn(async move {
+            if let Ok(daemon) = SimpleRequestTransport::new(url.clone()).await {
+                let _ = tx.send((label, url, daemon)).await;
+            }
+        });
+    }
+    drop(tx); // Drop sender so rx completes if all fail
+
+    // Wait for first successful connection (or timeout after 15s)
+    tokio::select! {
+        result = rx.recv() => result,
+        _ = sleep(Duration::from_secs(15)) => None,
+    }
+}
+
 /// Background blockchain scanner.
 pub struct BlockScanner;
 
 impl BlockScanner {
-    /// Try connecting to nodes in rotation until one works, then start scanning.
+    /// Race all nodes for fastest connection, then start scanning.
+    /// On scan failure, re-race and retry.
     pub async fn start(
         app: AppHandle,
         _daemon_url: &str,
@@ -37,30 +65,24 @@ impl BlockScanner {
     ) -> Result<(), String> {
         let app_clone = app.clone();
         tokio::spawn(async move {
-            let mut node_idx = rand::random::<usize>() % NODES.len();
-
             loop {
-                let (label, url) = NODES[node_idx % NODES.len()];
-                emit_log(&app_clone, "Network", "info", &format!("🔗 Connecting to {}...", label));
-
-                match SimpleRequestTransport::new(url.to_string()).await {
-                    Ok(daemon) => {
-                        emit_log(&app_clone, "Network", "success", &format!("✅ Connected to {} ({})", label, url));
-
-                        match scan_loop(app_clone.clone(), daemon, from_height, url.to_string(), label.to_string()).await {
-                            Ok(()) => break, // Clean exit
-                            Err(e) => {
-                                emit_log(&app_clone, "Sync", "error", &format!("⚠️ Node {} failed: {}", label, e));
-                                // Rotate to next node
-                                node_idx += 1;
-                                emit_log(&app_clone, "Network", "info", "🔄 Rotating to next node...");
-                                sleep(Duration::from_secs(2)).await;
-                            }
-                        }
+                // Race all nodes
+                let (label, url, daemon) = match race_nodes(&app_clone).await {
+                    Some(result) => result,
+                    None => {
+                        emit_log(&app_clone, "Network", "error", "❌ All nodes failed. Retrying in 10s...");
+                        sleep(Duration::from_secs(10)).await;
+                        continue;
                     }
+                };
+
+                emit_log(&app_clone, "Network", "success", &format!("✅ Fastest node: {} ({})", label, url));
+
+                // Run scan loop — if it fails, re-race
+                match scan_loop(app_clone.clone(), daemon, from_height, url.clone(), label.clone()).await {
+                    Ok(()) => break,
                     Err(e) => {
-                        emit_log(&app_clone, "Network", "error", &format!("❌ {} failed: {:?}", label, e));
-                        node_idx += 1;
+                        emit_log(&app_clone, "Sync", "error", &format!("⚠️ {} disconnected: {}. Re-racing...", label, e));
                         sleep(Duration::from_secs(2)).await;
                     }
                 }
@@ -78,7 +100,8 @@ async fn scan_loop(
     node_url: String,
     node_label: String,
 ) -> Result<(), String> {
-    let batch_size: u64 = 50;
+    // Larger batches = faster sync. Each batch is one HTTP request to the daemon.
+    let batch_size: u64 = 200;
 
     emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
 
