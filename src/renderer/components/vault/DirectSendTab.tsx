@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, Info, ExternalLink } from 'lucide-react';
+import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, ArrowLeft, Shield } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { useStats } from '../../hooks/useStats';
 import { WalletService } from '../../services/walletService';
+import { useFiatValue } from '../../hooks/useFiatValue';
 
 interface ParsedDest {
   address: string;
@@ -34,6 +35,17 @@ function parseMultiSend(text: string): { destinations: ParsedDest[]; errors: str
   return { destinations, errors };
 }
 
+interface PreparedTx {
+  fee: string;
+  amount: string;
+  txHash: string;
+  txMetadata: string;
+  destinations: { address: string; amount: string }[];
+  isSweep?: boolean;
+}
+
+type Phase = 'input' | 'preparing' | 'confirm' | 'success';
+
 interface DirectSendTabProps {
   initialAddress: string;
   sourceSubaddressIndex?: number;
@@ -51,19 +63,21 @@ export function DirectSendTab({
 }: DirectSendTabProps) {
   const {
     sendXmr, sendMulti, getFeeEstimates, isSending, balance,
-    selectedAccountIndex,
+    selectedAccountIndex, status, syncPercent,
     deepLinkData, clearDeepLinkData
   } = useVault();
 
+  const [phase, setPhase] = useState<Phase>('input');
   const [sendMode, setSendMode] = useState<'single' | 'multi'>('single');
   const [destAddr, setDestAddr] = useState(initialAddress);
   const [sendAmount, setSendAmount] = useState('');
   const [multiText, setMultiText] = useState('');
   const [isBanned, setIsBanned] = useState(false);
-  const [directSent, setDirectSent] = useState(false);
   const [directTxHash, setDirectTxHash] = useState('');
-  const [priority, setPriority] = useState(0); // 0 = AUTO (Normal x4)
+  const [priority, setPriority] = useState(0);
   const [feeEstimates, setFeeEstimates] = useState<Record<number, string>>({});
+  const [prepareError, setPrepareError] = useState('');
+  const [preparedTx, setPreparedTx] = useState<PreparedTx | null>(null);
   const { stats } = useStats();
 
   // --- Coin Control ---
@@ -76,6 +90,12 @@ export function DirectSendTab({
   const [isResolvingBio, setIsResolvingBio] = useState(false);
   const [bioError, setBioError] = useState('');
   const resolveBioRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fiat values for confirmation screen
+  const totalXmr = preparedTx ? (parseFloat(preparedTx.amount) + parseFloat(preparedTx.fee)).toFixed(12).replace(/\.?0+$/, '') : '0';
+  const { fiatText: feeFiat } = useFiatValue('XMR', preparedTx?.fee || '0', true);
+  const { fiatText: amountFiat } = useFiatValue('XMR', preparedTx?.amount || '0', true);
+  const { fiatText: totalFiat } = useFiatValue('XMR', totalXmr, true);
 
   useEffect(() => {
     if (sendMode !== 'single') {
@@ -121,12 +141,11 @@ export function DirectSendTab({
     }
   }, [destAddr, sendMode]);
 
-  // 🔗 Consume Deep Link Data
+  // Deep Link Data
   useEffect(() => {
     if (deepLinkData) {
       if (deepLinkData.address) setDestAddr(deepLinkData.address);
       if (deepLinkData.amount) setSendAmount(deepLinkData.amount);
-      // Switch to single mode for standard monero: links
       setSendMode('single');
       clearDeepLinkData();
     }
@@ -186,91 +205,106 @@ export function DirectSendTab({
     .filter((o: any) => selectedOutputs.has(o.keyImage))
     .reduce((sum: number, o: any) => sum + parseFloat(o.amount || '0'), 0);
 
-  const handleExecute = () => {
+  // ── PREPARE: construct tx without broadcasting ──
+  const handlePrepare = async () => {
+    setPrepareError('');
+
     if (sendMode === 'single') {
       const amount = parseFloat(sendAmount);
       if (!destAddr || isNaN(amount) || amount <= 0 || isBanned) return;
 
-      // 🛡️ PROACTIVE BALANCE CHECK
       const unlocked = parseFloat(balance.unlocked);
       if (amount > unlocked) {
-        alert(`INSUFFICIENT_FUNDS: Unlocked balance is ${balance.unlocked} XMR, but you requested ${amount} XMR.`);
+        setPrepareError(`Insufficient funds: ${balance.unlocked} XMR unlocked, ${amount} XMR requested.`);
         return;
       }
 
-      onRequirePassword(async () => {
-        try {
-          const subIndices =
-            selectedOutputs.size > 0 && sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
+      setPhase('preparing');
+      try {
+        const subIndices = selectedOutputs.size > 0 && sourceSubaddressIndex !== undefined
+          ? [sourceSubaddressIndex] : undefined;
 
-          let txHash: string | undefined;
-          if (subIndices) {
-            txHash = await sendMulti([{ address: destAddr, amount }], subIndices, priority);
-          } else {
-            txHash = await sendXmr(destAddr, amount, selectedAccountIndex, priority);
-          }
-
-          if (txHash) {
-            setDirectTxHash(txHash);
-            setDirectSent(true);
-          }
-        } catch (err: any) {
-          // Error already logged by VaultContext
-        }
-      });
+        const result = await WalletService.prepareTx(
+          [{ address: destAddr, amount }],
+          selectedAccountIndex, priority, subIndices
+        );
+        setPreparedTx(result);
+        setPhase('confirm');
+      } catch (e: any) {
+        setPrepareError(e.message || 'Failed to prepare transaction');
+        setPhase('input');
+      }
     } else {
       if (parsed.destinations.length === 0 || parsed.errors.length > 0) return;
 
-      // 🛡️ PROACTIVE BALANCE CHECK (MULTI)
       const unlocked = parseFloat(balance.unlocked);
       if (multiTotal > unlocked) {
-        alert(`INSUFFICIENT_FUNDS: Total amount ${multiTotal.toFixed(6)} XMR exceeds unlocked balance ${balance.unlocked} XMR.`);
+        setPrepareError(`Insufficient funds: total ${multiTotal.toFixed(6)} XMR exceeds ${balance.unlocked} XMR unlocked.`);
         return;
       }
 
-      onRequirePassword(async () => {
-        try {
-          const subIndices = sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
-          const txHash = await sendMulti(parsed.destinations, subIndices, priority);
-          if (txHash) {
-            setDirectTxHash(txHash);
-            setDirectSent(true);
-          }
-        } catch (err: any) {
-          // Error already logged by VaultContext
-        }
-      });
+      setPhase('preparing');
+      try {
+        const subIndices = sourceSubaddressIndex !== undefined ? [sourceSubaddressIndex] : undefined;
+        const result = await WalletService.prepareTx(
+          parsed.destinations, selectedAccountIndex, priority, subIndices
+        );
+        setPreparedTx(result);
+        setPhase('confirm');
+      } catch (e: any) {
+        setPrepareError(e.message || 'Failed to prepare transaction');
+        setPhase('input');
+      }
     }
   };
 
-  const handleSweepAll = () => {
+  // ── SWEEP ALL: prepare without broadcasting ──
+  const handleSweepAll = async () => {
     if (!destAddr || isBanned) return;
     const unlocked = parseFloat(balance.unlocked);
     if (unlocked <= 0) {
-      alert("No unlocked funds to sweep.");
+      setPrepareError('No unlocked funds to sweep.');
       return;
     }
 
-    if (!confirm(`SWEEP_ALL: This will extinguish ALL funds (~${unlocked.toFixed(6)} XMR) from Account #${selectedAccountIndex} and send them to ${destAddr}. Proceed?`)) {
+    if (!confirm(`SWEEP_ALL: This will extinguish ALL funds (~${unlocked.toFixed(6)} XMR) from Account #${selectedAccountIndex}. Proceed to review?`)) {
       return;
     }
+
+    setPrepareError('');
+    setPhase('preparing');
+    try {
+      const result = await WalletService.prepareSweepAll(destAddr, selectedAccountIndex, priority);
+      setPreparedTx({ ...result, isSweep: true });
+      setPhase('confirm');
+    } catch (e: any) {
+      setPrepareError(e.message || 'Failed to prepare sweep');
+      setPhase('input');
+    }
+  };
+
+  // ── BROADCAST: relay the prepared tx after password ──
+  const handleBroadcast = () => {
+    if (!preparedTx) return;
 
     onRequirePassword(async () => {
       try {
-        const txHashList = await WalletService.sweepAll(destAddr, selectedAccountIndex, priority);
-        if (txHashList && txHashList.length > 0) {
-          setDirectTxHash(txHashList[0]);
-          setDirectSent(true);
-        } else {
-          throw new Error("No transaction hash returned from sweep.");
-        }
-      } catch (err: any) {
-        alert(`SWEEP_ERROR: ${err.message}`);
+        const txHash = await WalletService.relayTx(preparedTx.txMetadata);
+        setDirectTxHash(txHash || preparedTx.txHash);
+        setPhase('success');
+      } catch (e: any) {
+        // If relay fails (e.g. tx expired), go back to input
+        setPrepareError(e.message?.includes('double spend')
+          ? 'Transaction expired — inputs were spent. Please try again.'
+          : e.message || 'Failed to broadcast transaction');
+        setPreparedTx(null);
+        setPhase('input');
       }
     });
   };
 
-  if (directSent) {
+  // ── PHASE: SUCCESS ──
+  if (phase === 'success') {
     return (
       <div className="py-12 flex flex-col items-center gap-4 text-center">
         <CheckCircle2 size={48} className="text-xmr-green" />
@@ -283,10 +317,7 @@ export function DirectSendTab({
                 {directTxHash}
               </div>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(directTxHash);
-                  // alert could be replaced with a toast but we'll stick to a simple copy for now
-                }}
+                onClick={() => navigator.clipboard.writeText(directTxHash)}
                 className="text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer"
                 title="Copy TXID"
               >
@@ -304,7 +335,7 @@ export function DirectSendTab({
 
         <button
           onClick={onClose}
-          className="mt-4 px-8 py-2.5 bg-xmr-green text-xmr-base text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-xmr-green/80 transition-all"
+          className="mt-4 px-8 py-2.5 bg-xmr-green text-xmr-base text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-xmr-green/80 transition-all rounded-lg"
         >
           Close
         </button>
@@ -312,8 +343,125 @@ export function DirectSendTab({
     );
   }
 
+  // ── PHASE: PREPARING ──
+  if (phase === 'preparing') {
+    return (
+      <div className="py-16 flex flex-col items-center gap-4 text-xmr-accent/60">
+        <Loader2 size={36} className="animate-spin" />
+        <span className="text-[11px] uppercase font-mono tracking-widest animate-pulse">
+          Preparing transaction...
+        </span>
+        <span className="text-[10px] text-xmr-dim uppercase tracking-wider">
+          Constructing ring signatures & calculating fees
+        </span>
+      </div>
+    );
+  }
+
+  // ── PHASE: CONFIRM ──
+  if (phase === 'confirm' && preparedTx) {
+    const dest = preparedTx.destinations[0];
+    const priorityLabels: Record<number, string> = { 0: 'Auto', 1: 'Slow', 2: 'Medium', 3: 'Fast', 4: 'Urgent' };
+
+    return (
+      <div className="space-y-5 animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setPhase('input'); setPreparedTx(null); }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-xmr-border/30 text-xmr-dim hover:text-xmr-accent hover:border-xmr-accent/50 transition-all cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <div>
+            <div className="text-[11px] text-xmr-accent uppercase tracking-widest font-black">Review Transaction</div>
+            <div className="text-[10px] text-xmr-dim uppercase tracking-wider">Verify details before authorizing</div>
+          </div>
+        </div>
+
+        {/* Destination */}
+        <div className="bg-xmr-base border border-xmr-border/40 p-4 space-y-1">
+          <div className="text-[10px] text-xmr-dim uppercase font-black tracking-widest">Destination</div>
+          {preparedTx.destinations.length === 1 ? (
+            <div className="text-[11px] text-xmr-green font-mono break-all leading-relaxed">
+              {dest.address}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {preparedTx.destinations.map((d, i) => (
+                <div key={i} className="flex justify-between text-[11px]">
+                  <span className="text-xmr-green font-mono truncate max-w-[300px]">{d.address}</span>
+                  <span className="text-xmr-accent font-black shrink-0 ml-2">{d.amount} XMR</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Amount + Fee breakdown */}
+        <div className="bg-xmr-base border border-xmr-border/40 p-4 space-y-3">
+          <div className="flex justify-between items-baseline">
+            <span className="text-[10px] text-xmr-dim uppercase font-black tracking-widest">Amount</span>
+            <div className="text-right">
+              <span className="text-lg font-black text-xmr-accent">{preparedTx.amount} XMR</span>
+              {amountFiat && <div className="text-[10px] text-xmr-dim font-bold">{amountFiat} USD</div>}
+            </div>
+          </div>
+          <div className="border-t border-xmr-border/20" />
+          <div className="flex justify-between items-baseline">
+            <span className="text-[10px] text-xmr-dim uppercase font-black tracking-widest">Network Fee</span>
+            <div className="text-right">
+              <span className="text-sm font-black text-xmr-dim">{preparedTx.fee} XMR</span>
+              {feeFiat && <div className="text-[10px] text-xmr-dim/60 font-bold">{feeFiat} USD</div>}
+            </div>
+          </div>
+          <div className="border-t border-xmr-border/20" />
+          <div className="flex justify-between items-baseline">
+            <span className="text-[10px] text-xmr-accent uppercase font-black tracking-widest">Total Deducted</span>
+            <div className="text-right">
+              <span className="text-lg font-black text-xmr-green">{totalXmr} XMR</span>
+              {totalFiat && <div className="text-[10px] text-xmr-dim font-bold">{totalFiat} USD</div>}
+            </div>
+          </div>
+        </div>
+
+        {/* Priority + Sweep badge */}
+        <div className="flex items-center gap-3 text-[10px] text-xmr-dim uppercase font-black tracking-widest">
+          <span>Priority: <span className="text-xmr-green">{priorityLabels[priority] || 'Auto'}</span></span>
+          {preparedTx.isSweep && <span className="px-2 py-0.5 bg-xmr-accent/10 border border-xmr-accent/30 text-xmr-accent rounded">Sweep All</span>}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 pt-2">
+          <button
+            onClick={() => { setPhase('input'); setPreparedTx(null); }}
+            className="flex-1 py-3.5 border border-xmr-border text-xmr-dim font-black uppercase tracking-widest text-[11px] cursor-pointer hover:border-xmr-accent transition-colors rounded-lg"
+          >
+            Go Back
+          </button>
+          <button
+            onClick={handleBroadcast}
+            disabled={isSending}
+            className="flex-[2] py-3.5 bg-xmr-green text-xmr-base font-black uppercase tracking-widest text-[11px] cursor-pointer hover:bg-xmr-green/80 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
+          >
+            {isSending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+            {isSending ? 'Broadcasting...' : 'Authorize & Send'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PHASE: INPUT (main form) ──
   return (
     <div className="space-y-4">
+      {/* Prepare error */}
+      {prepareError && (
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-500 text-[11px] font-black uppercase animate-in fade-in">
+          <AlertTriangle size={14} /> {prepareError}
+        </div>
+      )}
+
       {/* Mode Toggle */}
       <div className="flex gap-2">
         {(['single', 'multi'] as const).map((m) => (
@@ -422,7 +570,7 @@ export function DirectSendTab({
               </div>
             </div>
 
-            {/* Percentage Slider / Quick Select */}
+            {/* Percentage Quick Select */}
             <div className="grid grid-cols-4 gap-1 mt-2">
               {[25, 50, 75, 100].map(pct => (
                 <button
@@ -431,9 +579,6 @@ export function DirectSendTab({
                     const unlocked = parseFloat(balance.unlocked);
                     if (unlocked > 0) {
                       if (pct === 100) {
-                        // For 100% selection in the UI, we subtract a small fee buffer 
-                        // but ensure it never goes below zero.
-                        // Note: Users should use the 'Sweep_All' button for percision.
                         setSendAmount(Math.max(0, unlocked - 0.0001).toFixed(6));
                       } else {
                         setSendAmount((unlocked * (pct / 100)).toFixed(6));
@@ -476,7 +621,7 @@ export function DirectSendTab({
         </div>
       )}
 
-      {/* ── Fee Priority Selection (CakeWallet Style) ── */}
+      {/* ── Fee Priority Selection ── */}
       <div className="space-y-2">
         <label className="text-[11px] text-xmr-dim uppercase tracking-widest flex items-center gap-1.5 px-1">
           <Coins size={10} /> Network_Fee_Priority
@@ -492,7 +637,6 @@ export function DirectSendTab({
             const xmrFee = feeEstimates[lvl.val];
             const streetPriceStr = stats?.price?.street || '0';
             const streetPrice = parseFloat(streetPriceStr.replace(/[$,]/g, ''));
-            // get_fee_estimate is per-byte. Average tx is ~3000 bytes.
             const usdFee = xmrFee && streetPrice ? (parseFloat(xmrFee) * streetPrice * 3000).toFixed(4) : null;
 
             return (
@@ -590,25 +734,26 @@ export function DirectSendTab({
       <button
         disabled={
           isSending ||
+          status === 'SYNCING' ||
           (sendMode === 'single'
             ? isBanned || !destAddr || !sendAmount
             : parsed.destinations.length === 0 || parsed.errors.length > 0)
         }
-        onClick={handleExecute}
-        className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer ${
+        onClick={handlePrepare}
+        className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer rounded-lg ${
           isBanned && sendMode === 'single'
             ? 'bg-red-950 text-red-500 cursor-not-allowed'
             : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base disabled:opacity-50 disabled:cursor-not-allowed'
         }`}
       >
         <Send size={18} />
-        {isSending
-          ? 'Dispatching...'
+        {status === 'SYNCING'
+          ? `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...`
           : isBanned && sendMode === 'single'
           ? 'Mission_Aborted'
           : sendMode === 'multi'
-          ? `Dispatch ${parsed.destinations.length} Transfers`
-          : 'Confirm_Dispatch'}
+          ? `Prepare ${parsed.destinations.length} Transfers`
+          : 'Prepare_Dispatch'}
       </button>
     </div>
   );

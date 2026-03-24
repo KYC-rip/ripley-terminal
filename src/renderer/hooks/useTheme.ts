@@ -16,7 +16,7 @@ export function useTheme() {
     const saved = localStorage.getItem('theme-mode');
     return (saved === 'dark' || saved === 'light' || saved === 'system')
       ? (saved as ThemeMode)
-      : 'dark'; // Desktop defaults to dark
+      : 'system'; // Follow OS preference by default
   });
 
   const [contrast, setContrast] = useState<Contrast>(() => {

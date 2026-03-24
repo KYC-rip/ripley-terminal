@@ -42,6 +42,8 @@ const api = {
     return () => ipcRenderer.removeListener('deep-link', handler);
   },
   proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
+  pauseWatcher: () => ipcRenderer.invoke('watcher-pause'),
+  resumeWatcher: () => ipcRenderer.invoke('watcher-resume'),
 
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),

@@ -40,6 +40,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [activePanel, setActivePanel] = useState<'send' | 'receive' | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const currentAcc = accounts.find(a => a.index === selectedAccountIndex);
   const currentAccBalance = currentAcc?.balance || '0.0000';
@@ -78,6 +79,13 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Auto-scroll to inline panel when dispatch/receive opens
+  useEffect(() => {
+    if (activePanel && panelRef.current) {
+      panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [activePanel]);
 
   // Card switch animation
   useEffect(() => {
@@ -138,11 +146,12 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     navigator.clipboard.writeText(text);
   };
 
-  const isSyncing = status === 'SYNCING' || status === 'READY';
+  const isSyncing = status === 'SYNCING';
   const blocksLeft = totalHeight > 0 && currentHeight > 0 ? totalHeight - currentHeight : 0;
-  // Only block actions for large syncs (>1000 blocks ≈ 1.4 days behind)
-  // Small gaps (<1000 blocks) catch up in seconds — no need to lock the UI
-  const isHeavySync = isSyncing && blocksLeft > 1000;
+  // Show full sync panel for large gaps OR when RPC is busy and we have no data yet
+  const isHeavySync = isSyncing && (blocksLeft > 1000 || (accounts.length === 0 && !currentHeight));
+  // Lighter sync: any active sync that isn't heavy (e.g. catching up 5-1000 blocks)
+  const isLightSync = isSyncing && !isHeavySync && blocksLeft > 5;
 
   const currentAccIdx = accounts.findIndex(a => a.index === selectedAccountIndex);
   const prevAccount = () => {
@@ -166,21 +175,43 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     { label: 'Receive', icon: Download, onClick: () => setActivePanel('receive'), disabled: isHeavySync },
     { label: 'Churn', icon: Wind, onClick: () => setModals(prev => ({ ...prev, churn: true })), disabled: isHeavySync || isSending || hasNoBalance },
     { label: 'Splinter', icon: Scissors, onClick: () => setModals(prev => ({ ...prev, splinter: true })), disabled: isHeavySync || isSending || hasNoBalance },
-    { label: 'Sync', icon: RefreshCw, onClick: refresh, disabled: false, spin: isSyncing || isSending },
+    { label: isSyncing && syncPercent > 0 && syncPercent < 100 ? `${syncPercent.toFixed(0)}%` : 'Sync', icon: RefreshCw, onClick: refresh, disabled: false, spin: isSyncing || isSending },
   ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 py-2 pt-0 animate-in fade-in zoom-in-95 duration-300 font-black relative">
 
-      {/* SYNC STATUS BANNER — only for heavy syncs (>1000 blocks behind) */}
+      {/* SYNC STATUS — contextual display */}
       {isHeavySync && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-xmr-accent/10 border border-xmr-accent/30 rounded-sm animate-pulse">
-          <Loader2 size={14} className="text-xmr-accent animate-spin shrink-0" />
-          <span className="text-xs font-black text-xmr-accent uppercase tracking-widest leading-relaxed">
-            Synchronizing_Ledger... Height: {currentHeight || '---'}
-            {blocksLeft > 0 ? ` ( ${blocksLeft} BLOCKS LEFT : ${syncPercent?.toFixed(2)}% )` : ''}
-            — Send/Receive disabled until sync completes
-          </span>
+        <div className="border border-xmr-accent/20 rounded-lg overflow-hidden bg-xmr-surface/30">
+          {/* Progress bar */}
+          <div className="h-1 bg-xmr-accent/10">
+            <div
+              className="h-full bg-xmr-accent/60 transition-all duration-1000 ease-out"
+              style={{ width: `${Math.max(syncPercent, 1)}%` }}
+            />
+          </div>
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Loader2 size={14} className="text-xmr-accent animate-spin" />
+                <span className="text-xs font-black text-xmr-accent uppercase tracking-widest">
+                  {syncPercent > 0 ? `Syncing — ${syncPercent.toFixed(1)}%` : 'Scanning Blockchain...'}
+                </span>
+              </div>
+              {blocksLeft > 0 && (
+                <span className="text-[10px] text-xmr-dim font-bold uppercase tracking-wider">
+                  {blocksLeft.toLocaleString()} blocks remaining
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-xmr-dim/60 leading-relaxed">
+              {syncPercent === 0
+                ? 'Your wallet is scanning the blockchain for the first time. This is a one-time process and may take 10–30 minutes depending on your connection. The app is working in the background — feel free to explore the interface.'
+                : 'Scanning blocks for incoming transactions. Send/Receive will be available once complete.'
+              }
+            </p>
+          </div>
         </div>
       )}
 
@@ -413,8 +444,28 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
 
       </div>
 
+      {/* LIGHT SYNC — compact progress strip for small sync gaps */}
+      {isLightSync && (
+        <div className="border border-xmr-accent/15 rounded-lg overflow-hidden bg-xmr-surface/20">
+          <div className="h-0.5 bg-xmr-accent/10">
+            <div className="h-full bg-xmr-accent/50 transition-all duration-1000 ease-out" style={{ width: `${Math.max(syncPercent, 1)}%` }} />
+          </div>
+          <div className="px-4 py-1.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 size={10} className="text-xmr-accent animate-spin" />
+              <span className="text-[10px] font-black text-xmr-accent uppercase tracking-widest">
+                Catching up — {syncPercent.toFixed(0)}%
+              </span>
+            </div>
+            <span className="text-[10px] text-xmr-dim font-bold uppercase tracking-wider">
+              {blocksLeft.toLocaleString()} blocks
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 3. TABS + CONTENT (or inline Send/Receive panel) */}
-      <div className="min-h-[400px] border border-xmr-border/20 rounded-lg overflow-hidden bg-xmr-surface/30">
+      <div ref={panelRef} className="min-h-[400px] border border-xmr-border/20 rounded-lg overflow-hidden bg-xmr-surface/30">
         {activePanel === 'send' ? (
           <DispatchModal
             inline

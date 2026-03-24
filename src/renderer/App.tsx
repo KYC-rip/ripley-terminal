@@ -369,7 +369,7 @@ function MainApp() {
         {/* ─── Portfolio Card ─── */}
         {vault.accounts.length > 0 && (
           <div
-            className="mx-3 mt-1 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-lg cursor-pointer hover:border-xmr-green/30 transition-all"
+            className="mx-3 mt-1 mb-3 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-lg cursor-pointer hover:border-xmr-green/30 transition-all"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={() => setView('vault')}
           >

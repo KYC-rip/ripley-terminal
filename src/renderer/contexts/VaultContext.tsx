@@ -144,7 +144,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         (daemonHeightRef.current - lastHeightRef.current) > 5;
 
       const allAccs = await WalletService.getAccounts().catch(() => null);
-      if (allAccs) {
+      if (allAccs && allAccs.length > 0) {
         setAccounts(allAccs);
         const currentAcc = allAccs.find(a => a.index === selectedAccountIndex);
         if (currentAcc) {
@@ -153,6 +153,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
             unlocked: currentAcc.unlockedBalance
           });
         }
+      } else if (isSyncActive) {
+        // RPC is busy with block scanning — set status so UI shows sync state
+        setStatus('SYNCING');
       }
 
       if (isSyncActive) {
@@ -166,16 +169,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           setSyncPercent(p);
         }
       } else {
-        // Full refresh when synced — all 5 calls in parallel
-        const results = await Promise.allSettled([
+        // Phase 1: Fast data first (balance + height) — immediate UI update
+        const fastResults = await Promise.allSettled([
           WalletService.getBalance(selectedAccountIndex),
           WalletService.getHeight(selectedAccountIndex),
-          WalletService.getTransactions(selectedAccountIndex),
-          WalletService.getSubaddresses(selectedAccountIndex),
-          WalletService.getOutputs(selectedAccountIndex)
         ]);
 
-        const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
+        const [balRes, heightRes] = fastResults;
 
         if (balRes.status === 'fulfilled') setBalance(balRes.value);
         if (heightRes.status === 'fulfilled') {
@@ -186,12 +186,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           setStatus(s);
           setSyncPercent(p);
         }
-        if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
-        if (addrRes.status === 'fulfilled') {
-          setSubaddresses(addrRes.value);
-          setAddress(addrRes.value[0]?.address || '');
-        }
-        if (outsRes.status === 'fulfilled') setOutputs(outsRes.value);
+
+        // Phase 2: Heavy data (txs, subaddrs, outputs) — deferred 100ms to let UI breathe
+        setTimeout(async () => {
+          const heavyResults = await Promise.allSettled([
+            WalletService.getTransactions(selectedAccountIndex),
+            WalletService.getSubaddresses(selectedAccountIndex),
+            WalletService.getOutputs(selectedAccountIndex)
+          ]);
+          const [txsRes, addrRes, outsRes] = heavyResults;
+          if (txsRes.status === 'fulfilled') setTxs(txsRes.value);
+          if (addrRes.status === 'fulfilled') {
+            setSubaddresses(addrRes.value);
+            setAddress(addrRes.value[0]?.address || '');
+          }
+          if (outsRes.status === 'fulfilled') setOutputs(outsRes.value);
+        }, 100);
       }
     } catch (e: any) {
       console.warn("Sync gap detected:", e.message);
@@ -200,17 +210,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLocked, isInitializing, selectedAccountIndex, determineSyncStatus]);
 
-  // 🔄 Initial & Periodic Refresh
-  // During sync: lightweight poll every 45s. After sync: full refresh every 10s.
+  // 🔄 Initial refresh on unlock + fallback polling
+  // Primary updates come via SyncWatcher events, but we need:
+  // 1. An immediate refresh when wallet unlocks (populates accounts, balance, txs)
+  // 2. A fallback poll so the UI never goes stale if events stop
   useEffect(() => {
     if (!isLocked && !isInitializing) {
-      refresh();
-      const isSyncing = status === 'SYNCING';
-      const interval = isSyncing ? 45000 : 10000;
-      const timer = setInterval(refresh, interval);
-      return () => clearInterval(timer);
+      refresh(); // Immediate data load on unlock
+      const fallback = setInterval(refresh, 15000); // Safety net: 15s fallback
+      return () => clearInterval(fallback);
     }
-  }, [isLocked, isInitializing, refresh, status]);
+  }, [isLocked, isInitializing, refresh]);
 
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
@@ -237,6 +247,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [addLog]);
 
   // 🔄 Wallet Event Listener (Real-time updates from SyncWatcher)
+  const prevStatusRef = useRef<string>('READY');
   useEffect(() => {
     if (window.api.onWalletEvent) {
       const cleanup = window.api.onWalletEvent((event) => {
@@ -254,6 +265,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           const { status: s, percent: p } = determineSyncStatus(newHeight, daemonHeightRef.current);
           setStatus(s);
           setSyncPercent(p);
+
+          // Immediate full refresh when sync completes (SYNCING → SYNCED)
+          if (prevStatusRef.current === 'SYNCING' && s === 'SYNCED') {
+            addLog('✅ Sync complete — refreshing wallet data...', 'success');
+            refresh();
+          }
+          prevStatusRef.current = s;
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
           // During sync, just update balance inline instead of triggering a full
@@ -277,7 +295,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
       return () => cleanup();
     }
-  }, [refresh, determineSyncStatus, selectedAccountIndex]);
+  }, [refresh, determineSyncStatus, selectedAccountIndex, addLog]);
 
   // 🛡️ XMR402 Challenge Listeners
   useEffect(() => {

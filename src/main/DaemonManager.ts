@@ -165,7 +165,7 @@ export class DaemonManager {
         '--rpc-bind-port', `${this.rpcPort}`,
         '--disable-rpc-login',
         '--daemon-address', targetNode,
-        '--max-concurrency', '4',
+        '--max-concurrency', '8',
         '--no-initial-sync'
       ];
 

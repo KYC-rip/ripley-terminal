@@ -88,6 +88,8 @@ export interface IApi {
 
   // --- Proxy RPC ---
   proxyRequest: (payload: { method: string; params: any }) => Promise<{ success: boolean; result?: any; error?: string }>;
+  pauseWatcher: () => Promise<void>;
+  resumeWatcher: () => Promise<void>;
 
   // --- App Info & Updates ---
   getAppInfo: () => Promise<{ version: string; appDataPath: string; walletsPath: string; platform: NodeJS.Platform; isPackaged: boolean }>;

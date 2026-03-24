@@ -111,7 +111,6 @@ export class WalletManager {
       destinations: [{ address: destination, amount: amountAtomic }],
       account_index: accountIndex,
       priority: 0,
-      ring_size: 16
     });
     return res.tx_hash;
   }

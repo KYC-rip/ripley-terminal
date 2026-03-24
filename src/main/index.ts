@@ -564,6 +564,9 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle('watcher-pause', () => { watcher?.pause(); });
+  ipcMain.handle('watcher-resume', () => { watcher?.resume(); });
+
   ipcMain.handle('proxy-request', async (_, payload: { method: string; params: any }) => {
     try {
       const isDaemonMethod = ['get_fee_estimate', 'get_info', 'get_last_block_header'].includes(payload.method);

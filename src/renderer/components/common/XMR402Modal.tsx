@@ -4,7 +4,7 @@ import { Shield, Lock, X, Zap, Bot, ExternalLink, ChevronRight, AlertCircle, Cop
 import { useVault } from '../../hooks/useVault';
 
 export const XMR402Modal: React.FC = () => {
-  const { monero402Challenge, clearMonero402Challenge, balance, isStagenet, accounts, selectedAccountIndex, setSelectedAccountIndex } = useVault();
+  const { monero402Challenge, clearMonero402Challenge, balance, isStagenet, accounts, selectedAccountIndex, setSelectedAccountIndex, status, syncPercent } = useVault();
   const [password, setPassword] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -330,13 +330,13 @@ export const XMR402Modal: React.FC = () => {
                 {/* Actions */}
                 <div className="pt-2 flex gap-4">
                   <button
-                      disabled={!password || isProcessing || (Number(activeAccount?.unlockedBalance) < Number(amount))}
+                      disabled={!password || isProcessing || status === 'SYNCING' || (Number(activeAccount?.unlockedBalance) < Number(amount))}
                     onClick={handleAuthorize}
                       className="flex-grow py-4 bg-xmr-green text-xmr-base border border-xmr-green font-black uppercase text-xs tracking-[0.2em] hover:bg-xmr-base hover:text-xmr-green transition-all shadow-[0_0_20px_rgba(0,255,65,0.2)] hover:shadow-[0_0_25px_rgba(0,255,65,0.4)] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                       {isProcessing ? <RefreshCw size={16} className="animate-spin shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
                       <span className="truncate max-w-full inline-block">
-                        {isProcessing ? (paymentStep || 'Processing...') : 'Confirm_Execution'}
+                        {status === 'SYNCING' ? `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...` : isProcessing ? (paymentStep || 'Processing...') : 'Confirm_Execution'}
                       </span>
                   </button>
                   <button

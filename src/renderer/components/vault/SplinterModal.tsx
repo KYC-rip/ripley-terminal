@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Scissors, Loader2 } from 'lucide-react';
+import { useVault } from '../../contexts/VaultContext';
 
 interface SplinterModalProps {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface SplinterModalProps {
 }
 
 export function SplinterModal({ onClose, onSplinter, unlockedBalance }: SplinterModalProps) {
+  const { status, syncPercent } = useVault();
   const [fragments, setFragments] = useState<number>(5);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,10 +93,12 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
         <div className="p-6 pt-4 border-t border-xmr-accent/20 shrink-0">
           <button
             onClick={handleSubmit}
-            disabled={isProcessing || unlockedBalance <= 0}
+            disabled={isProcessing || status === 'SYNCING' || unlockedBalance <= 0}
             className="w-full py-4 bg-xmr-accent text-white font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isProcessing ? (
+            {status === 'SYNCING' ? (
+              `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...`
+            ) : isProcessing ? (
               <><Loader2 size={18} className="animate-spin" /> Splintering...</>
             ) : (
               `Shatter Balance ${unlockedBalance > 0 ? `(${unlockedBalance} XMR)` : '(0 XMR)'}`

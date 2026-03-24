@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Wind, Loader2 } from 'lucide-react';
+import { useVault } from '../../contexts/VaultContext';
 
 interface ChurnModalProps {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface ChurnModalProps {
 }
 
 export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProps) {
+  const { status, syncPercent } = useVault();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,10 +72,12 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
 
           <button
             onClick={handleSubmit}
-            disabled={isProcessing || unlockedBalance <= 0}
-            className="w-full py-4 bg-xmr-green text-xmr-dim font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={isProcessing || status === 'SYNCING' || unlockedBalance <= 0}
+            className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-lg"
           >
-            {isProcessing ? (
+            {status === 'SYNCING' ? (
+              `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...`
+            ) : isProcessing ? (
               <><Loader2 size={18} className="animate-spin" /> Churning...</>
             ) : (
                 `Consolidate UTXOs ${unlockedBalance > 0 ? `(${unlockedBalance} XMR)` : '(0 XMR)'}`

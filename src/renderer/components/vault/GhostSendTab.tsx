@@ -23,7 +23,7 @@ interface GhostSendTabProps {
 }
 
 export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) {
-  const { sendXmr, getFeeEstimates, balance, selectedAccountIndex } = useVault();
+  const { sendXmr, getFeeEstimates, balance, selectedAccountIndex, status, syncPercent } = useVault();
   const { stats } = useStats();
   const { currencies } = useCurrencies();
 
@@ -290,6 +290,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
 
           <button
             disabled={
+              status === 'SYNCING' ||
               !ghostReceiverAddr ||
               !ghostTargetAmount ||
               parseFloat(ghostTargetAmount) <= 0 ||
@@ -298,7 +299,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
             onClick={handleGetQuote}
             className="w-full py-3 bg-xmr-accent/20 border border-xmr-accent/40 text-xmr-accent font-black uppercase tracking-widest text-xs transition-all hover:bg-xmr-accent/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
           >
-            <ArrowRight size={14} /> Get Quote
+            <ArrowRight size={14} /> {status === 'SYNCING' ? `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...` : 'Get Quote'}
           </button>
         </div>
       )}
@@ -340,10 +341,11 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
               Revise
             </button>
             <button
+              disabled={status === 'SYNCING'}
               onClick={handleGhostExecute}
-              className="flex-1 py-3 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[11px] cursor-pointer hover:bg-xmr-green transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-3 bg-xmr-accent text-xmr-base font-black uppercase tracking-widest text-[11px] cursor-pointer hover:bg-xmr-green transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Ghost size={14} /> Execute Ghost Send
+              <Ghost size={14} /> {status === 'SYNCING' ? `Syncing${syncPercent > 0 ? ` (${syncPercent.toFixed(0)}%)` : ''}...` : 'Execute Ghost Send'}
             </button>
           </div>
         </div>

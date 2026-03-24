@@ -1,6 +1,11 @@
 import { MoneroAccount } from '../contexts/VaultContext';
 import { RpcClient } from './rpcClient';
 
+// Safely pause/resume SyncWatcher to avoid RPC mutex contention during tx ops.
+// Catches errors silently (handler may not be registered during HMR in dev mode).
+const pauseWatcher = () => window.api.pauseWatcher?.().catch(() => {});
+const resumeWatcher = () => window.api.resumeWatcher?.().catch(() => {});
+
 export interface Transaction {
   id: string;
   amount: string;
@@ -114,7 +119,12 @@ export const WalletService = {
       params.subaddr_indices = subaddrIndices;
     }
 
-    return await RpcClient.call('transfer', params);
+    await pauseWatcher();
+    try {
+      return await RpcClient.call('transfer', params);
+    } finally {
+      await resumeWatcher();
+    }
   },
 
   /**
@@ -122,12 +132,16 @@ export const WalletService = {
    */
   async churn(accountIndex: number) {
     const newAddr = await this.createSubaddress('Churn_Target', accountIndex);
-    const res = await RpcClient.call('sweep_all', {
-      address: newAddr,
-      account_index: accountIndex,
-      ring_size: 16
-    });
-    return res.tx_hash_list?.[0] || res.tx_hash;
+    await pauseWatcher();
+    try {
+      const res = await RpcClient.call('sweep_all', {
+        address: newAddr,
+        account_index: accountIndex,
+      });
+      return res.tx_hash_list?.[0] || res.tx_hash;
+    } finally {
+      await resumeWatcher();
+    }
   },
 
   /**
@@ -140,7 +154,6 @@ export const WalletService = {
     const balRes = await RpcClient.call('getbalance', { account_index: accountIndex });
     const availablePico = balRes.unlocked_balance || 0;
 
-    // Safety check: leave 0.0005 XMR (500,000,000 pico) buffer for fees
     const feeBuffer = 500000000;
     const splinterableAmount = availablePico - feeBuffer;
 
@@ -159,26 +172,33 @@ export const WalletService = {
       });
     }
 
-    const res = await RpcClient.call('transfer', {
-      destinations,
-      account_index: accountIndex,
-      ring_size: 16
-    });
-
-    return res.tx_hash_list?.[0] || res.tx_hash;
+    await pauseWatcher();
+    try {
+      const res = await RpcClient.call('transfer', {
+        destinations,
+        account_index: accountIndex,
+      });
+      return res.tx_hash_list?.[0] || res.tx_hash;
+    } finally {
+      await resumeWatcher();
+    }
   },
 
   /**
    * Sweep All: Extinguish all wallet funds to a specific address
    */
   async sweepAll(destination: string, accountIndex: number, priority: number = 0) {
-    const res = await RpcClient.call('sweep_all', {
-      address: destination,
-      account_index: accountIndex,
-      priority,
-      ring_size: 16
-    });
-    return res.tx_hash_list;
+    await pauseWatcher();
+    try {
+      const res = await RpcClient.call('sweep_all', {
+        address: destination,
+        account_index: accountIndex,
+        priority,
+      });
+      return res.tx_hash_list;
+    } finally {
+      await resumeWatcher();
+    }
   },
 
   // --- Data Query ---
@@ -324,14 +344,127 @@ export const WalletService = {
   },
 
   async sendTransaction(destination: string, amount: number, accountIndex: number, priority: number = 0) {
-    const tx = await RpcClient.call('transfer', {
-      destinations: [{ address: destination, amount: RpcClient.toAtomic(amount) }],
+    await pauseWatcher();
+    try {
+      const tx = await RpcClient.call('transfer', {
+        destinations: [{ address: destination, amount: RpcClient.toAtomic(amount) }],
+        account_index: accountIndex,
+        priority,
+      });
+      return tx.tx_hash;
+    } finally {
+      await resumeWatcher();
+    }
+  },
+
+  /**
+   * Prepare a transaction without broadcasting (do_not_relay: true).
+   * Pauses SyncWatcher to avoid RPC mutex contention during tx construction.
+   */
+  async prepareTx(
+    destinations: { address: string; amount: number }[],
+    accountIndex: number,
+    priority: number = 0,
+    subaddrIndices?: number[]
+  ): Promise<{
+    fee: string; feeRaw: number;
+    amount: string; amountRaw: number;
+    txHash: string; txMetadata: string;
+    destinations: { address: string; amount: string }[];
+  }> {
+    const rpcDest = destinations.map(d => ({
+      address: d.address,
+      amount: RpcClient.toAtomic(d.amount)
+    }));
+
+    const params: any = {
+      destinations: rpcDest,
       account_index: accountIndex,
       priority,
-      ring_size: 16
-    });
+      do_not_relay: true,
+      get_tx_metadata: true
+    };
 
-    return tx.tx_hash;
+    if (subaddrIndices && subaddrIndices.length > 0) {
+      params.subaddr_indices = subaddrIndices;
+    }
+
+    await pauseWatcher();
+    try {
+      const res = await RpcClient.call('transfer', params);
+
+      return {
+        fee: RpcClient.formatXmr(res.fee),
+        feeRaw: res.fee,
+        amount: RpcClient.formatXmr(res.amount),
+        amountRaw: res.amount,
+        txHash: res.tx_hash,
+        txMetadata: res.tx_metadata,
+        destinations: destinations.map(d => ({
+          address: d.address,
+          amount: d.amount.toFixed(12).replace(/\.?0+$/, '')
+        }))
+      };
+    } finally {
+      await resumeWatcher();
+    }
+  },
+
+  /**
+   * Prepare a sweep_all without broadcasting.
+   * Pauses SyncWatcher to avoid RPC mutex contention.
+   */
+  async prepareSweepAll(
+    destination: string,
+    accountIndex: number,
+    priority: number = 0
+  ): Promise<{
+    fee: string; feeRaw: number;
+    amount: string; amountRaw: number;
+    txHash: string; txMetadata: string;
+    destinations: { address: string; amount: string }[];
+  }> {
+    await pauseWatcher();
+    let res: any;
+    try {
+      res = await RpcClient.call('sweep_all', {
+        address: destination,
+        account_index: accountIndex,
+        priority,
+        do_not_relay: true,
+        get_tx_metadata: true
+      });
+    } finally {
+      await resumeWatcher();
+    }
+
+    const fee = (res.fee_list || [])[0] || res.fee || 0;
+    const amount = (res.amount_list || [])[0] || res.amount || 0;
+    const txHash = (res.tx_hash_list || [])[0] || res.tx_hash || '';
+    const txMetadata = (res.tx_metadata_list || [])[0] || res.tx_metadata || '';
+
+    return {
+      fee: RpcClient.formatXmr(fee),
+      feeRaw: fee,
+      amount: RpcClient.formatXmr(amount),
+      amountRaw: amount,
+      txHash,
+      txMetadata,
+      destinations: [{ address: destination, amount: RpcClient.formatXmr(amount) }]
+    };
+  },
+
+  /**
+   * Broadcast a previously prepared transaction.
+   */
+  async relayTx(txMetadata: string): Promise<string> {
+    await pauseWatcher();
+    try {
+      const res = await RpcClient.call('relay_tx', { hex: txMetadata });
+      return res.tx_hash;
+    } finally {
+      await resumeWatcher();
+    }
   },
 
   /**
@@ -346,7 +479,7 @@ export const WalletService = {
     const tx = await RpcClient.call('sweep_single', {
       address: primaryAddress,
       key_image: keyImage,
-      ring_size: 16
+
     });
 
     return tx.tx_hash_list?.[0] || tx.tx_hash;
@@ -364,7 +497,7 @@ export const WalletService = {
       address: newAddr,
       account_index: accountIndex,
       subaddr_indices: [subaddressIndex],
-      ring_size: 16
+
     });
 
     return { txHash: tx.tx_hash_list?.[0] || tx.tx_hash, destination: newAddr };
