@@ -29,6 +29,7 @@ monero-oxide = { git = "https://github.com/monero-oxide/monero-oxide" }
 monero-daemon-rpc = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-daemon-rpc" }
 monero-address = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-address" }
 monero-simple-request-rpc = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-simple-request-rpc" }
+monero-seed = { git = "https://github.com/kayabaNerve/monero-wallet-util" }
 
 # Crypto primitives (matching monero-oxide's versions)
 curve25519-dalek = { version = "4", default-features = false, features = ["alloc", "zeroize"] }
@@ -58,3 +59,14 @@ env_logger = "0.11"
 
 # State persistence
 directories = "6"
+
+# Encryption for wallet files
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+rand = "0.8"
+
+# Hashing (keccak256 for view key derivation)
+tiny-keccak = { version = "2", features = ["keccak"] }
+
+# Hex encoding
+hex = "0.4"

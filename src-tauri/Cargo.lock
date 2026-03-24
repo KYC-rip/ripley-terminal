@@ -9,6 +9,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "aead"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
+dependencies = [
+ "crypto-common",
+ "generic-array",
+]
+
+[[package]]
 name = "aes"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18,6 +28,18 @@ dependencies = [
  "cipher",
  "cpufeatures",
  "zeroize",
+]
+
+[[package]]
+name = "ahash"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+ "version_check",
+ "zerocopy",
 ]
 
 [[package]]
@@ -169,6 +191,18 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
+name = "argon2"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
+dependencies = [
+ "base64ct",
+ "blake2",
+ "cpufeatures",
+ "password-hash",
+]
 
 [[package]]
 name = "arrayvec"
@@ -465,6 +499,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
+dependencies = [
+ "digest",
+]
+
+[[package]]
 name = "blanket"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -679,6 +722,30 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "chacha20"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
+dependencies = [
+ "cfg-if",
+ "cipher",
+ "cpufeatures",
+]
+
+[[package]]
+name = "chacha20poly1305"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
+dependencies = [
+ "aead",
+ "chacha20",
+ "cipher",
+ "poly1305",
+ "zeroize",
+]
 
 [[package]]
 name = "chrono"
@@ -1050,6 +1117,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
+ "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -2443,6 +2511,9 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "hashbrown"
@@ -3406,7 +3477,7 @@ version = "0.1.0"
 source = "git+https://github.com/monero-oxide/monero-oxide#a941dfff1a5333b6349d9a1ee5de49c158b0e3d2"
 dependencies = [
  "monero-primitives",
- "std-shims",
+ "std-shims 0.1.5",
 ]
 
 [[package]]
@@ -3417,7 +3488,7 @@ dependencies = [
  "curve25519-dalek",
  "monero-ed25519",
  "monero-io",
- "std-shims",
+ "std-shims 0.1.5",
  "zeroize",
 ]
 
@@ -3432,7 +3503,7 @@ dependencies = [
  "monero-io",
  "monero-primitives",
  "rand_core 0.6.4",
- "std-shims",
+ "std-shims 0.1.5",
  "thiserror 2.0.18",
  "zeroize",
 ]
@@ -3446,7 +3517,7 @@ dependencies = [
  "monero-ed25519",
  "monero-io",
  "monero-primitives",
- "std-shims",
+ "std-shims 0.1.5",
 ]
 
 [[package]]
@@ -3460,7 +3531,7 @@ dependencies = [
  "monero-io",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
- "std-shims",
+ "std-shims 0.1.5",
  "subtle",
  "thiserror 2.0.18",
  "zeroize",
@@ -3478,7 +3549,7 @@ dependencies = [
  "monero-oxide",
  "serde",
  "serde_json",
- "std-shims",
+ "std-shims 0.1.5",
 ]
 
 [[package]]
@@ -3491,7 +3562,7 @@ dependencies = [
  "monero-io",
  "rand_core 0.6.4",
  "sha3",
- "std-shims",
+ "std-shims 0.1.5",
  "subtle",
  "zeroize",
 ]
@@ -3508,7 +3579,7 @@ source = "git+https://github.com/monero-oxide/monero-oxide#a941dfff1a5333b6349d9
 dependencies = [
  "hex",
  "monero-oxide",
- "std-shims",
+ "std-shims 0.1.5",
  "thiserror 2.0.18",
  "zeroize",
 ]
@@ -3518,7 +3589,7 @@ name = "monero-io"
 version = "0.1.0"
 source = "git+https://github.com/monero-oxide/monero-oxide#a941dfff1a5333b6349d9a1ee5de49c158b0e3d2"
 dependencies = [
- "std-shims",
+ "std-shims 0.1.5",
 ]
 
 [[package]]
@@ -3529,7 +3600,7 @@ dependencies = [
  "curve25519-dalek",
  "monero-ed25519",
  "monero-io",
- "std-shims",
+ "std-shims 0.1.5",
  "thiserror 2.0.18",
  "zeroize",
 ]
@@ -3548,7 +3619,7 @@ dependencies = [
  "monero-io",
  "monero-mlsag",
  "monero-primitives",
- "std-shims",
+ "std-shims 0.1.5",
  "zeroize",
 ]
 
@@ -3558,6 +3629,18 @@ version = "0.1.0"
 source = "git+https://github.com/monero-oxide/monero-oxide#a941dfff1a5333b6349d9a1ee5de49c158b0e3d2"
 dependencies = [
  "sha3",
+]
+
+[[package]]
+name = "monero-seed"
+version = "0.1.0"
+source = "git+https://github.com/kayabaNerve/monero-wallet-util#797fe701a6f9e99ae614c49479bb981de1afe8ec"
+dependencies = [
+ "curve25519-dalek",
+ "rand_core 0.6.4",
+ "std-shims 0.1.4",
+ "thiserror 1.0.69",
+ "zeroize",
 ]
 
 [[package]]
@@ -3588,7 +3671,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "rand_distr",
- "std-shims",
+ "std-shims 0.1.5",
  "subtle",
  "thiserror 2.0.18",
  "zeroize",
@@ -3979,6 +4062,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
+name = "opaque-debug"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
 name = "open"
 version = "5.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4178,6 +4267,17 @@ dependencies = [
  "redox_syscall 0.5.18",
  "smallvec",
  "windows-link 0.2.1",
+]
+
+[[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
 ]
 
 [[package]]
@@ -4514,6 +4614,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "poly1305"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
+dependencies = [
+ "cpufeatures",
+ "opaque-debug",
+ "universal-hash",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4702,7 +4813,7 @@ dependencies = [
  "derive-deftly",
  "libc",
  "paste",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5121,17 +5232,22 @@ name = "ripley-terminal"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "argon2",
  "arti-client",
+ "chacha20poly1305",
  "chrono",
  "curve25519-dalek",
  "directories",
  "env_logger",
+ "hex",
  "log",
  "monero-address",
  "monero-daemon-rpc",
  "monero-oxide",
+ "monero-seed",
  "monero-simple-request-rpc",
  "monero-wallet",
+ "rand 0.8.5",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -5142,6 +5258,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-shell",
  "thiserror 2.0.18",
+ "tiny-keccak",
  "tokio",
  "tor-rtcompat",
  "zeroize",
@@ -6008,6 +6125,16 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "std-shims"
+version = "0.1.4"
+source = "git+https://github.com/serai-dex/serai#737dbcbaa78ab817cc1c435cb2b6c5d24d1c4391"
+dependencies = [
+ "hashbrown 0.14.5",
+ "rustversion",
+ "spin 0.10.0",
+]
 
 [[package]]
 name = "std-shims"
@@ -8092,6 +8219,16 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "universal-hash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
+dependencies = [
+ "crypto-common",
+ "subtle",
+]
 
 [[package]]
 name = "untrusted"

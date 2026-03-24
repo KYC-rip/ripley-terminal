@@ -5,16 +5,14 @@ use crate::wallet::{WalletState, MoneroAccount, SubaddressInfo, Transaction, Wal
 
 #[tauri::command]
 pub async fn create_wallet(
-    _state: State<'_, WalletState>,
+    state: State<'_, WalletState>,
     name: String,
-    _password: String,
-    _seed: Option<String>,
-    _restore_height: Option<u64>,
+    password: String,
+    seed: Option<String>,
+    restore_height: Option<u64>,
 ) -> Result<serde_json::Value, String> {
-    // TODO: Create wallet file, derive keys, encrypt with password
-    // If seed is provided, restore from mnemonic
-    log::info!("create_wallet: {}", name);
-    Ok(serde_json::json!({ "success": true }))
+    let mnemonic = state.create_wallet(&name, &password, seed.as_deref(), restore_height).await?;
+    Ok(serde_json::json!({ "success": true, "seed": mnemonic }))
 }
 
 #[tauri::command]
@@ -34,9 +32,8 @@ pub async fn close_wallet(state: State<'_, WalletState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_mnemonic(_state: State<'_, WalletState>) -> Result<String, String> {
-    // TODO: Return mnemonic seed from wallet keys
-    Err("Not yet implemented".into())
+pub async fn get_mnemonic(state: State<'_, WalletState>) -> Result<String, String> {
+    state.get_mnemonic().await
 }
 
 // ── Account Operations ──

@@ -1,0 +1,170 @@
+//! Encrypted wallet file storage.
+//!
+//! Wallet files are encrypted with ChaCha20-Poly1305 using a key derived
+//! from the user's password via Argon2id.
+//!
+//! Format: { salt: [u8;16], nonce: [u8;12], ciphertext: Vec<u8> }
+//! Plaintext is JSON: { seed_entropy: hex, scan_height: u64, accounts: [...], ... }
+
+use std::path::{Path, PathBuf};
+
+use argon2::Argon2;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305,
+};
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
+
+const SALT_LEN: usize = 16;
+const NONCE_LEN: usize = 12;
+const KEY_LEN: usize = 32;
+
+/// Plaintext wallet data that gets encrypted.
+#[derive(Serialize, Deserialize)]
+pub struct WalletFileData {
+    /// Hex-encoded 32-byte seed entropy (the secret)
+    pub seed_entropy: String,
+    /// Last scanned blockchain height (for fast resume)
+    pub scan_height: u64,
+    /// Account labels
+    pub accounts: Vec<AccountLabel>,
+    /// Subaddress labels
+    pub subaddress_labels: Vec<SubaddressLabel>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AccountLabel {
+    pub index: u32,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SubaddressLabel {
+    pub account: u32,
+    pub index: u32,
+    pub label: String,
+}
+
+/// Derive an encryption key from password using Argon2id.
+fn derive_key(password: &str, salt: &[u8; SALT_LEN]) -> Zeroizing<[u8; KEY_LEN]> {
+    let mut key = Zeroizing::new([0u8; KEY_LEN]);
+    Argon2::default()
+        .hash_password_into(password.as_bytes(), salt, key.as_mut())
+        .expect("Argon2 should not fail with valid parameters");
+    key
+}
+
+/// Encrypt wallet data with a password.
+pub fn encrypt_wallet(data: &WalletFileData, password: &str) -> Vec<u8> {
+    let plaintext = serde_json::to_vec(data).expect("WalletFileData should serialize");
+
+    let mut salt = [0u8; SALT_LEN];
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    rand::thread_rng().fill_bytes(&mut salt);
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+
+    let key = derive_key(password, &salt);
+    let cipher = ChaCha20Poly1305::new(key.as_ref().into());
+    let nonce = chacha20poly1305::Nonce::from_slice(&nonce_bytes);
+
+    let ciphertext = cipher.encrypt(nonce, plaintext.as_slice())
+        .expect("encryption should not fail");
+
+    // Output: salt || nonce || ciphertext
+    let mut output = Vec::with_capacity(SALT_LEN + NONCE_LEN + ciphertext.len());
+    output.extend_from_slice(&salt);
+    output.extend_from_slice(&nonce_bytes);
+    output.extend_from_slice(&ciphertext);
+    output
+}
+
+/// Decrypt wallet data with a password.
+pub fn decrypt_wallet(encrypted: &[u8], password: &str) -> Result<WalletFileData, String> {
+    if encrypted.len() < SALT_LEN + NONCE_LEN + 16 {
+        return Err("Wallet file too short".into());
+    }
+
+    let salt: [u8; SALT_LEN] = encrypted[..SALT_LEN].try_into().unwrap();
+    let nonce_bytes: [u8; NONCE_LEN] = encrypted[SALT_LEN..SALT_LEN + NONCE_LEN].try_into().unwrap();
+    let ciphertext = &encrypted[SALT_LEN + NONCE_LEN..];
+
+    let key = derive_key(password, &salt);
+    let cipher = ChaCha20Poly1305::new(key.as_ref().into());
+    let nonce = chacha20poly1305::Nonce::from_slice(&nonce_bytes);
+
+    let plaintext = cipher.decrypt(nonce, ciphertext)
+        .map_err(|_| "Invalid password or corrupted wallet file".to_string())?;
+
+    serde_json::from_slice(&plaintext)
+        .map_err(|e| format!("Wallet data corrupted: {}", e))
+}
+
+/// Get the wallet file path for an identity.
+pub fn wallet_path(data_dir: &Path, identity_id: &str) -> PathBuf {
+    data_dir.join("wallets").join(format!("{}.vault", identity_id))
+}
+
+/// Save encrypted wallet to disk.
+pub fn save_wallet(data_dir: &Path, identity_id: &str, data: &WalletFileData, password: &str) -> Result<(), String> {
+    let path = wallet_path(data_dir, identity_id);
+    std::fs::create_dir_all(path.parent().unwrap())
+        .map_err(|e| format!("Failed to create wallet dir: {}", e))?;
+
+    let encrypted = encrypt_wallet(data, password);
+    std::fs::write(&path, &encrypted)
+        .map_err(|e| format!("Failed to write wallet file: {}", e))?;
+
+    log::info!("Wallet saved: {}", path.display());
+    Ok(())
+}
+
+/// Load and decrypt wallet from disk.
+pub fn load_wallet(data_dir: &Path, identity_id: &str, password: &str) -> Result<WalletFileData, String> {
+    let path = wallet_path(data_dir, identity_id);
+    let encrypted = std::fs::read(&path)
+        .map_err(|e| format!("Failed to read wallet file: {}", e))?;
+
+    decrypt_wallet(&encrypted, password)
+}
+
+/// Check if a wallet file exists for an identity.
+pub fn wallet_exists(data_dir: &Path, identity_id: &str) -> bool {
+    wallet_path(data_dir, identity_id).exists()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt_roundtrip() {
+        let data = WalletFileData {
+            seed_entropy: "deadbeef".repeat(4),
+            scan_height: 3245000,
+            accounts: vec![AccountLabel { index: 0, label: "Main".into() }],
+            subaddress_labels: vec![],
+        };
+
+        let encrypted = encrypt_wallet(&data, "test_password");
+        let decrypted = decrypt_wallet(&encrypted, "test_password").unwrap();
+
+        assert_eq!(data.seed_entropy, decrypted.seed_entropy);
+        assert_eq!(data.scan_height, decrypted.scan_height);
+    }
+
+    #[test]
+    fn test_wrong_password_fails() {
+        let data = WalletFileData {
+            seed_entropy: "deadbeef".repeat(4),
+            scan_height: 0,
+            accounts: vec![],
+            subaddress_labels: vec![],
+        };
+
+        let encrypted = encrypt_wallet(&data, "correct_password");
+        let result = decrypt_wallet(&encrypted, "wrong_password");
+        assert!(result.is_err());
+    }
+}
