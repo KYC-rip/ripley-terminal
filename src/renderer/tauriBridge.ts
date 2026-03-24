@@ -228,6 +228,10 @@ function createTauriApi() {
             await invoke('rename_account', { accountIndex: p.account_index, newLabel: p.label });
             result = {};
             break;
+          case 'rescan_blockchain':
+            await invoke('rescan', { height: p.height || 0 });
+            result = {};
+            break;
           case 'sweep_all':
             // TODO: Implement sweep via prepare_transfer with all outputs
             result = { tx_hash_list: [] };

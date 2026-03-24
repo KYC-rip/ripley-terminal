@@ -340,6 +340,16 @@ impl WalletState {
         self.inner.read().await.network
     }
 
+    /// Reset scan progress for a rescan.
+    pub async fn reset_scan(&self, from_height: u64) {
+        let mut inner = self.inner.write().await;
+        inner.scan_height = from_height;
+        inner.scanned_outputs.clear();
+        inner.sync_status.status = "SYNCING".to_string();
+        inner.sync_status.height = from_height;
+        inner.sync_status.sync_percent = 0.0;
+    }
+
     /// Derive the primary (legacy) address.
     pub async fn get_primary_address(&self) -> Option<String> {
         let inner = self.inner.read().await;

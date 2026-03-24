@@ -332,3 +332,23 @@ pub async fn refresh(_state: State<'_, WalletState>) -> Result<(), String> {
     // TODO: Trigger immediate scan cycle
     Ok(())
 }
+
+/// Reset scan height and restart the scanner from the given height.
+#[tauri::command]
+pub async fn rescan(
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    height: u64,
+) -> Result<(), String> {
+    emit_log(&app, "Sync", "info", &format!("🔄 Rescan requested from height {}...", height));
+
+    // Reset scan height and clear cached outputs
+    state.reset_scan(height).await;
+
+    // Restart the scanner
+    let app_clone = app.clone();
+    BlockScanner::start(app_clone, "", "", height).await?;
+
+    emit_log(&app, "Sync", "success", &format!("✅ Rescan started from height {}", height));
+    Ok(())
+}
