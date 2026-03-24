@@ -14,12 +14,10 @@ use crate::emit_log;
 use super::state::WalletState;
 use super::types::SyncStatus;
 
-/// Load all clearnet nodes from bundled nodes.json.
-/// Returns Vec<(label, url)>.
-fn load_nodes() -> Vec<(String, String)> {
-    let json_str = include_str!("../../../resources/nodes.json");
-    let parsed: serde_json::Value = serde_json::from_str(json_str).unwrap_or_default();
+const GITHUB_NODES_URL: &str = "https://raw.githubusercontent.com/KYC-rip/ripley-terminal/main/resources/nodes.json";
 
+/// Parse clearnet nodes from a nodes.json value.
+fn parse_clearnet_nodes(parsed: &serde_json::Value) -> Vec<(String, String)> {
     let mut nodes = vec![];
     if let Some(clearnet) = parsed.get("mainnet").and_then(|m| m.get("clearnet")).and_then(|c| c.as_object()) {
         for (label, addresses) in clearnet {
@@ -30,7 +28,6 @@ fn load_nodes() -> Vec<(String, String)> {
                         if addr_str.starts_with("https://") {
                             continue;
                         }
-                        // Add http:// prefix if missing
                         let url = if addr_str.starts_with("http://") {
                             addr_str.to_string()
                         } else {
@@ -45,11 +42,55 @@ fn load_nodes() -> Vec<(String, String)> {
     nodes
 }
 
+/// Load nodes: try cached → fetch from GitHub → fall back to bundled.
+async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
+    let cache_path = app.path().app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("latest_nodes.json");
+
+    // 1. Try fetching fresh nodes from GitHub
+    if let Ok(response) = reqwest::Client::new()
+        .get(GITHUB_NODES_URL)
+        .timeout(Duration::from_secs(8))
+        .send().await
+    {
+        if let Ok(text) = response.text().await {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+                let nodes = parse_clearnet_nodes(&parsed);
+                if !nodes.is_empty() {
+                    // Cache to disk
+                    let _ = std::fs::write(&cache_path, &text);
+                    log::info!("Fetched {} nodes from GitHub, cached locally", nodes.len());
+                    return nodes;
+                }
+            }
+        }
+    }
+
+    // 2. Try cached nodes from disk
+    if let Ok(text) = std::fs::read_to_string(&cache_path) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+            let nodes = parse_clearnet_nodes(&parsed);
+            if !nodes.is_empty() {
+                log::info!("Using {} cached nodes from disk", nodes.len());
+                return nodes;
+            }
+        }
+    }
+
+    // 3. Fall back to bundled nodes.json
+    let bundled = include_str!("../../../resources/nodes.json");
+    let parsed: serde_json::Value = serde_json::from_str(bundled).unwrap_or_default();
+    let nodes = parse_clearnet_nodes(&parsed);
+    log::info!("Using {} bundled fallback nodes", nodes.len());
+    nodes
+}
+
 /// Race ALL nodes — first to connect wins.
 async fn race_nodes(app: &AppHandle) -> Option<(String, String, monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>)> {
     use tokio::sync::mpsc;
 
-    let nodes = load_nodes();
+    let nodes = load_nodes(app).await;
     emit_log(app, "Network", "info", &format!("🏁 Racing {} nodes...", nodes.len()));
 
     let (tx, mut rx) = mpsc::channel(1);
