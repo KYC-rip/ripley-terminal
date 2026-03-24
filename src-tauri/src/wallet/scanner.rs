@@ -153,8 +153,14 @@ impl BlockScanner {
                 let wallet_state = app_clone.state::<WalletState>();
                 wallet_state.set_daemon_url(&url).await;
 
+                // Read current scan height from state (may have been updated by rescan)
+                let current_height = {
+                    let ws = app_clone.state::<WalletState>();
+                    ws.get_scan_height().await
+                };
+
                 // Run scan loop — if it fails, re-race
-                match scan_loop(app_clone.clone(), daemon, from_height, url.clone(), label.clone(), generation).await {
+                match scan_loop(app_clone.clone(), daemon, current_height, url.clone(), label.clone(), generation).await {
                     Ok(()) => break,
                     Err(e) => {
                         emit_log(&app_clone, "Sync", "error", &format!("⚠️ {} disconnected: {}. Re-racing...", label, e));
