@@ -24,14 +24,8 @@ tauri-plugin-deep-link = "2"
 tokio = { version = "1", features = ["full"] }
 
 # Monero wallet - pure Rust, no C++ FFI
-# BLOCKED: monero-oxide uses serde_core (serde v2 split) which is incompatible
-# with Tauri's serde v1. Cannot coexist in the same binary until either:
-# 1. monero-oxide publishes standalone crates with serde v1 compat
-# 2. Tauri upgrades to serde_core
-# 3. We fork monero-oxide and pin serde v1
-# For now, wallet ops remain stubs.
-# monero-wallet = { git = "https://github.com/monero-oxide/monero-oxide" }
-# monero-oxide = { git = "https://github.com/monero-oxide/monero-oxide" }
+monero-wallet = { git = "https://github.com/monero-oxide/monero-oxide" }
+monero-oxide = { git = "https://github.com/monero-oxide/monero-oxide" }
 
 # Tor as library (no bundled binary)
 arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls"] }
