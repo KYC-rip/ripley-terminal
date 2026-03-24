@@ -45,6 +45,9 @@ struct WalletInner {
     scanned_outputs: Vec<WalletOutput>,
     scan_height: u64,
 
+    // Active daemon URL (set by scanner after connecting)
+    daemon_url: Option<String>,
+
     // Data dir for wallet files
     data_dir: PathBuf,
 }
@@ -77,6 +80,7 @@ impl WalletState {
                 subaddress_labels: vec![],
                 scanned_outputs: vec![],
                 scan_height: 0,
+                daemon_url: None,
                 data_dir,
             })),
         }
@@ -313,6 +317,27 @@ impl WalletState {
 
     pub async fn get_spend_key(&self) -> Option<Zeroizing<Scalar>> {
         self.inner.read().await.spend_key.clone()
+    }
+
+    pub async fn get_view_pair(&self) -> Option<ViewPair> {
+        self.inner.read().await.view_pair.clone()
+    }
+
+    pub async fn set_daemon_url(&self, url: &str) {
+        self.inner.write().await.daemon_url = Some(url.to_string());
+    }
+
+    pub async fn get_daemon_url(&self) -> Option<String> {
+        self.inner.read().await.daemon_url.clone()
+    }
+
+    /// Get all scanned outputs (for input selection during tx construction).
+    pub async fn get_spendable_outputs(&self) -> Vec<WalletOutput> {
+        self.inner.read().await.scanned_outputs.clone()
+    }
+
+    pub async fn get_network(&self) -> Network {
+        self.inner.read().await.network
     }
 
     /// Derive the primary (legacy) address.

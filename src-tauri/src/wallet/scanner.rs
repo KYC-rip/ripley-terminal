@@ -138,6 +138,10 @@ impl BlockScanner {
 
                 emit_log(&app_clone, "Network", "success", &format!("✅ Fastest node: {} ({})", label, url));
 
+                // Store daemon URL so tx commands can connect
+                let wallet_state = app_clone.state::<WalletState>();
+                wallet_state.set_daemon_url(&url).await;
+
                 // Run scan loop — if it fails, re-race
                 match scan_loop(app_clone.clone(), daemon, from_height, url.clone(), label.clone()).await {
                     Ok(()) => break,

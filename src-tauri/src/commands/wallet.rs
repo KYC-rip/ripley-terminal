@@ -1,6 +1,10 @@
 use tauri::{AppHandle, Manager, State};
 use crate::emit_log;
 use crate::wallet::{WalletState, BlockScanner, MoneroAccount, SubaddressInfo, Transaction, WalletOutput, PreparedTx, SyncStatus, TxDestination};
+use crate::wallet::transact;
+use monero_simple_request_rpc::SimpleRequestTransport;
+use monero_daemon_rpc::prelude::*;
+use monero_address::MoneroAddress;
 
 // ── Wallet Lifecycle ──
 
@@ -131,36 +135,126 @@ pub async fn set_subaddress_label(
 
 // ── Transaction Operations ──
 
+/// Step 1: Prepare transaction — select inputs, fetch decoys, compute fee.
+/// Returns a PreparedTx with fee details for user review. No signing yet.
 #[tauri::command]
 pub async fn prepare_transfer(
-    _state: State<'_, WalletState>,
-    _destinations: Vec<TxDestination>,
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    destinations: Vec<TxDestination>,
     _account_index: u32,
-    _priority: Option<u8>,
+    priority: Option<u8>,
 ) -> Result<PreparedTx, String> {
-    // TODO: Use monero-wallet to construct transaction
-    // - Select outputs from tracked UTXOs
-    // - Fetch decoys from daemon
-    // - Build ring signatures
-    // - Return prepared (unsigned for relay) tx
-    //
-    // This is the core operation that replaces:
-    //   RPC transfer { do_not_relay: true }
-    //
-    // With monero-wallet, this becomes a direct function call.
-    // No HTTP. No RPC mutex. No polling. Just Rust.
+    emit_log(&app, "Tx", "info", "🔧 Preparing transaction...");
 
-    Err("Not yet implemented — awaiting monero-wallet integration".into())
+    // Get daemon connection
+    let daemon_url = state.get_daemon_url().await
+        .ok_or("No daemon connected. Wait for sync to complete.")?;
+
+    let view_pair = state.get_view_pair().await
+        .ok_or("Wallet is locked")?;
+
+    let outputs = state.get_spendable_outputs().await;
+    if outputs.is_empty() {
+        return Err("No spendable outputs. Wait for sync to complete.".into());
+    }
+
+    // Parse destination addresses
+    let network = state.get_network().await;
+    let payments: Vec<(MoneroAddress, u64)> = destinations.iter().map(|d| {
+        let addr = MoneroAddress::from_str(network, &d.address)
+            .map_err(|e| format!("Invalid address {}: {:?}", d.address, e))?;
+        let amount: u64 = d.amount.parse()
+            .map_err(|_| format!("Invalid amount: {}", d.amount))?;
+        Ok((addr, amount))
+    }).collect::<Result<Vec<_>, String>>()?;
+
+    let total_amount: u64 = payments.iter().map(|(_, a)| a).sum();
+    emit_log(&app, "Tx", "info", &format!("💰 Sending {} piconero to {} destination(s)", total_amount, payments.len()));
+
+    // Connect to daemon for decoy selection
+    emit_log(&app, "Tx", "info", "🔗 Connecting to daemon for decoy selection...");
+    let daemon = SimpleRequestTransport::new(daemon_url).await
+        .map_err(|e| format!("Failed to connect to daemon: {:?}", e))?;
+
+    let fee_priority = match priority.unwrap_or(0) {
+        0 => FeePriority::Normal,
+        1 => FeePriority::Unimportant,
+        2 => FeePriority::Normal,
+        3 => FeePriority::Elevated,
+        4 => FeePriority::Priority,
+        p => FeePriority::Custom { priority: p as u32 },
+    };
+
+    // Prepare the transaction (decoy selection + fee computation)
+    emit_log(&app, "Tx", "info", "🎲 Selecting decoys and computing fee...");
+    let prepared = transact::prepare_transaction(
+        &daemon,
+        &view_pair,
+        outputs,
+        payments,
+        fee_priority,
+    ).await?;
+
+    let fee_formatted = WalletState::format_xmr(prepared.fee);
+    let amount_formatted = WalletState::format_xmr(prepared.amount);
+    emit_log(&app, "Tx", "success", &format!("✅ Transaction prepared: {} XMR + {} XMR fee", amount_formatted, fee_formatted));
+
+    // Serialize the SignableTransaction for the relay step
+    let tx_metadata = prepared.signable.serialize();
+
+    Ok(PreparedTx {
+        fee: fee_formatted,
+        amount: amount_formatted,
+        tx_hash: String::new(), // Hash not known until signed
+        tx_metadata,
+        destinations: prepared.destinations.iter().map(|(addr, amt)| TxDestination {
+            address: addr.clone(),
+            amount: amt.to_string(),
+        }).collect(),
+    })
 }
 
+/// Step 2: Sign and broadcast — called after user confirms + enters password.
 #[tauri::command]
 pub async fn relay_transfer(
-    _state: State<'_, WalletState>,
-    _tx_metadata: Vec<u8>,
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    tx_metadata: Vec<u8>,
 ) -> Result<String, String> {
-    // TODO: Broadcast prepared tx to daemon
-    // Use reqwest (with optional Tor socks proxy) to POST to daemon's /sendrawtransaction
-    Err("Not yet implemented".into())
+    emit_log(&app, "Tx", "info", "🔐 Signing transaction...");
+
+    let spend_key = state.get_spend_key().await
+        .ok_or("Wallet is locked")?;
+
+    let daemon_url = state.get_daemon_url().await
+        .ok_or("No daemon connected")?;
+
+    // Deserialize the prepared transaction
+    let signable = monero_wallet::send::SignableTransaction::read(&mut tx_metadata.as_slice())
+        .map_err(|e| format!("Invalid transaction data: {:?}", e))?;
+
+    // Sign it
+    let prepared = transact::PreparedTransaction {
+        signable,
+        fee: 0,
+        amount: 0,
+        destinations: vec![],
+    };
+    let signed_tx = transact::sign_transaction(prepared, &spend_key)?;
+
+    emit_log(&app, "Tx", "info", "📡 Broadcasting to network...");
+
+    // Connect and broadcast
+    let daemon = SimpleRequestTransport::new(daemon_url).await
+        .map_err(|e| format!("Failed to connect to daemon: {:?}", e))?;
+
+    transact::broadcast_transaction(&daemon, &signed_tx).await?;
+
+    let tx_hash = hex::encode(signed_tx.hash());
+    emit_log(&app, "Tx", "success", &format!("✅ Transaction broadcast! Hash: {}", tx_hash));
+
+    Ok(tx_hash)
 }
 
 #[tauri::command]
