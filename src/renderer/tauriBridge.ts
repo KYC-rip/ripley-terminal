@@ -51,6 +51,8 @@ function createTauriApi() {
               seed: payload.seed || null,
               restoreHeight: payload.height || null,
             });
+            // Auto-open the wallet after creation (Electron RPC does this implicitly)
+            await invoke('open_wallet', { name: payload.name, password: payload.pwd });
             return { success: true, ...(result as any) };
           }
           case 'open':

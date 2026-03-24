@@ -10,6 +10,7 @@ use tokio::time::sleep;
 use monero_daemon_rpc::prelude::*;
 use monero_simple_request_rpc::SimpleRequestTransport;
 
+use crate::emit_log;
 use super::state::WalletState;
 use super::types::SyncStatus;
 
@@ -24,9 +25,12 @@ impl BlockScanner {
         node_label: &str,
         from_height: u64,
     ) -> Result<(), String> {
+        emit_log(&app, "Network", "info", &format!("🔗 Connecting to {}...", node_label));
+
         let daemon = SimpleRequestTransport::new(daemon_url.to_string()).await
             .map_err(|e| format!("Failed to connect to daemon: {:?}", e))?;
 
+        emit_log(&app, "Network", "success", &format!("✅ Connected to {} ({})", node_label, daemon_url));
         log::info!("BlockScanner connected to daemon: {}", daemon_url);
 
         let url = daemon_url.to_string();

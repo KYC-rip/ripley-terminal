@@ -1,4 +1,5 @@
 use tauri::{AppHandle, Manager, State};
+use crate::emit_log;
 use crate::wallet::{WalletState, BlockScanner, MoneroAccount, SubaddressInfo, Transaction, WalletOutput, PreparedTx, SyncStatus, TxDestination};
 
 // ── Wallet Lifecycle ──
@@ -22,10 +23,11 @@ pub async fn open_wallet(
     name: String,
     password: String,
 ) -> Result<serde_json::Value, String> {
+    emit_log(&app, "Wallet", "info", &format!("🔓 Unlocking vault: {}...", name));
     state.unlock(&name, &password).await?;
+    emit_log(&app, "Wallet", "success", "✅ Vault unlocked. Deriving keys...");
 
-    // Pick a random clearnet node from nodes.json
-    // TODO: Read from bundled resources, implement node racing like Electron version
+    // Pick a random clearnet node
     let nodes = vec![
         ("kyc.rip", "https://rpc-mainnet.kyc.rip"),
         ("monero.one", "https://node.monero.one"),
@@ -33,15 +35,18 @@ pub async fn open_wallet(
         ("sethforprivacy", "https://node.sethforprivacy.com:18089"),
     ];
     let (node_label, daemon_url) = nodes[rand::random::<usize>() % nodes.len()];
-    log::info!("Selected node: {} ({})", node_label, daemon_url);
+
+    emit_log(&app, "Network", "info", &format!("🌐 Connecting to {} ({})", node_label, daemon_url));
 
     let scan_height = state.get_scan_height().await;
+    emit_log(&app, "Sync", "info", &format!("📦 Starting scan from height {}...", scan_height));
+
     let app_clone = app.clone();
     let label = node_label.to_string();
     let url = daemon_url.to_string();
     tokio::spawn(async move {
-        if let Err(e) = BlockScanner::start(app_clone, &url, &label, scan_height).await {
-            log::error!("Failed to start block scanner: {}", e);
+        if let Err(e) = BlockScanner::start(app_clone.clone(), &url, &label, scan_height).await {
+            emit_log(&app_clone, "Sync", "error", &format!("❌ Scanner failed: {}", e));
         }
     });
 

@@ -2,7 +2,16 @@ mod commands;
 mod wallet;
 mod tor;
 
-use tauri::Manager;
+use tauri::{AppHandle, Emitter, Manager};
+
+/// Emit a log event to the frontend console (same format as Electron's core-log).
+pub fn emit_log(app: &AppHandle, source: &str, level: &str, message: &str) {
+    let _ = app.emit("core-log", serde_json::json!({
+        "source": source,
+        "level": level,
+        "message": message,
+    }));
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
