@@ -77,6 +77,12 @@ pub struct SyncStatus {
     pub daemon_height: u64,
     #[serde(rename = "syncPercent")]
     pub sync_percent: f64,
+    /// The daemon node provider name (e.g. "monero.one", "cakewallet")
+    #[serde(rename = "nodeLabel", default)]
+    pub node_label: String,
+    /// The daemon node URL
+    #[serde(rename = "nodeUrl", default)]
+    pub node_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

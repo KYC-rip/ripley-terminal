@@ -65,7 +65,7 @@ impl WalletState {
                     status: "OFFLINE".to_string(),
                     height: 0,
                     daemon_height: 0,
-                    sync_percent: 0.0,
+                    sync_percent: 0.0, node_label: String::new(), node_url: String::new(),
                 },
                 network: Network::Mainnet,
                 spend_key: None,
@@ -271,7 +271,7 @@ impl WalletState {
             status: "OFFLINE".to_string(),
             height: 0,
             daemon_height: 0,
-            sync_percent: 0.0,
+            sync_percent: 0.0, node_label: String::new(), node_url: String::new(),
         };
         log::info!("Wallet locked — keys zeroed");
     }

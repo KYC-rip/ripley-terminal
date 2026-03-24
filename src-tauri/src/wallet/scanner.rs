@@ -21,6 +21,7 @@ impl BlockScanner {
     pub async fn start(
         app: AppHandle,
         daemon_url: &str,
+        node_label: &str,
         from_height: u64,
     ) -> Result<(), String> {
         let daemon = SimpleRequestTransport::new(daemon_url.to_string()).await
@@ -28,8 +29,10 @@ impl BlockScanner {
 
         log::info!("BlockScanner connected to daemon: {}", daemon_url);
 
+        let url = daemon_url.to_string();
+        let label = node_label.to_string();
         tokio::spawn(async move {
-            if let Err(e) = scan_loop(app, daemon, from_height).await {
+            if let Err(e) = scan_loop(app, daemon, from_height, url, label).await {
                 log::error!("BlockScanner error: {}", e);
             }
         });
@@ -42,6 +45,8 @@ async fn scan_loop(
     app: AppHandle,
     daemon: monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>,
     mut scan_height: u64,
+    node_url: String,
+    node_label: String,
 ) -> Result<(), String> {
     let batch_size: u64 = 50;
 
@@ -55,7 +60,7 @@ async fn scan_loop(
                 status: "SYNCED".to_string(),
                 height: scan_height,
                 daemon_height,
-                sync_percent: 100.0,
+                sync_percent: 100.0, node_label: node_label.clone(), node_url: node_url.clone(),
             });
             sleep(Duration::from_secs(10)).await;
             continue;
@@ -133,7 +138,7 @@ async fn scan_loop(
             status: "SYNCING".to_string(),
             height: scan_height,
             daemon_height,
-            sync_percent: percent,
+            sync_percent: percent, node_label: node_label.clone(), node_url: node_url.clone(),
         });
     }
 }

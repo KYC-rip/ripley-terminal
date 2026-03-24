@@ -24,14 +24,23 @@ pub async fn open_wallet(
 ) -> Result<serde_json::Value, String> {
     state.unlock(&name, &password).await?;
 
-    // Start background block scanner
-    // TODO: Get daemon URL from config instead of hardcoding
-    let daemon_url = "https://node.monero.one".to_string();
-    let scan_height = state.get_scan_height().await;
+    // Pick a random clearnet node from nodes.json
+    // TODO: Read from bundled resources, implement node racing like Electron version
+    let nodes = vec![
+        ("kyc.rip", "https://rpc-mainnet.kyc.rip"),
+        ("monero.one", "https://node.monero.one"),
+        ("cakewallet", "https://xmr-node.cakewallet.com:18081"),
+        ("sethforprivacy", "https://node.sethforprivacy.com:18089"),
+    ];
+    let (node_label, daemon_url) = nodes[rand::random::<usize>() % nodes.len()];
+    log::info!("Selected node: {} ({})", node_label, daemon_url);
 
+    let scan_height = state.get_scan_height().await;
     let app_clone = app.clone();
+    let label = node_label.to_string();
+    let url = daemon_url.to_string();
     tokio::spawn(async move {
-        if let Err(e) = BlockScanner::start(app_clone, &daemon_url, scan_height).await {
+        if let Err(e) = BlockScanner::start(app_clone, &url, &label, scan_height).await {
             log::error!("Failed to start block scanner: {}", e);
         }
     });

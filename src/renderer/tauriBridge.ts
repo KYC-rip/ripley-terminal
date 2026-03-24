@@ -84,7 +84,15 @@ function createTauriApi() {
       // Map Tauri events to the format VaultContext expects
       listen('sync-update', (event) => {
         const p = event.payload as any;
-        callback({ type: 'SYNC_UPDATE', payload: { height: p.height, daemonHeight: p.daemon_height || p.daemonHeight } });
+        callback({
+          type: 'SYNC_UPDATE',
+          payload: {
+            height: p.height,
+            daemonHeight: p.daemon_height || p.daemonHeight,
+            nodeLabel: p.node_label || p.nodeLabel || '',
+            nodeUrl: p.node_url || p.nodeUrl || '',
+          }
+        });
       }).then(fn => unlisten = fn);
 
       let unlisten2: UnlistenFn | null = null;
