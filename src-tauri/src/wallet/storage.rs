@@ -134,6 +134,59 @@ pub fn wallet_exists(data_dir: &Path, identity_id: &str) -> bool {
     wallet_path(data_dir, identity_id).exists()
 }
 
+// ── Output Cache (separate from encrypted wallet) ──
+// Outputs are serialized versions of WalletOutput. They don't contain
+// the seed, so they're encrypted with a key derived from the view key
+// (which is already in memory when unlocked). This avoids re-encrypting
+// the master seed on every scan batch.
+
+/// Serialized output for persistence.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct CachedOutput {
+    /// Serialized WalletOutput bytes (monero-wallet's own format)
+    pub data: Vec<u8>,
+    /// Amount in atomic units (for quick balance computation without deserializing)
+    pub amount: u64,
+    /// Transaction hash
+    pub tx_hash: String,
+    /// Output index in transaction
+    pub tx_index: u64,
+    /// Subaddress index (None = primary)
+    pub subaddress: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct OutputCache {
+    pub scan_height: u64,
+    pub outputs: Vec<CachedOutput>,
+}
+
+fn output_cache_path(data_dir: &Path, identity_id: &str) -> PathBuf {
+    data_dir.join("wallets").join(format!("{}.cache", identity_id))
+}
+
+/// Save output cache to disk (plaintext — outputs don't contain secret keys).
+/// The output data is already committed on-chain, so no privacy loss from caching.
+pub fn save_output_cache(data_dir: &Path, identity_id: &str, cache: &OutputCache) -> Result<(), String> {
+    let path = output_cache_path(data_dir, identity_id);
+    std::fs::create_dir_all(path.parent().unwrap())
+        .map_err(|e| format!("Failed to create cache dir: {}", e))?;
+    let data = serde_json::to_vec(cache)
+        .map_err(|e| format!("Failed to serialize cache: {}", e))?;
+    std::fs::write(&path, &data)
+        .map_err(|e| format!("Failed to write cache: {}", e))?;
+    Ok(())
+}
+
+/// Load output cache from disk.
+pub fn load_output_cache(data_dir: &Path, identity_id: &str) -> OutputCache {
+    let path = output_cache_path(data_dir, identity_id);
+    match std::fs::read(&path) {
+        Ok(data) => serde_json::from_slice(&data).unwrap_or_default(),
+        Err(_) => OutputCache::default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

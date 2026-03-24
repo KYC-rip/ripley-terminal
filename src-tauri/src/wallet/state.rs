@@ -188,8 +188,24 @@ impl WalletState {
         inner.subaddress_labels = subaddress_labels;
         inner.sync_status.status = "SYNCING".to_string();
 
-        log::info!("Wallet unlocked for identity: {} (resume from height {}, {} subaddresses registered)",
-            identity_id, wallet_data.scan_height, num_subaddresses);
+        // Load cached outputs (avoids full rescan on relaunch)
+        let cache = storage::load_output_cache(&inner.data_dir, identity_id);
+        if !cache.outputs.is_empty() {
+            log::info!("Loaded {} cached outputs from disk", cache.outputs.len());
+            // Restore WalletOutputs from serialized cache
+            for cached in &cache.outputs {
+                if let Ok(output) = monero_wallet::WalletOutput::read(&mut cached.data.as_slice()) {
+                    inner.scanned_outputs.push(output);
+                }
+            }
+            // Use cached scan height if it's ahead of what's in the wallet file
+            if cache.scan_height > inner.scan_height {
+                inner.scan_height = cache.scan_height;
+            }
+        }
+
+        log::info!("Wallet unlocked for identity: {} (resume from height {}, {} subaddresses, {} cached outputs)",
+            identity_id, inner.scan_height, num_subaddresses, inner.scanned_outputs.len());
         Ok(())
     }
 
@@ -210,6 +226,9 @@ impl WalletState {
     }
 
     pub async fn lock(&self) {
+        // Save output cache before taking exclusive lock
+        self.save_output_cache().await;
+
         let mut inner = self.inner.write().await;
 
         // Save scan progress before locking
@@ -372,6 +391,33 @@ impl WalletState {
     }
 
     /// Set a label for a subaddress.
+    /// Persist scanned outputs to disk cache.
+    pub async fn save_output_cache(&self) {
+        let inner = self.inner.read().await;
+        if let Some(identity_id) = &inner.active_identity {
+            let cached_outputs: Vec<storage::CachedOutput> = inner.scanned_outputs.iter().map(|o| {
+                storage::CachedOutput {
+                    data: o.serialize(),
+                    amount: o.commitment().amount,
+                    tx_hash: hex::encode(o.transaction()),
+                    tx_index: o.index_in_transaction(),
+                    subaddress: o.subaddress().map(|s| s.address()),
+                }
+            }).collect();
+
+            let cache = storage::OutputCache {
+                scan_height: inner.scan_height,
+                outputs: cached_outputs,
+            };
+
+            if let Err(e) = storage::save_output_cache(&inner.data_dir, identity_id, &cache) {
+                log::warn!("Failed to save output cache: {}", e);
+            } else {
+                log::info!("Output cache saved: {} outputs at height {}", cache.outputs.len(), cache.scan_height);
+            }
+        }
+    }
+
     pub async fn set_subaddress_label(&self, index: u32, label: &str) {
         let mut inner = self.inner.write().await;
         if let Some(entry) = inner.subaddress_labels.iter_mut().find(|(idx, _)| *idx == index) {

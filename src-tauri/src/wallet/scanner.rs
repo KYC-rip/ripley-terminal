@@ -110,6 +110,11 @@ async fn scan_loop(
                 // Update scan height in state
                 let wallet_state = app.state::<WalletState>();
                 wallet_state.update_sync_status(scan_height, daemon_height).await;
+
+                // Persist output cache every 500 blocks
+                if scan_height % 500 < batch_size {
+                    wallet_state.save_output_cache().await;
+                }
             }
             Err(e) => {
                 log::warn!("Failed to fetch blocks {}-{}: {:?}", scan_height, batch_end, e);
