@@ -26,6 +26,13 @@ tokio = { version = "1", features = ["full"] }
 # Monero wallet - pure Rust, no C++ FFI
 monero-wallet = { git = "https://github.com/monero-oxide/monero-oxide" }
 monero-oxide = { git = "https://github.com/monero-oxide/monero-oxide" }
+monero-daemon-rpc = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-daemon-rpc" }
+monero-address = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-address" }
+monero-simple-request-rpc = { git = "https://github.com/monero-oxide/monero-oxide", package = "monero-simple-request-rpc" }
+
+# Crypto primitives (matching monero-oxide's versions)
+curve25519-dalek = { version = "4", default-features = false, features = ["alloc", "zeroize"] }
+zeroize = { version = "1.5", features = ["zeroize_derive"] }
 
 # Tor as library (no bundled binary)
 arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls"] }
