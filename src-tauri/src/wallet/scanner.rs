@@ -199,13 +199,16 @@ async fn scan_loop(
         }
 
         // Dynamic batch size: bigger gap = bigger batches
+        // Monero blocks are small (~few KB), daemon response limit is ~100MB
         let gap = daemon_height - scan_height;
-        let batch_size = if gap > 100_000 {
-            1000  // Major catchup: 1000 blocks per request
+        let batch_size = if gap > 1_000_000 {
+            10_000 // Massive catchup (full restore)
+        } else if gap > 100_000 {
+            5_000  // Major catchup
         } else if gap > 10_000 {
-            500   // Moderate catchup
+            2_000  // Moderate catchup
         } else if gap > 1_000 {
-            200   // Small catchup
+            500    // Small catchup
         } else {
             base_batch // Near tip: small batches for responsiveness
         };
