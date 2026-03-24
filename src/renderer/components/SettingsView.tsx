@@ -165,18 +165,15 @@ export function SettingsView() {
 
   const handleRescan = async () => {
     const h = parseInt(targetHeight);
-    if (isNaN(h)) return alert("INVALID_HEIGHT");
+    if (isNaN(h)) return;
 
-    if (confirm(`INITIATE_RESCAN from height ${h}? This will clear local wallet cache.`)) {
-      setIsRescaning(true);
-      try {
-        await rescan(h);
-        alert("RESCAN_SIGNAL_BROADCASTED.");
-      } catch (e: any) {
-        alert(`RESCAN_FAILED: ${e.message}`);
-      } finally {
-        setIsRescaning(false);
-      }
+    setIsRescaning(true);
+    try {
+      await rescan(h);
+    } catch (e: any) {
+      console.error(`RESCAN_FAILED: ${e.message}`);
+    } finally {
+      setIsRescaning(false);
     }
   };
 
