@@ -23,7 +23,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     accounts, selectedAccountIndex, setSelectedAccountIndex,
     balance, address, subaddresses, outputs, refresh,
     status, isSending, sendXmr, createSubaddress,
-    churn, splinter, txs, currentHeight, totalHeight, syncPercent, activeId, setSubaddressLabel,
+    churn, splinter, txs, currentHeight, totalHeight, syncPercent, nodeLabel, activeId, setSubaddressLabel,
     vanishSubaddress, requestedAction
   } = vault;
   const [tab, setTab] = useState<'ledger' | 'addresses' | 'coins' | 'contacts'>('ledger');
@@ -337,7 +337,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                     <span className="text-xmr-dim/40">Uplink:</span>
                     <span className={`flex items-center gap-1 ${isSyncing ? 'text-xmr-accent' : 'text-xmr-green'}`}>
                       {isSyncing && <Loader2 size={8} className="animate-spin" />}
-                      {status}
+                      {status}{nodeLabel ? ` (${nodeLabel})` : ''}
                     </span>
                   </div>
                   <div className="flex justify-between text-[10px] uppercase font-black">

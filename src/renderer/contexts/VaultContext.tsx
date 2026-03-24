@@ -24,6 +24,7 @@ export interface VaultContextType {
   currentHeight: number;
   totalHeight: number;
   syncPercent: number;
+  nodeLabel: string;
   requestedAction: string | null;
   setRequestedAction: (action: string | null) => void;
   isAppLoading: boolean;
@@ -96,6 +97,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<string>('READY');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [syncPercent, setSyncPercent] = useState(0);
+  const [nodeLabel, setNodeLabel] = useState('');
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
@@ -254,6 +256,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           const { status: s, percent: p } = determineSyncStatus(newHeight, daemonHeightRef.current);
           setStatus(s);
           setSyncPercent(p);
+
+          // Track connected node name
+          if (event.payload.nodeLabel) {
+            setNodeLabel(event.payload.nodeLabel);
+          }
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
           // During sync, just update balance inline instead of triggering a full
@@ -698,7 +705,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo(() => ({
     accounts, selectedAccountIndex,
-    balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent,
+    balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent, nodeLabel,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
     unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
@@ -709,7 +716,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     monero402Challenge, clearMonero402Challenge
   }), [
     accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
-    currentHeight, totalHeight, syncPercent, isAppLoading, isInitializing, isLocked,
+    currentHeight, totalHeight, syncPercent, nodeLabel, isAppLoading, isInitializing, isLocked,
     isSending, hasVaultFile, identities, activeId, isStagenet, outputs,
     unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,

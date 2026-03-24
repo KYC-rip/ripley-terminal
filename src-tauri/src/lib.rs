@@ -57,6 +57,7 @@ pub fn run() {
             commands::config::save_config,
             // Identity
             commands::identity::get_identities,
+            commands::identity::save_identities,
             commands::identity::create_identity,
             commands::identity::delete_identity,
             commands::identity::switch_identity,

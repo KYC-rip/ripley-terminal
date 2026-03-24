@@ -34,6 +34,11 @@ pub async fn get_identities(app: AppHandle) -> Result<Vec<Identity>, String> {
 }
 
 #[tauri::command]
+pub async fn save_identities(app: AppHandle, ids: Vec<Identity>) -> Result<(), String> {
+    save_identities_to_disk(&app, &ids)
+}
+
+#[tauri::command]
 pub async fn create_identity(app: AppHandle, name: String) -> Result<Identity, String> {
     let id = format!("vault_{}_{}", std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),

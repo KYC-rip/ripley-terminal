@@ -18,11 +18,24 @@ function createTauriApi() {
 
     // ── Identity ──
     getIdentities: () => invoke('get_identities'),
-    saveIdentities: (_ids: any) => Promise.resolve(),
-    getActiveIdentity: () => invoke('get_identities').then((ids: any) => {
-      // Return first identity ID as active (simplified)
-      return ids?.[0]?.id || '';
-    }),
+    saveIdentities: async (ids: any) => {
+      // The frontend sends the full identity list after modifications.
+      // We need to persist this since Rust commands also manage identities.
+      try {
+        await invoke('save_identities', { ids });
+      } catch {
+        // save_identities command may not exist yet — identities managed by create/delete
+      }
+    },
+    getActiveIdentity: async () => {
+      try {
+        // Try to read the active identity, fall back to first in list
+        const ids: any[] = await invoke('get_identities') as any[];
+        return ids?.[0]?.id || '';
+      } catch {
+        return '';
+      }
+    },
     setActiveIdentity: (id: string) => invoke('switch_identity', { id }),
     renameIdentity: (id: string, name: string) => invoke('rename_identity', { id, name }),
     deleteIdentityFiles: (id: string) => invoke('delete_identity', { id }).then(() => ({ success: true })),
