@@ -54,10 +54,24 @@ async fn scan_loop(
 ) -> Result<(), String> {
     let batch_size: u64 = 50;
 
+    emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
+
     loop {
         // Get daemon height
-        let daemon_height = daemon.latest_block_number().await
-            .map_err(|e| format!("daemon height: {:?}", e))? as u64;
+        let daemon_height = match daemon.latest_block_number().await {
+            Ok(h) => h as u64,
+            Err(e) => {
+                emit_log(&app, "Sync", "error", &format!("⚠️ Failed to get daemon height: {:?}", e));
+                sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+
+        if scan_height == 0 || scan_height > daemon_height {
+            // Invalid scan height — start from near current
+            emit_log(&app, "Sync", "info", &format!("📦 Daemon at height {}, adjusting scan start", daemon_height));
+            scan_height = daemon_height.saturating_sub(10);
+        }
 
         if scan_height >= daemon_height {
             let _ = app.emit("sync-update", SyncStatus {
@@ -74,8 +88,11 @@ async fn scan_loop(
         let batch_end = (scan_height + batch_size).min(daemon_height);
         let range = (scan_height as usize)..=(batch_end as usize);
 
+        emit_log(&app, "Sync", "info", &format!("📥 Fetching blocks {}-{} / {}", scan_height, batch_end, daemon_height));
+
         match ProvidesScannableBlocks::contiguous_scannable_blocks(&daemon, range).await {
             Ok(blocks) => {
+                emit_log(&app, "Sync", "info", &format!("✅ Got {} blocks", blocks.len()));
                 // Scan each block with the wallet's Scanner
                 let wallet_state = app.state::<WalletState>();
                 if let Some(mut scanner) = wallet_state.get_scanner().await {
@@ -126,7 +143,7 @@ async fn scan_loop(
                 }
             }
             Err(e) => {
-                log::warn!("Failed to fetch blocks {}-{}: {:?}", scan_height, batch_end, e);
+                emit_log(&app, "Sync", "error", &format!("⚠️ Block fetch failed ({}-{}): {:?}", scan_height, batch_end, e));
                 sleep(Duration::from_secs(5)).await;
                 continue;
             }
