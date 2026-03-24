@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -20,6 +21,9 @@ use super::types::*;
 pub struct WalletState {
     app: AppHandle,
     inner: Arc<RwLock<WalletInner>>,
+    /// Incremented each time a new scanner is started. Old scanners check this
+    /// and stop if it doesn't match their generation.
+    pub scanner_generation: AtomicU64,
 }
 
 struct WalletInner {
@@ -59,6 +63,7 @@ impl WalletState {
 
         Self {
             app,
+            scanner_generation: AtomicU64::new(0),
             inner: Arc::new(RwLock::new(WalletInner {
                 is_locked: true,
                 active_identity: None,
@@ -338,6 +343,15 @@ impl WalletState {
 
     pub async fn get_network(&self) -> Network {
         self.inner.read().await.network
+    }
+
+    /// Increment scanner generation — any running scanner with an older generation will stop.
+    pub fn next_scanner_generation(&self) -> u64 {
+        self.scanner_generation.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    pub fn current_scanner_generation(&self) -> u64 {
+        self.scanner_generation.load(Ordering::SeqCst)
     }
 
     /// Reset scan progress for a rescan.

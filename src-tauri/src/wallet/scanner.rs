@@ -123,9 +123,20 @@ impl BlockScanner {
         _node_label: &str,
         from_height: u64,
     ) -> Result<(), String> {
+        // Bump generation — any previous scanner will see the mismatch and stop
+        let wallet_state = app.state::<WalletState>();
+        let generation = wallet_state.next_scanner_generation();
+
         let app_clone = app.clone();
         tokio::spawn(async move {
             loop {
+                // Check if we've been superseded by a newer scanner
+                let ws = app_clone.state::<WalletState>();
+                if ws.current_scanner_generation() != generation {
+                    emit_log(&app_clone, "Sync", "info", "🛑 Scanner stopped (superseded by newer scan)");
+                    return;
+                }
+
                 // Race all nodes
                 let (label, url, daemon) = match race_nodes(&app_clone).await {
                     Some(result) => result,
@@ -143,7 +154,7 @@ impl BlockScanner {
                 wallet_state.set_daemon_url(&url).await;
 
                 // Run scan loop — if it fails, re-race
-                match scan_loop(app_clone.clone(), daemon, from_height, url.clone(), label.clone()).await {
+                match scan_loop(app_clone.clone(), daemon, from_height, url.clone(), label.clone(), generation).await {
                     Ok(()) => break,
                     Err(e) => {
                         emit_log(&app_clone, "Sync", "error", &format!("⚠️ {} disconnected: {}. Re-racing...", label, e));
@@ -163,6 +174,7 @@ async fn scan_loop(
     mut scan_height: u64,
     node_url: String,
     node_label: String,
+    generation: u64,
 ) -> Result<(), String> {
     // Dynamic batch size based on gap — bigger gap = bigger batches for speed.
     // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
@@ -175,6 +187,13 @@ async fn scan_loop(
     }
 
     loop {
+        // Check if superseded
+        let ws = app.state::<WalletState>();
+        if ws.current_scanner_generation() != generation {
+            emit_log(&app, "Sync", "info", "🛑 Scan loop stopped (superseded)");
+            return Ok(());
+        }
+
         // Get daemon height
         let daemon_height = match daemon.latest_block_number().await {
             Ok(h) => h as u64,
