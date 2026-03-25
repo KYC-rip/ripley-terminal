@@ -20,15 +20,22 @@ pub fn keys_from_mnemonic(mnemonic: &str) -> Result<(Zeroizing<Scalar>, Zeroizin
 
 /// Derive spend and view keys from 32-byte entropy.
 pub fn keys_from_entropy(entropy: &[u8; 32]) -> Result<(Zeroizing<Scalar>, Zeroizing<Scalar>), String> {
-    // spend_key = entropy reduced mod l (the ed25519 group order)
-    let dalek_spend = curve25519_dalek::Scalar::from_bytes_mod_order(*entropy);
+    // For legacy Monero seeds, entropy IS the spend key (already a valid scalar).
+    // Use from_canonical_bytes to match wallet2 behavior.
+    // Fall back to from_bytes_mod_order for non-canonical entropy (shouldn't happen with valid seeds).
+    let dalek_spend = Option::<curve25519_dalek::Scalar>::from(
+        curve25519_dalek::Scalar::from_canonical_bytes(*entropy)
+    ).unwrap_or_else(|| curve25519_dalek::Scalar::from_bytes_mod_order(*entropy));
     let spend_key = Scalar::from(dalek_spend);
 
     // view_key = keccak256(spend_key_bytes) reduced mod l
-    let spend_bytes: [u8; 32] = <[u8; 32]>::from(spend_key);
+    // Use the canonical spend key bytes (not the original entropy) for the hash
+    let spend_bytes: [u8; 32] = dalek_spend.to_bytes();
     let view_bytes = keccak256(&spend_bytes);
     let dalek_view = curve25519_dalek::Scalar::from_bytes_mod_order(view_bytes);
     let view_key = Scalar::from(dalek_view);
+
+    log::info!("Key derivation: spend={}, view={}", hex::encode(spend_bytes), hex::encode(view_bytes));
 
     Ok((Zeroizing::new(spend_key), Zeroizing::new(view_key)))
 }

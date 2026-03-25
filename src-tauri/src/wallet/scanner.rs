@@ -274,22 +274,19 @@ async fn scan_loop(
                                 }
                             }
                             Err(e) => {
-                                log::warn!("Scan error at height ~{}: {:?}", scan_height, e);
+                                emit_log(&app, "Scan", "error", &format!("⚠️ Scan error at ~{}: {:?}", scan_height, e));
                             }
                         }
                     }
 
                     if new_output_count > 0 {
-                        log::info!(
-                            "Found {} new outputs ({} piconero) in blocks {}-{}",
+                        emit_log(&app, "Scan", "success", &format!(
+                            "💰 Found {} outputs ({} piconero) in blocks {}-{}",
                             new_output_count, new_amount, scan_height, batch_end
-                        );
-                        // Emit balance update
+                        ));
                         let total = wallet_state.compute_balance().await;
-                        let _ = app.emit("balance-changed", serde_json::json!({
-                            "balance": total,
-                            "unlocked": total,
-                        }));
+                        crate::emit_sync_status(&app, "SYNCING", scan_height, daemon_height,
+                            (scan_height as f64 / daemon_height as f64) * 100.0, &node_label);
                     }
                 }
 
