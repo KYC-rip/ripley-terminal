@@ -43,7 +43,8 @@ fn parse_clearnet_nodes(parsed: &serde_json::Value) -> Vec<(String, String)> {
 }
 
 // Force a specific node for testing (set to None for normal racing)
-const FORCE_NODE: Option<(&str, &str)> = Some(("monero.one", "https://node.monero.one"));
+// Set to Some(("label", "url")) to force a specific node for testing
+const FORCE_NODE: Option<(&str, &str)> = None;
 
 /// Load nodes: try cached → fetch from GitHub → fall back to bundled.
 async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
@@ -304,13 +305,19 @@ async fn scan_loop(
 
                 scan_height = batch_end + 1;
 
+                // Check generation BEFORE updating state — don't overwrite a rescan's reset
+                let ws = app.state::<WalletState>();
+                if ws.current_scanner_generation() != generation {
+                    emit_log(&app, "Sync", "info", "🛑 Scan loop stopped (superseded after batch)");
+                    return Ok(());
+                }
+
                 // Update scan height in state
-                let wallet_state = app.state::<WalletState>();
-                wallet_state.update_sync_status(scan_height, daemon_height).await;
+                ws.update_sync_status(scan_height, daemon_height).await;
 
                 // Persist output cache every 500 blocks
                 if scan_height % 500 < batch_size {
-                    wallet_state.save_output_cache().await;
+                    ws.save_output_cache().await;
                 }
             }
             Err(e) => {
