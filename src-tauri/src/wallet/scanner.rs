@@ -232,20 +232,24 @@ async fn scan_loop(
             continue;
         }
 
-        // Dynamic batch size: bigger gap = bigger batches
-        // Monero blocks are small (~few KB), daemon response limit is ~100MB
+        // contiguous_scannable_blocks fetches blocks one-by-one internally,
+        // so large batches don't speed things up. Keep batches reasonable
+        // for progress reporting without too much per-request overhead.
         let gap = daemon_height - scan_height;
-        let batch_size = if gap > 1_000_000 {
-            10_000 // Massive catchup (full restore)
-        } else if gap > 100_000 {
-            5_000  // Major catchup
-        } else if gap > 10_000 {
-            2_000  // Moderate catchup
-        } else if gap > 1_000 {
-            500    // Small catchup
-        } else {
-            base_batch // Near tip: small batches for responsiveness
-        };
+        let batch_size: u64 = if gap > 1_000 { 100 } else { base_batch };
+
+        // Show ETA for large syncs
+        if gap > 10_000 {
+            // ~2 blocks/sec based on observed speed
+            let eta_secs = gap / 2;
+            let eta_mins = eta_secs / 60;
+            let eta_hours = eta_mins / 60;
+            if eta_hours > 0 {
+                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}h {}m ({} blocks remaining)", eta_hours, eta_mins % 60, gap));
+            } else {
+                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}m ({} blocks remaining)", eta_mins, gap));
+            }
+        }
 
         let batch_end = (scan_height + batch_size).min(daemon_height);
         let range = (scan_height as usize)..=(batch_end as usize);
