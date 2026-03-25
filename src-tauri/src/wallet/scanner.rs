@@ -252,9 +252,11 @@ async fn scan_loop(
 
         emit_log(&app, "Sync", "info", &format!("📥 Fetching blocks {}-{} / {}", scan_height, batch_end, daemon_height));
 
+        let fetch_start = std::time::Instant::now();
         match ProvidesScannableBlocks::contiguous_scannable_blocks(&daemon, range).await {
             Ok(blocks) => {
-                emit_log(&app, "Sync", "info", &format!("✅ Got {} blocks", blocks.len()));
+                let fetch_ms = fetch_start.elapsed().as_millis();
+                emit_log(&app, "Sync", "info", &format!("✅ Got {} blocks in {}ms", blocks.len(), fetch_ms));
                 // Scan each block with the wallet's Scanner
                 let wallet_state = app.state::<WalletState>();
                 if let Some(mut scanner) = wallet_state.get_scanner().await {
