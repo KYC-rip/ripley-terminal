@@ -29,7 +29,27 @@ export function SettingsView() {
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [targetHeight, setTargetHeight] = useState<string>('');
+  const [restoreDate, setRestoreDate] = useState<string>('');
   const [isRescanning, setIsRescaning] = useState(false);
+
+  // Convert date to approximate Monero block height
+  // Genesis: April 18, 2014. Average: 1 block per 2 minutes (720 blocks/day)
+  const dateToHeight = (dateStr: string): number => {
+    const genesis = new Date('2014-04-18T00:00:00Z');
+    const target = new Date(dateStr);
+    const diffMs = target.getTime() - genesis.getTime();
+    if (diffMs <= 0) return 0;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return Math.floor(diffDays * 720);
+  };
+
+  const handleDateChange = (dateStr: string) => {
+    setRestoreDate(dateStr);
+    if (dateStr) {
+      const h = dateToHeight(dateStr);
+      setTargetHeight(h.toString());
+    }
+  };
 
   // 📦 App Info & Updates state
   const [appInfo, setAppInfo] = useState<{ version: string; appDataPath: string; walletsPath: string; platform: string } | null>(null);
@@ -367,13 +387,22 @@ export function SettingsView() {
               <span className="text-xmr-green">{currentHeight || 'FETCHING...'}</span>
             </div>
             <div className="space-y-2">
-              <label className="text-[11px] font-black text-xmr-dim uppercase">Target_Restore_Height</label>
+              <label className="text-[11px] font-black text-xmr-dim uppercase">Restore_From_Date</label>
+              <input
+                type="date"
+                min="2014-04-18"
+                max={new Date().toISOString().split('T')[0]}
+                value={restoreDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none font-black"
+              />
+              <label className="text-[11px] font-black text-xmr-dim uppercase">Or_Block_Height</label>
               <div className="flex gap-2">
                 <input
                   type="number"
                   placeholder="3100000"
                   value={targetHeight}
-                  onChange={(e) => setTargetHeight(e.target.value)}
+                  onChange={(e) => { setTargetHeight(e.target.value); setRestoreDate(''); }}
                   className="flex-grow bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none font-black"
                 />
                 <button
