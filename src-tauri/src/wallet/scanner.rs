@@ -42,8 +42,14 @@ fn parse_clearnet_nodes(parsed: &serde_json::Value) -> Vec<(String, String)> {
     nodes
 }
 
+// Force a specific node for testing (set to None for normal racing)
+const FORCE_NODE: Option<(&str, &str)> = Some(("monero.one", "https://node.monero.one"));
+
 /// Load nodes: try cached → fetch from GitHub → fall back to bundled.
 async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
+    if let Some((label, url)) = FORCE_NODE {
+        return vec![(label.to_string(), url.to_string())];
+    }
     let cache_path = app.path().app_data_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join("latest_nodes.json");
