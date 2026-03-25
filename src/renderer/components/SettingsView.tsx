@@ -183,15 +183,22 @@ export function SettingsView() {
     }
   };
 
+  const [rescanStatus, setRescanStatus] = useState<'idle' | 'scanning' | 'started' | 'error'>('idle');
   const handleRescan = async () => {
     const h = parseInt(targetHeight);
     if (isNaN(h)) return;
 
     setIsRescaning(true);
+    setRescanStatus('scanning');
     try {
       await rescan(h);
+      setRescanStatus('started');
+      // Reset after 3 seconds
+      setTimeout(() => setRescanStatus('idle'), 3000);
     } catch (e: any) {
       console.error(`RESCAN_FAILED: ${e.message}`);
+      setRescanStatus('error');
+      setTimeout(() => setRescanStatus('idle'), 3000);
     } finally {
       setIsRescaning(false);
     }
@@ -410,9 +417,14 @@ export function SettingsView() {
                   onClick={handleRescan}
                   className="px-4 bg-xmr-green text-xmr-base text-xs font-black uppercase hover:bg-white transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  {isRescanning ? 'Scanning...' : 'Trigger_Rescan'}
+                  {isRescanning ? 'Starting...' : rescanStatus === 'started' ? '✅ Rescan Started' : rescanStatus === 'error' ? '❌ Failed' : 'Trigger_Rescan'}
                 </button>
               </div>
+              {rescanStatus === 'started' && (
+                <div className="text-[10px] text-xmr-green uppercase tracking-widest animate-pulse">
+                  Rescan initiated from block {targetHeight}. Check sync progress in the vault.
+                </div>
+              )}
             </div>
           </Card>
         </section>
