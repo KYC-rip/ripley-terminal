@@ -114,7 +114,7 @@ export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalP
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg flex items-center gap-1.5 cursor-pointer ${tab === t.id
+                className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-sm flex items-center gap-1.5 cursor-pointer ${tab === t.id
                     ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5'
                     : 'text-xmr-dim hover:text-xmr-green border border-transparent'
                   }`}

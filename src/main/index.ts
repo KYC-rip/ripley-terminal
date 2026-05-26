@@ -1,6 +1,7 @@
 // src/main/index.ts
 import { app, BrowserWindow, ipcMain, net, session } from 'electron';
 import { join } from 'path';
+import fs from 'fs';
 import { optimizer, electronApp } from '@electron-toolkit/utils';
 import { DaemonManager } from './DaemonManager';
 import { NodeManager } from './NodeManager';
@@ -10,18 +11,13 @@ import { AppConfig } from './types';
 import { registerIdentityHandlers } from './handlers/IdentityHandler';
 import { AgentGateway } from './AgentGateway';
 
+const PROTOCOLS = ['monero', 'ripley', 'ghost', 'xmr402'];
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('monero', process.execPath, [join(__dirname, '..', '..')]);
-    app.setAsDefaultProtocolClient('ripley', process.execPath, [join(__dirname, '..', '..')]);
-    app.setAsDefaultProtocolClient('ghost', process.execPath, [join(__dirname, '..', '..')]);
-    app.setAsDefaultProtocolClient('xmr402', process.execPath, [join(__dirname, '..', '..')]);
+    PROTOCOLS.forEach(p => app.setAsDefaultProtocolClient(p, process.execPath, [join(__dirname, '..', '..')]));
   }
 } else {
-  app.setAsDefaultProtocolClient('monero');
-  app.setAsDefaultProtocolClient('ripley');
-  app.setAsDefaultProtocolClient('ghost');
-  app.setAsDefaultProtocolClient('xmr402');
+  PROTOCOLS.forEach(p => app.setAsDefaultProtocolClient(p));
 }
 
 // macOS specific: handle URL when app is already running or launched via URL
@@ -120,9 +116,20 @@ if (!gotTheLock) {
 }
 
 // 🟢 Global State Tracker (For UI polling)
-const isStagenet = store.get("network") === 'stagenet';
-let currentEngineState = { status: 'DISCONNECTED', node: '', nodeLabel: '', useTor: false, error: '', isStagenet };
+let currentEngineState = { status: 'DISCONNECTED', node: '', nodeLabel: '', useTor: false, error: '', isStagenet: store.get("network") === 'stagenet' };
 let isSafeToExit = false;
+
+/** Persist or clear the skin_background field from a config object, stripping it from the store. */
+function persistSkinBackground(configToSave: Record<string, any>): void {
+  if (!('skin_background' in configToSave)) return;
+  const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
+  if (configToSave.skin_background) {
+    fs.writeFileSync(skinPath, configToSave.skin_background, 'utf8');
+  } else if (fs.existsSync(skinPath)) {
+    fs.unlinkSync(skinPath);
+  }
+  delete configToSave.skin_background;
+}
 
 function emitAppLog(source: string, level: 'info' | 'error', message: string) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -131,7 +138,6 @@ function emitAppLog(source: string, level: 'info' | 'error', message: string) {
 }
 
 app.whenReady().then(async () => {
-  const fs = require('fs');
   // 🛡️ Data Migration: Handle rename from ghost-terminal to ripley-terminal
   const oldPath = join(app.getPath('appData'), 'ghost-terminal');
   const newPath = app.getPath('userData');
@@ -252,7 +258,6 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('get-config', () => {
     const config = { ...store.store } as any;
-    const fs = require('fs');
     const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
     if (fs.existsSync(skinPath)) {
       try { config.skin_background = fs.readFileSync(skinPath, 'utf8'); } catch (e) { }
@@ -262,16 +267,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('save-config-and-reload', async (_, newConfig: AppConfig) => {
     const configToSave = { ...newConfig } as any;
-    if ('skin_background' in configToSave) {
-      const fs = require('fs');
-      const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
-      if (configToSave.skin_background) {
-        fs.writeFileSync(skinPath, configToSave.skin_background, 'utf8');
-      } else if (fs.existsSync(skinPath)) {
-        fs.unlinkSync(skinPath);
-      }
-      delete configToSave.skin_background;
-    }
+    persistSkinBackground(configToSave);
     store.set(configToSave);
     try {
       await reloadEngine();
@@ -283,23 +279,13 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('save-config-only', (_, newConfig: AppConfig) => {
     const configToSave = { ...newConfig } as any;
-    if ('skin_background' in configToSave) {
-      const fs = require('fs');
-      const skinPath = join(app.getPath('userData'), 'skin_bg.b64');
-      if (configToSave.skin_background) {
-        fs.writeFileSync(skinPath, configToSave.skin_background, 'utf8');
-      } else if (fs.existsSync(skinPath)) {
-        fs.unlinkSync(skinPath);
-      }
-      delete configToSave.skin_background;
-    }
+    persistSkinBackground(configToSave);
     store.set(configToSave);
     console.log('[Config] Logical settings updated (Scanlines/LockTime).');
     return { success: true };
   });
 
   ipcMain.handle('clear-cache', async () => {
-    const fs = require('fs');
     const path = require('path');
     const userData = app.getPath('userData');
 
@@ -484,7 +470,6 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('select-background-image', async () => {
     const { dialog } = require('electron');
-    const fs = require('fs');
 
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Background Skin',

@@ -9,6 +9,19 @@ import fallbackNodes from '../../resources/nodes.json';
 
 const GITHUB_NODES_URL = 'https://raw.githubusercontent.com/KYC-rip/ripley-terminal/main/resources/nodes.json';
 
+/** Auto-detect protocol for a Monero node URL based on port conventions. */
+function normalizeNodeUrl(nodeStr: string): string {
+  let baseUrl = nodeStr.trim();
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    if (baseUrl.endsWith(':18089') || baseUrl.endsWith(':443')) {
+      baseUrl = `https://${baseUrl}`;
+    } else {
+      baseUrl = `http://${baseUrl}`;
+    }
+  }
+  return baseUrl;
+}
+
 export class NodeManager {
   private localNodesPath: string;
   private currentNodes: NodeList;
@@ -123,73 +136,52 @@ export class NodeManager {
 
   // 🚀 3. RPC Probe (controlled by global proxy settings in index.ts)
   public async pingNode(nodeStr: string): Promise<string> {
-    return new Promise(async (resolve, reject) => {
+    const currentProxy = await session.defaultSession.resolveProxy(nodeStr);
+    console.log(`[NodeManager] Request for ${nodeStr} will go through proxy: ${currentProxy}`);
 
-      const currentProxy = await session.defaultSession.resolveProxy(nodeStr);
-      console.log(`[NodeManager] Request for ${nodeStr} will go through proxy: ${currentProxy}`);
+    const baseUrl = normalizeNodeUrl(nodeStr);
+    const url = `${baseUrl.replace(/\/$/, '')}/json_rpc`;
 
-      try {
-        let baseUrl = nodeStr.trim();
-        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-          // 🛡️ Monero Protocol Intelligence: Auto-detect secure ports
-          if (baseUrl.endsWith(':18089') || baseUrl.endsWith(':443')) {
-            baseUrl = `https://${baseUrl}`;
-          } else {
-            baseUrl = `http://${baseUrl}`;
-          }
-        }
-        const url = `${baseUrl.replace(/\/$/, '')}/json_rpc`;
+    console.log(`[NodeManager] Pinging node: ${url}`);
 
-        console.log(`[NodeManager] Pinging node: ${url}`);
+    const controller = new AbortController();
+    const timeoutMs = currentProxy !== 'DIRECT' ? 20000 : 8000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        const controller = new AbortController();
-        // Give Tor/Proxies more time to negotiate DNS and TLS handshakes
-        const timeoutMs = currentProxy !== 'DIRECT' ? 20000 : 8000;
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await net.fetch(url, {
+        method: 'POST',
+        body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        bypassCustomProtocolHandlers: true,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+      clearTimeout(timeoutId);
 
-        const response = await net.fetch(url, {
-          method: 'POST',
-          body: JSON.stringify({ jsonrpc: '2.0', id: '0', method: 'get_info' }),
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          bypassCustomProtocolHandlers: true,
-          credentials: 'omit',
-          cache: 'no-store'
-        });
-        clearTimeout(timeoutId);
+      if (!response.ok) throw new Error(`RPC interface access denied (${response.status})`);
 
-        if (!response.ok) throw new Error(`RPC interface access denied (${response.status})`);
+      const data = await response.json();
+      if (data?.result?.status !== 'OK') throw new Error('RPC response format abnormal');
 
-        const data = await response.json();
-        if (data?.result?.status === 'OK') {
-          // Store daemon height for sync progress calculation
-          if (data.result.height) {
-            NodeManager.daemonHeight = data.result.height;
-          }
-          NodeManager.activeNodeStr = nodeStr;
-          resolve(nodeStr);
-        } else {
-          reject(new Error('RPC response format abnormal'));
-        }
-      } catch (error: any) {
-        console.warn(`[NodeManager] pingNode failed for ${nodeStr}: ${error.message}`);
-        reject(error);
+      if (data.result.height) {
+        NodeManager.daemonHeight = data.result.height;
       }
-    });
+      NodeManager.activeNodeStr = nodeStr;
+      return nodeStr;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      console.warn(`[NodeManager] pingNode failed for ${nodeStr}: ${error.message}`);
+      throw error;
+    }
   }
 
   // 🔄 4. Dynamic height refresh (for SyncWatcher polling)
   public static async fetchDaemonHeight(): Promise<number> {
     if (!this.activeNodeStr) return this.daemonHeight;
     try {
-      let baseUrl = this.activeNodeStr.trim();
-      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        if (baseUrl.endsWith(':18089') || baseUrl.endsWith(':443')) {
-          baseUrl = `https://${baseUrl}`;
-        } else {
-          baseUrl = `http://${baseUrl}`;
-        }
-      }
+      const baseUrl = normalizeNodeUrl(this.activeNodeStr);
       const url = `${baseUrl.replace(/\/$/, '')}/json_rpc`;
 
       const controller = new AbortController();

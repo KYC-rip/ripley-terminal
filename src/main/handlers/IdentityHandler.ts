@@ -1,4 +1,4 @@
-// src/main/IdentityManager.ts
+// src/main/handlers/IdentityHandler.ts
 import { app, ipcMain } from 'electron';
 import fs from 'fs/promises'; // 🚀 Force async API to prevent UI stutter
 import { existsSync } from 'fs';

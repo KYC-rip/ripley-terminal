@@ -32,6 +32,10 @@ interface LogLine {
 // Unified route type — both swap ExchangeRoute and BridgeRoute share amount_to, eta, kyc, provider
 type UnifiedRoute = (ExchangeRoute | BridgeRoute) & { [key: string]: any };
 
+const RouteBadge = ({ label, color }: { label: string; color: string }) => (
+  <span className={`text-[7px] font-bold uppercase px-1 py-0.5 bg-${color}/10 text-${color} border border-${color}/20 rounded-sm`}>{label}</span>
+);
+
 export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
   const { currencies } = useCurrencies();
   const { createSubaddress, subaddresses } = useVault();
@@ -450,11 +454,11 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {isPrivacy && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-sm">NO-KYC</span>}
-                    {route.bridgeBadge && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-ghost/10 text-xmr-ghost border border-xmr-ghost/20 rounded-sm">{route.bridgeBadge}</span>}
-                    {!isGhost && !route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-sm">FLOAT</span>}
-                    {!isGhost && route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-sm">FIXED</span>}
-                    {i === 0 && <span className="text-[7px] font-black uppercase px-1 py-0.5 bg-xmr-green/10 text-xmr-green border border-xmr-green/20 rounded-sm">{sortBy === 'rate' ? 'TOP' : sortBy === 'speed' ? 'FAST' : 'BEST'}</span>}
+                    {isPrivacy && <RouteBadge label="NO-KYC" color="purple-400" />}
+                    {route.bridgeBadge && <RouteBadge label={route.bridgeBadge} color="xmr-ghost" />}
+                    {!isGhost && !route.fixed && <RouteBadge label="FLOAT" color="yellow-500" />}
+                    {!isGhost && route.fixed && <RouteBadge label="FIXED" color="cyan-400" />}
+                    {i === 0 && <RouteBadge label={sortBy === 'rate' ? 'TOP' : sortBy === 'speed' ? 'FAST' : 'BEST'} color="xmr-green" />}
                   </div>
                 </div>
 
