@@ -102,7 +102,7 @@ export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalP
   );
 
   const content = (
-      <div className={`w-full ${inline ? '' : 'max-w-xl bg-xmr-surface border border-xmr-border rounded-lg'} relative flex flex-col ${inline ? 'h-full' : 'max-h-[85vh]'} overflow-hidden`}>
+      <div className={`w-full ${inline ? '' : 'max-w-xl bg-xmr-surface border border-xmr-border rounded-md'} relative flex flex-col ${inline ? 'h-full' : 'max-h-[85vh]'} overflow-hidden`}>
 
         {/* Header — matches tab bar style when inline */}
         <div className={`flex items-center justify-between ${inline ? 'px-3 py-2 bg-xmr-surface/50' : 'px-6 py-4'} border-b border-xmr-border/${inline ? '15' : '40'}`}>

@@ -191,16 +191,16 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
         <div className="relative" style={{ perspective: '800px' }}>
           {/* Background cards (stack effect) */}
           {accounts.length >= 3 && (
-            <div className="absolute top-0 left-8 right-8 h-full bg-xmr-surface border border-xmr-border/15 rounded-lg" style={{ transform: 'translateY(-6px) scale(0.96)', opacity: 0.25 }} />
+            <div className="absolute top-0 left-8 right-8 h-full bg-xmr-surface border border-xmr-border/15 rounded-md" style={{ transform: 'translateY(-6px) scale(0.96)', opacity: 0.25 }} />
           )}
           {accounts.length >= 2 && (
-            <div className="absolute top-0 left-4 right-4 h-full bg-xmr-surface border border-xmr-border/20 rounded-lg" style={{ transform: 'translateY(-3px) scale(0.98)', opacity: 0.4 }} />
+            <div className="absolute top-0 left-4 right-4 h-full bg-xmr-surface border border-xmr-border/20 rounded-md" style={{ transform: 'translateY(-3px) scale(0.98)', opacity: 0.4 }} />
           )}
 
           {/* Main card */}
-          <div className={`relative bg-gradient-to-br from-xmr-green/5 via-xmr-green/8 to-xmr-green/3 bg-xmr-surface border border-xmr-green/40 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-150 ${switching ? 'opacity-70 scale-[0.99]' : 'opacity-100 scale-100'}`}>
+          <div className={`relative bg-gradient-to-br from-xmr-green/5 via-xmr-green/8 to-xmr-green/3 bg-xmr-surface border border-xmr-green/40 rounded-md shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-150 ${switching ? 'opacity-70 scale-[0.99]' : 'opacity-100 scale-100'}`}>
             {/* Top glow */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-xmr-green/50 to-transparent rounded-t-lg" />
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-xmr-green/50 to-transparent rounded-t-md" />
             {/* Watermark */}
             <div className="absolute right-6 bottom-3 text-8xl font-black text-xmr-green/[0.03] tracking-tighter select-none pointer-events-none">XMR</div>
 
@@ -308,7 +308,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                       key={action.label}
                       onClick={action.onClick}
                       disabled={action.disabled}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-xmr-green/20 bg-xmr-base/40 text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed group"
+                      className="flex items-center gap-2 px-4 py-2 rounded-md border border-xmr-green/20 bg-xmr-base/40 text-xmr-green hover:border-xmr-green/50 hover:bg-xmr-green/10 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed group"
                     >
                       <action.icon size={14} className={action.spin ? 'animate-spin' : ''} />
                       <span className="text-[9px] font-bold uppercase tracking-[0.12em] group-hover:text-xmr-green transition-colors">
@@ -414,7 +414,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
       </div>
 
       {/* 3. TABS + CONTENT (or inline Send/Receive panel) */}
-      <div className="min-h-[400px] border border-xmr-border/20 rounded-lg overflow-hidden bg-xmr-surface/30">
+      <div className="min-h-[400px] border border-xmr-border/20 rounded-md overflow-hidden bg-xmr-surface/30">
         {activePanel === 'send' ? (
           <DispatchModal
             inline
@@ -436,7 +436,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                 <button
                   key={t}
                   onClick={() => setTab(t as any)}
-                  className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-lg ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
+                  className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-sm ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
                 >
                   {t}
                 </button>

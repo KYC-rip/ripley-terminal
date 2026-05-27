@@ -299,9 +299,10 @@ function MainApp() {
 
   const toggleGroup = (g: string) => setExpandedGroups(prev => ({ ...prev, [g]: !prev[g] }));
 
-  const NavButton = ({ id, label, icon: Icon, badge, compact }: any) => (
+  const renderNavButton = useCallback((id: string, label: string, Icon: any, badge?: string | null) => (
     <button
-      onClick={() => setView(id)}
+      key={id}
+      onClick={() => setView(id as any)}
       className={`w-full flex items-center justify-between px-5 py-3 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
     >
       <div className="flex items-center gap-3">
@@ -314,7 +315,7 @@ function MainApp() {
         </span>
       )}
     </button>
-  );
+  ), [view, setView]);
 
   const NavGroup = ({ label, groupKey, children }: { label: string; groupKey: string; children: React.ReactNode }) => {
     const childArray = React.Children.toArray(children).filter(Boolean);
@@ -369,7 +370,7 @@ function MainApp() {
         {/* ─── Portfolio Card ─── */}
         {vault.accounts.length > 0 && (
           <div
-            className="mx-3 mt-1 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-lg cursor-pointer hover:border-xmr-green/30 transition-all"
+            className="mx-3 mt-1 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-md cursor-pointer hover:border-xmr-green/30 transition-all"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={() => setView('vault')}
           >
@@ -386,17 +387,17 @@ function MainApp() {
 
         {/* ─── Grouped Navigation ─── */}
         <nav className="flex-grow overflow-y-auto custom-scrollbar space-y-1 pb-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <NavButton id="home" label="Dashboard" icon={Ghost} />
-          <NavButton id="vault" label="Vault" icon={Shield} badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null} />
+          {renderNavButton('home', 'Dashboard', Ghost)}
+          {renderNavButton('vault', 'Vault', Shield, isSyncing ? `${syncPercent.toFixed(1)}%` : null)}
 
           <NavGroup label="Exchange" groupKey="exchange">
-            <NavButton id="exchange" label="Exchange" icon={ArrowDown} />
-            {!isPackaged && <NavButton id="vigil" label="Vigil / Limit" icon={Crosshair} />}
+            {renderNavButton('exchange', 'Exchange', ArrowDown)}
+            {!isPackaged && renderNavButton('vigil', 'Vigil / Limit', Crosshair)}
           </NavGroup>
 
           <NavGroup label="Tools" groupKey="tools">
-            <NavButton id="agent" label="Agent" icon={Bot} />
-            <NavButton id="settings" label="Settings" icon={Settings} />
+            {renderNavButton('agent', 'Agent', Bot)}
+            {renderNavButton('settings', 'Settings', Settings)}
           </NavGroup>
           <button
             onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); }}

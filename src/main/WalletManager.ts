@@ -63,7 +63,7 @@ export class WalletManager {
    * Open an existing physical vault file
    */
   public static async openWallet(filename: string, password: string) {
-    await this.closeWallet().catch(() => { });
+    await this.closeWallet().catch((e) => console.warn('[WalletManager] Pre-open close failed (expected if no wallet open):', e.message));
     return this.callRpc('open_wallet', { filename, password });
   }
 
@@ -73,7 +73,7 @@ export class WalletManager {
   public static async closeWallet() {
     try {
       // Force store to save sync progress to disk before closing 
-      await this.callRpc('store', {}).catch(() => { });
+      await this.callRpc('store', {}).catch((e) => console.warn('[WalletManager] Pre-close store failed:', e.message));
       return await this.callRpc('close_wallet', {});
     } catch (error: any) {
       if (error.message?.includes('No wallet file')) {

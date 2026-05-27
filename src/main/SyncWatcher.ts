@@ -61,8 +61,8 @@ export class SyncWatcher {
       }
 
       await this.periodicStore();
-    } catch (e) {
-      /* Loop resilience */
+    } catch (e: any) {
+      console.warn('[SyncWatcher] Loop iteration failed:', e.message);
     } finally {
       if (this.intervalId !== null) {
         this.intervalId = setTimeout(() => this.runLoop(), 2000);
@@ -102,7 +102,9 @@ export class SyncWatcher {
         this.lastStoreTime = Date.now();
         this.emitLog('Watcher', 'info', '💾 Auto-saving wallet sync progress');
       }
-    } catch (e) { /* Ignore */ }
+    } catch (e: any) {
+      console.warn('[SyncWatcher] Periodic store failed:', e.message);
+    }
   }
 
   private emitLog(source: string, level: 'info' | 'error', message: string) {
@@ -216,7 +218,7 @@ export class SyncWatcher {
           if (chunkCounter % 30 === 0) {
             this.getDaemonHeight().then(h => {
               if (h > targetHeight) targetHeight = h;
-            }).catch(() => {});
+            }).catch((e) => console.warn('[SyncWatcher] Daemon height refresh failed:', e.message));
           }
         } catch (e: any) {
           // refresh can timeout on slow nodes — just retry
@@ -234,7 +236,7 @@ export class SyncWatcher {
         });
         await this.checkBalance();
         // Save progress immediately
-        await (WalletManager as any).callRpc('store', {}).catch(() => {});
+        await (WalletManager as any).callRpc('store', {}).catch((e: any) => console.warn('[SyncWatcher] Post-sync store failed:', e.message));
         this.lastStoreTime = Date.now();
       }
     } catch (e: any) {
@@ -262,7 +264,9 @@ export class SyncWatcher {
           }
         });
       }
-    } catch (e) { /* Ignore */ }
+    } catch (e: any) {
+      console.warn('[SyncWatcher] Sync status check failed:', e.message);
+    }
   }
 
   private async checkBalance(): Promise<void> {
@@ -273,6 +277,8 @@ export class SyncWatcher {
         this.pushEvent({ type: 'BALANCE_CHANGED', payload: { balance: result.balance, unlocked: result.unlocked_balance } });
       }
       this.lastKnownBalance = result.balance;
-    } catch (e) { /* Ignore */ }
+    } catch (e: any) {
+      console.warn('[SyncWatcher] Balance check failed:', e.message);
+    }
   }
 }

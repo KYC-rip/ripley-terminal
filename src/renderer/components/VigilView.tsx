@@ -135,7 +135,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
 
   return (
     <div className={`
-      border rounded-lg overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
+      border rounded-md overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
       ${isDanger
         ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
         : 'bg-xmr-surface border-xmr-border'
@@ -227,7 +227,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
             </div>
 
             {/* Inline log stream */}
-            <div className="w-full max-w-xl bg-xmr-base border border-xmr-border/20 rounded-lg p-3 max-h-[200px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
+            <div className="w-full max-w-xl bg-xmr-base border border-xmr-border/20 rounded-md p-3 max-h-[200px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
               {logs.map((log) => (
                 <div key={log.id} className={`flex gap-2 ${log.type === 'error' ? 'text-xmr-error' : log.type === 'success' ? 'text-xmr-green' : 'text-xmr-dim'}`}>
                   <span className="text-xmr-dim/40 shrink-0">{log.time}</span>
@@ -342,7 +342,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
             </div>
 
             {/* Error logs */}
-            <div className="w-full max-w-xl bg-xmr-base border border-red-500/20 rounded-lg p-3 max-h-[150px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
+            <div className="w-full max-w-xl bg-xmr-base border border-red-500/20 rounded-md p-3 max-h-[150px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
               {logs.filter((l) => l.type === 'error').map((log) => (
                 <div key={log.id} className="text-xmr-error">
                   <span className="text-xmr-dim/40 mr-2">{log.time}</span>

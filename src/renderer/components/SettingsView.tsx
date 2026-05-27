@@ -321,7 +321,7 @@ export function SettingsView() {
                 onClick={() => setLocalSettings({ ...localSettings, routingMode: localSettings.routingMode === 'tor' ? 'clearnet' : 'tor' })}
                 className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.routingMode === 'tor' ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.routingMode === 'tor' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.routingMode === 'tor' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-dim'}`}></div>
               </button>
             </div>
 
@@ -338,7 +338,7 @@ export function SettingsView() {
                 onClick={() => setLocalSettings({ ...localSettings, network: localSettings.network === 'stagenet' ? 'mainnet' : 'stagenet' })}
                 className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.network === 'stagenet' ? 'bg-xmr-accent' : 'bg-xmr-base border border-xmr-border'}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.network === 'stagenet' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.network === 'stagenet' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-dim'}`}></div>
               </button>
             </div>
 
@@ -354,7 +354,7 @@ export function SettingsView() {
                 onClick={() => setLocalSettings({ ...localSettings, useSystemProxy: !localSettings.useSystemProxy })}
                 className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.useSystemProxy ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.useSystemProxy ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.useSystemProxy ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-dim'}`}></div>
               </button>
             </div>
 
@@ -471,7 +471,7 @@ export function SettingsView() {
                 onClick={() => setLocalSettings({ ...localSettings, show_scanlines: !localSettings.show_scanlines })}
                 className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.show_scanlines ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.show_scanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.show_scanlines ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-dim'}`}></div>
               </button>
             </div>
 

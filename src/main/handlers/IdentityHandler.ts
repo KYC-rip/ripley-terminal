@@ -84,7 +84,7 @@ export function registerIdentityHandlers(store: any) {
     try {
       // Always attempt to hard-close the wallet via RPC first — the wallet-rpc process
       // holds a file lock on .keys files, preventing deletion
-      await WalletManager.closeWallet().catch(() => { });
+      await WalletManager.closeWallet().catch((e) => console.warn('[IdentityHandler] Pre-purge close failed:', e.message));
 
       const keysFile = path.join(walletDir, `${id}.keys`);
       const cacheFile = path.join(walletDir, id); // wallet cache file (no extension)
