@@ -3,12 +3,13 @@ import { Copy, Edit2, Check, X, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
+import { SubaddressInfo } from '../../contexts/VaultContext';
 
 interface AddressListProps {
-  subaddresses: any[];
+  subaddresses: SubaddressInfo[];
   handleCopy: (text: string) => void;
   onUpdateLabel: (index: number, label: string) => void;
-  onRowClick: (sub: any) => void;
+  onRowClick: (sub: SubaddressInfo) => void;
   onVanishSubaddress: (index: number) => Promise<void>;
   onSendFrom: (subaddressIndex: number) => void;
   isSyncing: boolean;
@@ -82,7 +83,7 @@ export function AddressList({
             </tr>
           </thead>
           <tbody className="text-xs font-black divide-y divide-xmr-border/5">
-            {subaddresses.map((s: any) => {
+            {subaddresses.map((s) => {
               const hasBalance = parseFloat(s.balance) > 0;
               const isVanishing = vanishingIndex === s.index;
 

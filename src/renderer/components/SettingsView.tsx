@@ -534,7 +534,7 @@ export function SettingsView() {
                 {localSettings.skin_background && (
                   <button
                     onClick={() => setLocalSettings({ ...localSettings, skin_background: '' })}
-                    className="px-4 py-2 bg-red-950/20 border border-red-900/30 hover:bg-red-900/50 text-red-500 text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
+                    className="px-4 py-2 bg-xmr-error/5 border border-xmr-error/20 hover:bg-xmr-error/10 text-xmr-error text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
                   >
                     <Trash2 size={12} /> Clear
                   </button>
@@ -628,10 +628,10 @@ export function SettingsView() {
 
         {/* ☢️ Danger Zone */}
         <section className="space-y-4 pt-4">
-          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
-          <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
-            <div className="space-y-1"><span className="text-xs font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-xs text-red-500/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
-            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-red-600 text-red-500 text-xs font-black hover:bg-red-600 hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
+          <h3 className="text-xs font-black text-xmr-error flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
+          <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-xmr-error/5 border-xmr-error/20 flex items-center justify-between">
+            <div className="space-y-1"><span className="text-xs font-black text-xmr-error uppercase">Nuclear_Burn_ID</span><p className="text-xs text-xmr-error/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
+            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error/50 text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-xmr-base transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>
         </section>
       </div>

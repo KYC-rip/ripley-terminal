@@ -3,8 +3,13 @@ import { Book, PlusCircle, X } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
 
+export interface Contact {
+  name: string;
+  address: string;
+}
+
 interface AddressBookProps {
-  contacts: any[];
+  contacts: Contact[];
   onAddContact: (contact: { name: string; address: string }) => void;
   onRemoveContact: (index: number) => void;
   onDispatch: (address: string) => void;

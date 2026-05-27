@@ -412,7 +412,7 @@ function MainApp() {
         <div className="px-4 py-3 border-t border-xmr-border/20 bg-xmr-green/[0.02] space-y-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
           {/* Lock + Console row */}
           <div className="flex gap-1.5">
-            <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
+            <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-xmr-error/5 border border-xmr-error/20 text-xmr-error hover:bg-xmr-error hover:text-xmr-base transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
               <Lock size={12} className="group-hover:scale-110 transition-transform" /> LOCK
             </button>
             <button onClick={() => setShowConsole(!showConsole)} className={`px-2.5 py-2 border transition-all cursor-pointer rounded-sm ${showConsole ? 'border-xmr-green text-xmr-green bg-xmr-green/10' : 'border-xmr-border text-xmr-dim hover:border-xmr-green'}`}>

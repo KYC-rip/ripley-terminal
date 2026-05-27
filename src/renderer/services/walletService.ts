@@ -1,6 +1,17 @@
 import { MoneroAccount } from '../contexts/VaultContext';
 import { RpcClient } from './rpcClient';
 
+export interface WalletOutput {
+  amount: string;
+  keyImage: string;
+  isUnlocked: boolean;
+  frozen: boolean;
+  spent: boolean;
+  subaddressIndex: number;
+  timestamp: number;
+  txid: string;
+}
+
 export interface Transaction {
   id: string;
   amount: string;
@@ -245,7 +256,7 @@ export const WalletService = {
   },
 
 
-  async getOutputs(accountIndex: number) {
+  async getOutputs(accountIndex: number): Promise<WalletOutput[]> {
     try {
       // 🚀 Use incoming_transfers to retrieve all available outputs
       const res = await RpcClient.call('incoming_transfers', {
@@ -254,7 +265,7 @@ export const WalletService = {
         verbose: true
       });
 
-      return (res.transfers || []).map((o: any) => ({
+      return (res.transfers || []).map((o: any): WalletOutput => ({
         amount: RpcClient.formatXmr(o.amount),
         keyImage: o.key_image,
         isUnlocked: o.unlocked,
@@ -263,7 +274,7 @@ export const WalletService = {
         subaddressIndex: o.subaddr_index.minor,
         timestamp: o.timestamp ? o.timestamp * 1000 : Date.now(),
         txid: o.txid
-      })).sort((a: any, b: any) => b.timestamp - a.timestamp);
+      })).sort((a: WalletOutput, b: WalletOutput) => b.timestamp - a.timestamp);
 
     } catch (e: any) {
       console.error("RPC_METHOD_ERROR: incoming_transfers failed.", e.message);
