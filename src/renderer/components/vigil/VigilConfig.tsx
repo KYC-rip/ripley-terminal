@@ -302,7 +302,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
           onClick={() => setMode('EJECT')}
           className={`relative overflow-hidden group px-3 py-2.5 border rounded-sm transition-all duration-300 flex items-center gap-3
             ${!isSnipe
-              ? 'bg-red-500/10 border-red-500/50 text-red-500 ring-1 ring-red-500/50'
+              ? 'bg-xmr-error/10 border-xmr-error/50 text-xmr-error ring-1 ring-xmr-error/50'
               : 'bg-xmr-base border-xmr-border text-xmr-dim hover:border-xmr-dim/50 hover:text-current'
             }`}
         >
@@ -313,7 +313,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             <span className="block text-sm font-bold tracking-wider">EJECT</span>
             <span className="text-[9px] uppercase tracking-wider opacity-60">Auto-sell at target</span>
           </div>
-          {!isSnipe && <div className="absolute inset-0 bg-red-500/5 blur-xl" />}
+          {!isSnipe && <div className="absolute inset-0 bg-xmr-error/5 blur-xl" />}
         </button>
       </div>
 
@@ -358,12 +358,12 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                 value={data.triggerPrice}
                 onChange={(e: any) => setData({ ...data, triggerPrice: e.target.value })}
                 className={`w-full bg-xmr-base border rounded py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
-                  ${mainStatus === 'immediate' ? 'border-yellow-500 text-yellow-500' : 'border-xmr-border focus:border-xmr-ghost'}
+                  ${mainStatus === 'immediate' ? 'border-xmr-warning text-xmr-warning' : 'border-xmr-border focus:border-xmr-ghost'}
                 `}
               />
             </div>
             {mainStatus === 'immediate' && (
-              <div className="text-[9px] text-yellow-500 animate-pulse font-mono uppercase">!! IMMEDIATE EXECUTION</div>
+              <div className="text-[9px] text-xmr-warning animate-pulse font-mono uppercase">!! IMMEDIATE EXECUTION</div>
             )}
           </div>
 
@@ -371,7 +371,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
           {useStop && (
             <div className="flex-1 space-y-1 animate-in fade-in slide-in-from-right-2">
               <label className="text-[10px] text-xmr-dim font-mono uppercase tracking-wider flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <div className="w-1.5 h-1.5 rounded-full bg-xmr-error" />
                 {isSnipe ? 'STOP (BREAKOUT)' : 'STOP (LOSS)'}
               </label>
               <div className="relative">
@@ -382,12 +382,12 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                   value={data.stopPrice}
                   onChange={(e: any) => setData({ ...data, stopPrice: e.target.value })}
                   className={`w-full bg-xmr-base border rounded py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
-                    ${stopStatus === 'immediate' ? 'border-yellow-500 text-yellow-500' : 'border-xmr-border focus:border-red-500/50'}
+                    ${stopStatus === 'immediate' ? 'border-xmr-warning text-xmr-warning' : 'border-xmr-border focus:border-xmr-error/50'}
                   `}
                 />
               </div>
               {stopStatus === 'immediate' && (
-                <div className="text-[9px] text-yellow-500 animate-pulse font-mono uppercase">!! IMMEDIATE EXECUTION</div>
+                <div className="text-[9px] text-xmr-warning animate-pulse font-mono uppercase">!! IMMEDIATE EXECUTION</div>
               )}
             </div>
           )}
@@ -463,7 +463,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                 ) : isValid ? (
                   <><CheckCircle2 size={10} className="text-xmr-green" /> <span className="text-xmr-green font-bold">VALID</span></>
                 ) : (
-                  <><AlertCircle size={10} className="text-red-500" /> <span className="text-red-500 font-bold">INVALID</span></>
+                  <><AlertCircle size={10} className="text-xmr-error" /> <span className="text-xmr-error font-bold">INVALID</span></>
                 )}
               </div>
             )}
@@ -478,7 +478,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             value={data.targetAddress}
             onChange={(e: any) => setData({ ...data, targetAddress: e.target.value })}
             className={`w-full bg-xmr-base border rounded py-2 px-3 font-mono text-xs text-current focus:outline-none transition-colors placeholder:text-xmr-dim/30
-              ${data.targetAddress && !isValid && !isValidating ? 'border-red-500/50 focus:border-red-500' : 'border-xmr-border focus:border-xmr-ghost'}
+              ${data.targetAddress && !isValid && !isValidating ? 'border-xmr-error/50 focus:border-xmr-error' : 'border-xmr-border focus:border-xmr-ghost'}
             `}
           />
           {data.outputCurrency?.memo && (

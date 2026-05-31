@@ -91,7 +91,7 @@ function MainApp() {
         if (res.success && res.hasUpdate && res.latestVersion && res.releaseUrl) {
           setUpdateBanner({ show: true, version: res.latestVersion, url: res.releaseUrl });
         }
-      } catch (e) { }
+      } catch (e) { console.warn('[App] Update check failed:', e); }
     };
 
     // Delay check slightly so it doesn't interrupt the user's initial orientation

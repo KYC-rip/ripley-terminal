@@ -244,7 +244,7 @@ export function SettingsView() {
             </div>
 
             {updateResult.checked && (
-              <div className={`mt-4 p-4 border rounded-sm text-xs ${updateResult.error ? 'border-red-500/50 bg-red-500/10 text-red-400' : updateResult.hasUpdate ? 'border-xmr-accent/50 bg-xmr-accent/10 text-xmr-accent' : 'border-xmr-border bg-xmr-base text-xmr-dim'}`}>
+              <div className={`mt-4 p-4 border rounded-sm text-xs ${updateResult.error ? 'border-xmr-error/50 bg-xmr-error/10 text-xmr-error' : updateResult.hasUpdate ? 'border-xmr-accent/50 bg-xmr-accent/10 text-xmr-accent' : 'border-xmr-border bg-xmr-base text-xmr-dim'}`}>
                 {updateResult.error ? (
                   <div className="flex items-center gap-2"><ShieldAlert size={14} /> Update check failed: {updateResult.error}</div>
                 ) : updateResult.hasUpdate ? (
@@ -305,8 +305,8 @@ export function SettingsView() {
             <div className={`flex items-center justify-between p-4 border rounded-sm transition-all ${localSettings.network === 'stagenet' ? 'bg-xmr-accent/10 border-xmr-accent/40' : 'bg-xmr-green/5 border-xmr-border opacity-60'}`}>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <RefreshCw size={14} className={localSettings.network === 'stagenet' ? "text-orange-500 animate-spin" : "text-xmr-dim"} />
-                  <span className={`text-xs font-black uppercase ${localSettings.network === 'stagenet' ? 'text-orange-500' : ''}`}>Stagenet_Protocol</span>
+                  <RefreshCw size={14} className={localSettings.network === 'stagenet' ? "text-xmr-accent animate-spin" : "text-xmr-dim"} />
+                  <span className={`text-xs font-black uppercase ${localSettings.network === 'stagenet' ? 'text-xmr-accent' : ''}`}>Stagenet_Protocol</span>
                 </div>
                 <p className="text-xs text-xmr-dim uppercase font-black">Sandbox_Test_Network</p>
               </div>
@@ -414,10 +414,10 @@ export function SettingsView() {
                   <span>Encrypted_Vault_Storage</span>
                   <button onClick={() => appInfo?.walletsPath && handleReveal(appInfo.walletsPath)} className="flex items-center gap-1 hover:text-xmr-accent transition-colors cursor-pointer"><ExternalLink size={10} /> Reveal</button>
                 </div>
-                <div className="w-full bg-xmr-base border border-red-900/30 p-2 text-[11px] text-xmr-green opacity-70 font-mono select-all overflow-x-auto whitespace-nowrap custom-scrollbar">
+                <div className="w-full bg-xmr-base border border-xmr-error/30 p-2 text-[11px] text-xmr-green opacity-70 font-mono select-all overflow-x-auto whitespace-nowrap custom-scrollbar">
                   {appInfo?.walletsPath || 'Loading...'}
                 </div>
-                <p className="text-xs text-red-500/60 uppercase font-black flex items-center gap-1"><ShieldAlert size={8} /> Never share or modify these files manually. Backup regularly.</p>
+                <p className="text-xs text-xmr-error/60 uppercase font-black flex items-center gap-1"><ShieldAlert size={8} /> Never share or modify these files manually. Backup regularly.</p>
               </div>
             </div>
           </Card>
@@ -496,7 +496,7 @@ export function SettingsView() {
                 {localSettings.skin_background && (
                   <button
                     onClick={() => setLocalSettings({ ...localSettings, skin_background: '' })}
-                    className="px-4 py-2 bg-red-950/20 border border-red-900/30 hover:bg-red-900/50 text-red-500 text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
+                    className="px-4 py-2 bg-xmr-error/10 border border-xmr-error/30 hover:bg-xmr-error/30 text-xmr-error text-xs font-black uppercase transition-colors cursor-pointer flex items-center gap-2"
                   >
                     <Trash2 size={12} /> Clear
                   </button>
@@ -590,10 +590,10 @@ export function SettingsView() {
 
         {/* ☢️ Danger Zone */}
         <section className="space-y-4 pt-4">
-          <h3 className="text-xs font-black text-red-500 flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
-          <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-red-950/10 border-red-900/30 flex items-center justify-between">
-            <div className="space-y-1"><span className="text-xs font-black text-red-500 uppercase">Nuclear_Burn_ID</span><p className="text-xs text-red-500/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
-            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-red-600 text-red-500 text-xs font-black hover:bg-red-600 hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
+          <h3 className="text-xs font-black text-xmr-error flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
+          <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-xmr-error/5 border-xmr-error/30 flex items-center justify-between">
+            <div className="space-y-1"><span className="text-xs font-black text-xmr-error uppercase">Nuclear_Burn_ID</span><p className="text-xs text-xmr-error/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
+            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>
         </section>
       </div>

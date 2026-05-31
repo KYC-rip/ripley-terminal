@@ -119,7 +119,7 @@ export function AuthForm({
         </div>
       )}
 
-      {error && <div className="p-3 bg-red-900/20 border border-red-600/50 text-red-500 text-xs font-black uppercase flex items-center gap-2 animate-shake"><Skull size={14} /> {error}</div>}
+      {error && <div className="p-3 bg-xmr-error/10 border border-xmr-error/50 text-xmr-error text-xs font-black uppercase flex items-center gap-2 animate-shake"><Skull size={14} /> {error}</div>}
 
       {isProcessing && logs.length > 0 && (
         <div className="p-3 bg-xmr-green/5 border border-xmr-green/10 rounded-sm space-y-1 overflow-hidden">

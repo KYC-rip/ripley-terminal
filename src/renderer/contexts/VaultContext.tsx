@@ -506,7 +506,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const address = await WalletService.createSubaddress(label || '', accountIndex || 0);
       await refresh();
       return address;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.warn('[Vault] Subaddress creation failed:', e); }
   }, [refresh]);
 
   const purgeIdentity = useCallback(async (id: string) => {
@@ -567,7 +567,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
         setActiveId(nextActiveId);
         setHasVaultFile(validIds.length > 0 && !!nextActiveId);
-      } catch (err) { } finally {
+      } catch (err) { console.warn('[Vault] Failed to load identities:', err); } finally {
         setIsAppLoading(false);
       }
     };

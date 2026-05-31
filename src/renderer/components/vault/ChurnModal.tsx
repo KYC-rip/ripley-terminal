@@ -66,7 +66,7 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
             </div>
           </div>
 
-          {error && <div className="text-red-500 text-xs font-mono">{error}</div>}
+          {error && <div className="text-xmr-error text-xs font-mono">{error}</div>}
 
           <button
             onClick={handleSubmit}

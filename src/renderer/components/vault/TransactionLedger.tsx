@@ -279,13 +279,13 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                 </div>
 
                 {verifyResult && (
-                  <div className={`p-3 border rounded-sm animate-in zoom-in-95 duration-200 ${verifyResult.good === false ? 'bg-red-500/10 border-red-500/30' : 'bg-xmr-green/10 border-xmr-green/30'}`}>
+                  <div className={`p-3 border rounded-sm animate-in zoom-in-95 duration-200 ${verifyResult.good === false ? 'bg-xmr-error/10 border-xmr-error/30' : 'bg-xmr-green/10 border-xmr-green/30'}`}>
                     <div className="flex items-start gap-3">
-                      <div className={`mt-0.5 p-1 rounded-full ${verifyResult.good === false ? 'bg-red-500/20 text-red-500' : 'bg-xmr-green/20 text-xmr-green'}`}>
+                      <div className={`mt-0.5 p-1 rounded-full ${verifyResult.good === false ? 'bg-xmr-error/20 text-xmr-error' : 'bg-xmr-green/20 text-xmr-green'}`}>
                         {verifyResult.good === false ? <ShieldAlert size={16} /> : <CheckCircle size={16} />}
                       </div>
                       <div className="flex-grow space-y-1">
-                        <div className={`text-[11px] font-black uppercase tracking-wider ${verifyResult.good === false ? 'text-red-500' : 'text-xmr-green'}`}>
+                        <div className={`text-[11px] font-black uppercase tracking-wider ${verifyResult.good === false ? 'text-xmr-error' : 'text-xmr-green'}`}>
                           {verifyResult.good === false ? 'Verification Failed' : 'Payment Verified'}
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px]">
@@ -464,8 +464,8 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               )}
                               {tx.doubleSpendSeen && (
                                 <div className="space-y-1">
-                                  <label className="text-xs text-red-500 uppercase font-black tracking-widest block">DoubleSpend_Alert</label>
-                                  <span className="text-xs font-black text-red-500 animate-pulse">WARNING: CONFLICT DETECTED</span>
+                                  <label className="text-xs text-xmr-error uppercase font-black tracking-widest block">DoubleSpend_Alert</label>
+                                  <span className="text-xs font-black text-xmr-error animate-pulse">WARNING: CONFLICT DETECTED</span>
                                 </div>
                               )}
                             </div>

@@ -84,7 +84,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
             />
           </div>
 
-          {error && <div className="text-red-500 text-xs font-mono">{error}</div>}
+          {error && <div className="text-xmr-error text-xs font-mono">{error}</div>}
         </div>
 
         {/* Sticky footer button */}

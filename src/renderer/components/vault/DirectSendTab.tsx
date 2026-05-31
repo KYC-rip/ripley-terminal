@@ -172,7 +172,7 @@ export function DirectSendTab({
           setFeeEstimates(mapped);
         }
       } catch (e) {
-        // silent fail
+        console.warn('[DirectSend] Fee estimate failed:', e);
       } finally {
         isFetchingFees.current = false;
         timer = setTimeout(fetchFees, 10000);
@@ -339,7 +339,7 @@ export function DirectSendTab({
                 <Wallet size={10} /> Destination
                 {isResolvingBio && <Loader2 size={10} className="animate-spin text-xmr-accent ml-1" />}
               </label>
-              {isBanned && <span className="text-xs text-red-500 animate-pulse uppercase">Intercepted</span>}
+              {isBanned && <span className="text-xs text-xmr-error animate-pulse uppercase">Intercepted</span>}
             </div>
             <input
               type="text"
@@ -347,7 +347,7 @@ export function DirectSendTab({
               onChange={(e) => setDestAddr(e.target.value)}
               placeholder="4... / 8... / @xbtoshi"
               className={`w-full bg-xmr-base border p-3 text-xs text-xmr-green focus:border-xmr-accent outline-none transition-colors ${
-                isBanned ? 'border-red-600' : 'border-xmr-border'
+                isBanned ? 'border-xmr-error' : 'border-xmr-border'
               }`}
             />
 
@@ -467,7 +467,7 @@ export function DirectSendTab({
             </div>
           )}
           {parsed.errors.length > 0 && (
-            <div className="text-xs text-red-500 space-y-0.5">
+            <div className="text-xs text-xmr-error space-y-0.5">
               {parsed.errors.map((e, i) => (
                 <div key={i}>{e}</div>
               ))}
@@ -597,7 +597,7 @@ export function DirectSendTab({
         onClick={handleExecute}
         className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer ${
           isBanned && sendMode === 'single'
-            ? 'bg-red-950 text-red-500 cursor-not-allowed'
+            ? 'bg-xmr-error/10 text-xmr-error cursor-not-allowed'
             : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base disabled:opacity-50 disabled:cursor-not-allowed'
         }`}
       >

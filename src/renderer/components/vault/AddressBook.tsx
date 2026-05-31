@@ -31,7 +31,7 @@ export function AddressBook({ contacts, onAddContact, onRemoveContact, onDispatc
                 <div key={i} className="p-4 border border-xmr-border/20 bg-xmr-green/[0.02] flex flex-col gap-3 relative group">
                   <button 
                     onClick={() => onRemoveContact(i)} 
-                    className="absolute top-2 right-2 text-red-900 opacity-0 group-hover:opacity-100 transition-all hover:text-red-500 cursor-pointer"
+                    className="absolute top-2 right-2 text-xmr-error/40 opacity-0 group-hover:opacity-100 transition-all hover:text-xmr-error cursor-pointer"
                   >
                     <X size={12}/>
                   </button>

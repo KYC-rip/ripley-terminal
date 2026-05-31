@@ -204,7 +204,7 @@ export default function SpreadChart() {
           ) : (
             <div className="flex flex-col">
               <div className="text-xs text-xmr-green font-black tracking-widest mb-1 flex items-center gap-2 uppercase">
-                <div className={`w-1.5 h-1.5 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-xmr-green animate-pulse'}`}></div>
+                <div className={`w-1.5 h-1.5 rounded-full ${isLoading ? 'bg-xmr-warning' : 'bg-xmr-green animate-pulse'}`}></div>
                 INTEL_FEED :: {isLoading ? 'SYNCING...' : 'LIVE'}
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-black uppercase">
