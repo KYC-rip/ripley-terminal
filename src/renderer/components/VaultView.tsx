@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Scissors, MoreVertical, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { AddressBook } from './vault/AddressBook';
+import { AddressBook, Contact } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';
 import { CoinControl } from './vault/CoinControl';
 import { TransactionLedger } from './vault/TransactionLedger';
 import { VaultModals } from './vault/VaultModals';
 import { DispatchModal } from './vault/DispatchModal';
 import { ReceiveModal } from './vault/ReceiveModal';
-import { type VaultContextType } from '../contexts/VaultContext';
+import { type VaultContextType, type SubaddressInfo } from '../contexts/VaultContext';
 import { WalletService } from '../services/walletService';
 import { useFiatValue } from '../hooks/useFiatValue';
 
@@ -29,9 +29,9 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   const [tab, setTab] = useState<'ledger' | 'addresses' | 'coins' | 'contacts'>('ledger');
   const [modals, setModals] = useState({ seed: false, receive: false, send: false, splinter: false, churn: false });
   const [mnemonic, setMnemonic] = useState('');
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [dispatchAddr, setDispatchAddr] = useState('');
-  const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
+  const [selectedSubaddress, setSelectedSubaddress] = useState<SubaddressInfo | null>(null);
   const [dispatchSubIndex, setDispatchSubIndex] = useState<number | undefined>(undefined);
   const [showCardMenu, setShowCardMenu] = useState(false);
   const [showAccountList, setShowAccountList] = useState(false);
@@ -86,7 +86,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     return () => clearTimeout(t);
   }, [selectedAccountIndex]);
 
-  const saveContacts = async (updated: any[]) => {
+  const saveContacts = async (updated: Contact[]) => {
     setContacts(updated);
     const currentConfig = await window.api.getConfig();
     await window.api.saveConfigAndReload({

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { WalletService, Transaction } from '../services/walletService';
+import { WalletService, Transaction, WalletOutput } from '../services/walletService';
 
 export interface Identity { id: string; name: string; created: number; }
 export interface SubaddressInfo { index: number; address: string; label: string; balance: string; unlockedBalance: string; isUsed: boolean; }
@@ -35,7 +35,7 @@ export interface VaultContextType {
   identities: Identity[];
   activeId: string;
   isStagenet: boolean;
-  outputs: any[];
+  outputs: WalletOutput[];
   setSelectedAccountIndex: (index: number) => void;
   createAccount: (label: string) => Promise<void>;
   unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
@@ -68,7 +68,7 @@ export interface VaultContextType {
     name?: string;
     returnUrl?: string;
   } | null;
-  setDeepLinkData: (data: any) => void;
+  setDeepLinkData: (data: VaultContextType['deepLinkData']) => void;
   clearDeepLinkData: () => void;
 
   // 🛡️ XMR402 Challenge Support
@@ -106,9 +106,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [hasVaultFile, setHasVaultFile] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isStagenet, setIsStagenet] = useState(false);
-  const [outputs, setOutputs] = useState<any[]>([]);
+  const [outputs, setOutputs] = useState<WalletOutput[]>([]);
   const [requestedAction, setRequestedAction] = useState<string | null>(null);
-  const [deepLinkData, setDeepLinkData] = useState<any>(null);
+  const [deepLinkData, setDeepLinkData] = useState<VaultContextType['deepLinkData']>(null);
   const [monero402Challenge, setMonero402Challenge] = useState<any>(null);
   const lastHeightRef = useRef<number>(0);
   const daemonHeightRef = useRef<number>(0);
@@ -596,7 +596,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
         setActiveId(nextActiveId);
         setHasVaultFile(validIds.length > 0 && !!nextActiveId);
-      } catch (err) { } finally {
+      } catch (err) { console.warn('Identity boot failed:', err); } finally {
         setIsAppLoading(false);
       }
     };

@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Activity, BarChart3, Shield, Zap, Globe, Lock, Ghost, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Activity, BarChart3, Globe, Lock, Ghost, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { Card } from './Card';
 

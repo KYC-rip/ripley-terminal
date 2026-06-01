@@ -3,9 +3,10 @@ import { Coins, Shield, Lock as LockIcon, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
 import { useVault } from '../../contexts/VaultContext';
+import { WalletOutput } from '../../services/walletService';
 
 interface CoinControlProps {
-  outputs: any[];
+  outputs: WalletOutput[];
   onSendFromCoin?: (keyImage: string, amount: string) => void;
 }
 
@@ -42,7 +43,7 @@ export function CoinControl({ outputs, onSendFromCoin }: CoinControlProps) {
             </tr>
           </thead>
           <tbody className="text-xs font-black divide-y divide-xmr-border/5">
-            {outputs.map((o: any, i: number) => {
+            {outputs.map((o, i) => {
               const isProcessing = vanishingId === o.keyImage;
 
               return (

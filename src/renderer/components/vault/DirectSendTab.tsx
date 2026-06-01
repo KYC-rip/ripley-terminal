@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, Info, ExternalLink } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { useStats } from '../../hooks/useStats';
-import { WalletService } from '../../services/walletService';
+import { WalletService, WalletOutput } from '../../services/walletService';
 
 interface ParsedDest {
   address: string;
@@ -37,7 +37,7 @@ function parseMultiSend(text: string): { destinations: ParsedDest[]; errors: str
 interface DirectSendTabProps {
   initialAddress: string;
   sourceSubaddressIndex?: number;
-  outputs: any[];
+  outputs: WalletOutput[];
   onRequirePassword: (action: () => Promise<void>) => void;
   onClose: () => void;
 }
@@ -69,7 +69,7 @@ export function DirectSendTab({
   // --- Coin Control ---
   const [showCoinControl, setShowCoinControl] = useState(sourceSubaddressIndex !== undefined);
   const [selectedOutputs, setSelectedOutputs] = useState<Set<string>>(new Set());
-  const availableOutputs = outputs.filter((o: any) => o.isUnlocked);
+  const availableOutputs = outputs.filter((o) => o.isUnlocked);
 
   // --- xmr.bio Resolver ---
   const [bioProfile, setBioProfile] = useState<any>(null);
@@ -183,8 +183,8 @@ export function DirectSendTab({
   }, [getFeeEstimates]);
 
   const selectedTotal = availableOutputs
-    .filter((o: any) => selectedOutputs.has(o.keyImage))
-    .reduce((sum: number, o: any) => sum + parseFloat(o.amount || '0'), 0);
+    .filter((o) => selectedOutputs.has(o.keyImage))
+    .reduce((sum, o) => sum + parseFloat(o.amount || '0'), 0);
 
   const handleExecute = () => {
     if (sendMode === 'single') {
