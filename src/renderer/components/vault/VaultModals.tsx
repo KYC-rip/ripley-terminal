@@ -50,10 +50,10 @@ export function VaultModals({
       {/* SEED MODAL */}
       {showSeed && (
         <div className="fixed top-0 bottom-0 right-0 left-[14rem] z-[100] flex items-center justify-center p-6 bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-lg bg-white text-black p-8 border-4 border-red-600 relative rounded-lg">
+          <div className="w-full max-w-lg bg-white text-black p-8 border-4 border-xmr-error relative rounded-lg">
             <button onClick={onCloseSeed} className="absolute top-4 right-4 cursor-pointer"><X size={24} /></button>
             <div className="space-y-6 font-black">
-              <div className="flex items-center gap-3 text-red-600 animate-pulse font-black"><ShieldAlert size={32} /><h3 className="text-2xl font-black uppercase tracking-tighter">Backup_Protocol</h3></div>
+              <div className="flex items-center gap-3 text-xmr-error animate-pulse font-black"><ShieldAlert size={32} /><h3 className="text-2xl font-black uppercase tracking-tighter">Backup_Protocol</h3></div>
               <div className="p-4 bg-black/5 border border-black/10 rounded-sm font-black text-sm leading-loose select-text text-black">{mnemonic}</div>
               <button onClick={onCloseSeed} className="w-full py-4 bg-black text-white font-black uppercase tracking-[0.2em] font-mono cursor-pointer">I_HAVE_SECURED_THE_KEY</button>
             </div>

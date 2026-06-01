@@ -137,7 +137,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     <div className={`
       border rounded-lg overflow-hidden backdrop-blur-md flex flex-col relative shadow-xl transition-all duration-500
       ${isDanger
-        ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
+        ? 'bg-xmr-error/20 border-xmr-error/50 shadow-[0_0_50px_rgba(239,68,68,0.3)]'
         : 'bg-xmr-surface border-xmr-border'
       }
     `}>
@@ -145,19 +145,19 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
       {/* ─── Progress Bar ─── */}
       <div className="h-0.5 w-full bg-xmr-ghost/10">
         <div className={`h-full transition-all duration-1000 ease-in-out
-          ${isDanger ? 'bg-red-500 animate-pulse' : 'bg-xmr-ghost shadow-[0_0_10px_var(--color-xmr-ghost)]'}
+          ${isDanger ? 'bg-xmr-error animate-pulse' : 'bg-xmr-ghost shadow-[0_0_10px_var(--color-xmr-ghost)]'}
           ${progressWidth}
         `} />
       </div>
 
       {/* ─── Header ─── */}
       <div className={`px-4 py-2.5 border-b flex justify-between items-center transition-colors
-        ${isDanger ? 'bg-red-500/10 border-red-500/30' : 'bg-xmr-base/30 border-xmr-border'}
+        ${isDanger ? 'bg-xmr-error/10 border-xmr-error/30' : 'bg-xmr-base/30 border-xmr-border'}
       `}>
         <div className="flex items-center gap-2">
           <div className={`p-1.5 rounded border transition-colors
             ${isDanger
-              ? 'bg-red-500/20 border-red-500 text-red-500'
+              ? 'bg-xmr-error/20 border-xmr-error text-xmr-error'
               : 'bg-xmr-ghost/10 border-xmr-ghost/20 text-xmr-ghost'
             }
           `}>
@@ -173,13 +173,13 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
 
         <div className="flex items-center gap-2">
           {vigilState !== 'IDLE' && (
-            <Radio size={12} className={`${isDanger ? 'text-red-500 animate-ping' : 'text-xmr-green animate-pulse'}`} />
+            <Radio size={12} className={`${isDanger ? 'text-xmr-error animate-ping' : 'text-xmr-green animate-pulse'}`} />
           )}
           <span className="text-[10px] font-mono text-xmr-dim">
-            STATUS: <span className={`font-bold ${isDanger ? 'text-red-500' : 'text-current'}`}>{vigilState}</span>
+            STATUS: <span className={`font-bold ${isDanger ? 'text-xmr-error' : 'text-current'}`}>{vigilState}</span>
           </span>
           {wsConnected !== undefined && (
-            <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-xmr-green' : 'bg-red-500'}`}
+            <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-xmr-green' : 'bg-xmr-error'}`}
               title={wsConnected ? 'WebSocket Connected' : 'WebSocket Disconnected'}
             />
           )}
@@ -221,7 +221,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
         {/* EXECUTING: Spinner with logs */}
         {vigilState === 'EXECUTING' && (
           <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6 animate-in fade-in">
-            <Loader2 size={48} className="text-red-500 animate-spin" />
+            <Loader2 size={48} className="text-xmr-error animate-spin" />
             <div className="text-xs font-mono text-current animate-pulse uppercase tracking-widest">
               EXECUTING TRADE...
             </div>
@@ -331,9 +331,9 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
         {/* ERROR: Error state */}
         {vigilState === 'ERROR' && (
           <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6 animate-in fade-in">
-            <AlertTriangle size={48} className="text-red-500" />
+            <AlertTriangle size={48} className="text-xmr-error" />
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-black uppercase tracking-widest text-red-500 font-mono">
+              <h3 className="text-lg font-black uppercase tracking-widest text-xmr-error font-mono">
                 VIGIL ERROR
               </h3>
               <p className="text-[10px] text-xmr-dim uppercase tracking-[0.2em]">
@@ -342,7 +342,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
             </div>
 
             {/* Error logs */}
-            <div className="w-full max-w-xl bg-xmr-base border border-red-500/20 rounded-lg p-3 max-h-[150px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
+            <div className="w-full max-w-xl bg-xmr-base border border-xmr-error/20 rounded-lg p-3 max-h-[150px] overflow-y-auto font-mono text-[10px] space-y-0.5 custom-scrollbar">
               {logs.filter((l) => l.type === 'error').map((log) => (
                 <div key={log.id} className="text-xmr-error">
                   <span className="text-xmr-dim/40 mr-2">{log.time}</span>

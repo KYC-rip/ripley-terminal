@@ -123,7 +123,7 @@ export function HomeView({ setView, stats, loading }: HomeViewProps) {
          </button>
 
          <Card topGradientAccentColor="xmr-dim" className="flex flex-col justify-center relative overflow-hidden">
-            <div className="flex items-center gap-3 text-red-500 animate-pulse">
+            <div className="flex items-center gap-3 text-xmr-error animate-pulse">
                <AlertTriangle size={20} />
                <span className="text-xs font-black uppercase tracking-tighter">Sentinel_Active</span>
             </div>

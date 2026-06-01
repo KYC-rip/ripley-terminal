@@ -469,7 +469,8 @@ export const fetchBridgeEstimate = async (from: string, to: string, amount: numb
       try {
         const errData = await res.json();
         if (errData.error) errMsg = errData.error;
-      } catch {
+      } catch (e) {
+        console.warn('[Swap] Error body parse failed:', e);
         errMsg = await res.text() || res.statusText;
       }
       throw new Error(errMsg.split('error":')?.[1]?.replaceAll(/["\\}]/g, '') || errMsg);
@@ -633,7 +634,8 @@ export async function fetchBridgeStatusV2(id: string, engine?: string): Promise<
     try {
       const trade2 = await apiClient<BridgeTradeV2>(`/v2/exchange/status/${secondId}${params}`);
       return [trade1, trade2];
-    } catch {
+    } catch (e) {
+      console.warn('[Swap] Second leg status fetch failed:', e);
       return [trade1];
     }
   }

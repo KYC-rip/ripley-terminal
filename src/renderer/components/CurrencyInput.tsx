@@ -164,7 +164,7 @@ export function CurrencyInput({
           <h3 className="font-bold text-xmr-green tracking-[0.2em] text-sm flex items-center gap-2">
             <Search size={14} /> SELECT_ASSET
           </h3>
-          <button onClick={() => setIsModalOpen(false)} className="text-xmr-dim hover:text-red-500 transition-colors">
+          <button onClick={() => setIsModalOpen(false)} className="text-xmr-dim hover:text-xmr-error transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -251,7 +251,7 @@ export function CurrencyInput({
       <div className={`
         relative flex items-center bg-xmr-surface border rounded-sm transition-all duration-300 group
         ${error
-          ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+          ? 'border-xmr-error/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
           : 'border-xmr-border hover:border-xmr-green/50 focus-within:border-xmr-green focus-within:shadow-[0_0_20px_rgba(0,255,65,0.05)]'
         }
       `}>
@@ -314,7 +314,7 @@ export function CurrencyInput({
       </div>
 
       {error && (
-        <div className="text-red-500 text-xs mt-2 pl-1 font-bold animate-pulse flex items-center gap-1">
+        <div className="text-xmr-error text-xs mt-2 pl-1 font-bold animate-pulse flex items-center gap-1">
           !!! {error}
         </div>
       )}

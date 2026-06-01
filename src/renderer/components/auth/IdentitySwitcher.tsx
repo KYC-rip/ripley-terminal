@@ -81,7 +81,7 @@ export function IdentitySwitcher({ identities, activeId, onSwitchIdentity, onSta
                       onPurge(id.id);
                     }
                   }}
-                  className="px-2 border border-red-900/20 text-red-900/40 hover:border-red-600 hover:text-red-600 hover:bg-red-600/5 transition-all cursor-pointer"
+                  className="px-2 border border-xmr-error/20 text-xmr-error/40 hover:border-xmr-error hover:text-xmr-error hover:bg-xmr-error/5 transition-all cursor-pointer"
                 >
                   <Trash2 size={12} />
                 </button>

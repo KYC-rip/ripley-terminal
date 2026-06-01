@@ -139,7 +139,8 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         const prefix = isGhost ? 'Ghost' : 'Swap';
         const addr = await getOrCreateSubaddress(prefix, subaddresses, createSubaddress);
         setDestAddress(addr || localXmrAddress);
-      } catch {
+      } catch (e) {
+        console.warn('[Exchange] Subaddress generation failed, using primary:', e);
         setDestAddress(localXmrAddress);
       } finally {
         generatingSubRef.current = false;
@@ -207,7 +208,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             if (s === 'FINISHED') setStep('completed');
           }
         }
-      } catch { /* retry */ }
+      } catch (e) { console.warn('[Exchange] Poll failed, retrying:', e); }
     };
 
     poll();
@@ -237,7 +238,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             setStep('completed');
           }
         }
-      } catch { /* retry */ }
+      } catch (e) { console.warn('[Exchange] Poll failed, retrying:', e); }
     };
 
     poll();
@@ -450,10 +451,10 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {isPrivacy && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-sm">NO-KYC</span>}
+                    {isPrivacy && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-ghost/10 text-xmr-ghost border border-xmr-ghost/20 rounded-sm">NO-KYC</span>}
                     {route.bridgeBadge && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-ghost/10 text-xmr-ghost border border-xmr-ghost/20 rounded-sm">{route.bridgeBadge}</span>}
-                    {!isGhost && !route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-sm">FLOAT</span>}
-                    {!isGhost && route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-sm">FIXED</span>}
+                    {!isGhost && !route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-warning/10 text-xmr-warning border border-xmr-warning/20 rounded-sm">FLOAT</span>}
+                    {!isGhost && route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-green/10 text-xmr-green border border-xmr-green/20 rounded-sm">FIXED</span>}
                     {i === 0 && <span className="text-[7px] font-black uppercase px-1 py-0.5 bg-xmr-green/10 text-xmr-green border border-xmr-green/20 rounded-sm">{sortBy === 'rate' ? 'TOP' : sortBy === 'speed' ? 'FAST' : 'BEST'}</span>}
                   </div>
                 </div>
@@ -534,7 +535,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         {logs.length === 0 ? (
           <div className="text-xmr-dim/30 text-center py-2 uppercase text-[9px]">Initializing...</div>
         ) : logs.map(log => (
-          <div key={log.id} className={`flex gap-2 ${log.type === 'error' ? 'text-xmr-error' : log.type === 'success' ? 'text-xmr-green' : log.type === 'warn' ? 'text-yellow-500' : 'text-xmr-dim'}`}>
+          <div key={log.id} className={`flex gap-2 ${log.type === 'error' ? 'text-xmr-error' : log.type === 'success' ? 'text-xmr-green' : log.type === 'warn' ? 'text-xmr-warning' : 'text-xmr-dim'}`}>
             <span className="text-xmr-dim/40 shrink-0">{log.time}</span>
             <span className="break-all">{log.text}</span>
           </div>
