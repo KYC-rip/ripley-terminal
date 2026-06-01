@@ -242,7 +242,12 @@ export function createTrade(params: CreateTradeParams): Promise<ExchangeResponse
       address_to: params.destinationAddress, fixed_rate: params.fixed || false,
       address_memo: params.memo, to_currency_memo: !!params.memo,
       provider: params.provider, isPayment: params.isPayment || false,
-      source: params.source || 'swap',
+      // Namespace the source with `rt:` (ripley-terminal) so wallet-originated
+      // trades are distinguishable from the website, which uses the bare
+      // 'swap'/'ghost'/'pay' values. The backend stores this verbatim; its
+      // functional source-branches (ghost bridge legs, pay, telegram) strip the
+      // prefix via baseSource(), so behavior is unchanged.
+      source: `rt:${params.source || 'swap'}`,
       engine: params.engine,
     }
   }).then(normalizeExchangeResponse);
