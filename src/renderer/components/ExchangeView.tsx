@@ -451,10 +451,10 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {isPrivacy && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-sm">NO-KYC</span>}
+                    {isPrivacy && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-ghost/10 text-xmr-ghost border border-xmr-ghost/20 rounded-sm">NO-KYC</span>}
                     {route.bridgeBadge && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-ghost/10 text-xmr-ghost border border-xmr-ghost/20 rounded-sm">{route.bridgeBadge}</span>}
                     {!isGhost && !route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-warning/10 text-xmr-warning border border-xmr-warning/20 rounded-sm">FLOAT</span>}
-                    {!isGhost && route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-sm">FIXED</span>}
+                    {!isGhost && route.fixed && <span className="text-[7px] font-bold uppercase px-1 py-0.5 bg-xmr-green/10 text-xmr-green border border-xmr-green/20 rounded-sm">FIXED</span>}
                     {i === 0 && <span className="text-[7px] font-black uppercase px-1 py-0.5 bg-xmr-green/10 text-xmr-green border border-xmr-green/20 rounded-sm">{sortBy === 'rate' ? 'TOP' : sortBy === 'speed' ? 'FAST' : 'BEST'}</span>}
                   </div>
                 </div>

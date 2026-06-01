@@ -291,11 +291,11 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                         <div className="grid grid-cols-2 gap-2 text-[10px]">
                           <div className="flex flex-col">
                             <span className="text-xmr-dim font-bold uppercase text-[9px]">Amount_Received</span>
-                            <span className="text-white font-mono">{verifyResult.received} XMR</span>
+                            <span className="text-xmr-green font-mono">{verifyResult.received} XMR</span>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-xmr-dim font-bold uppercase text-[9px]">Confirmations</span>
-                            <span className="text-white font-mono">{verifyResult.confirmations}</span>
+                            <span className="text-xmr-green font-mono">{verifyResult.confirmations}</span>
                           </div>
                         </div>
                         {verifyResult.inPool && (
@@ -358,7 +358,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded text-xmr-accent font-black tracking-wider">Ghost</span>
                             )}
                             {xmr402Info && (
-                              <span className="text-[7px] px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-blue-500 font-black tracking-wider">XMR402</span>
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-warning/10 border border-xmr-warning/20 rounded text-xmr-warning font-black tracking-wider">XMR402</span>
                             )}
                           </div>
                           <div className="text-[9px] text-xmr-dim/40 mt-0.5 truncate">
@@ -386,10 +386,10 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                         <div className="px-4 py-4 bg-xmr-green/5 border-t border-b border-xmr-green/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                           {/* XMR402 Panel */}
                           {xmr402Info && (
-                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-sm flex justify-between items-center">
+                            <div className="p-3 bg-xmr-warning/10 border border-xmr-warning/20 rounded-sm flex justify-between items-center">
                               <div>
-                                <div className="text-[9px] text-blue-500 uppercase font-black tracking-widest">XMR402 Protocol Executed</div>
-                                <div className="text-xs text-white font-mono break-all opacity-80 mt-1">Nonce: {xmr402Info.nonce}</div>
+                                <div className="text-[9px] text-xmr-warning uppercase font-black tracking-widest">XMR402 Protocol Executed</div>
+                                <div className="text-xs text-xmr-green font-mono break-all opacity-80 mt-1">Nonce: {xmr402Info.nonce}</div>
                               </div>
                               {xmr402Info.returnUrl && (
                                 <button
@@ -400,7 +400,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                                     if (xmr402Info.proof) callbackUrl.searchParams.set('xmr402_proof', xmr402Info.proof);
                                     (window as any).api.openExternal(callbackUrl.toString());
                                   }}
-                                  className="shrink-0 ml-4 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-sm transition-colors cursor-pointer flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                                  className="shrink-0 ml-4 px-3 py-1.5 bg-xmr-warning hover:opacity-90 text-xmr-base text-[10px] font-black uppercase tracking-wider rounded-sm transition-colors cursor-pointer flex items-center gap-1 shadow-[0_0_10px_var(--warning-color)]"
                                 >
                                   <ExternalLink size={12} /> Retry Callback
                                 </button>

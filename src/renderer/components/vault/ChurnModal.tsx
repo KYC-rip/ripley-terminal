@@ -52,16 +52,16 @@ export function ChurnModal({ onClose, onChurn, unlockedBalance }: ChurnModalProp
 
           <div className="flex items-center justify-center gap-4 text-xmr-green py-4 opacity-80">
             <div className="flex flex-col gap-2">
-              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
-              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
-              <div className="w-8 h-8 rounded-full border-2 border border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
+              <div className="w-8 h-8 rounded-full border-2 border-xmr-green bg-xmr-green/10 flex items-center justify-center"><span className="text-[10px]">10</span></div>
             </div>
             <div className="flex flex-col gap-2">
               <div className="h-0.5 w-12 bg-xmr-green/50 text-transparent">_</div>
               <div className="h-0.5 w-12 bg-xmr-green/50 text-transparent">_</div>
               <div className="h-0.5 w-12 bg-xmr-green/50 text-transparent">_</div>
             </div>
-            <div className="w-16 h-16 rounded-full border-4 border border-xmr-green bg-xmr-green/20 flex items-center justify-center animate-pulse shadow-[0_0_15px_rgba(0,255,0,0.4)]">
+            <div className="w-16 h-16 rounded-full border-4 border-xmr-green bg-xmr-green/20 flex items-center justify-center animate-pulse shadow-[0_0_15px_var(--brand-color)]">
               <span className="font-mono font-black text-sm">30</span>
             </div>
           </div>
