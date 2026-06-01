@@ -451,6 +451,7 @@ export function useVigilEngine() {
         toNetwork,
         destinationAddress,
         provider: payload.provider,
+        engine: payload.engine,
         source: 'ghost vigil sweep',
         fixed: false,
       });

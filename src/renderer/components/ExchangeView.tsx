@@ -300,6 +300,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           toNetwork: toCoin!.network,
           destinationAddress: destAddress,
           provider: sr.provider,
+          engine: sr.engine || swapQuote!.engine,
           memo: memo || undefined,
           source: 'swap',
         });

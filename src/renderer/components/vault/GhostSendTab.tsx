@@ -138,6 +138,7 @@ export function GhostSendTab({ onRequirePassword, onClose }: GhostSendTabProps) 
           toNetwork: ghostCurrency!.network || 'Mainnet',
           destinationAddress: ghostReceiverAddr,
           provider: route?.provider || quote.provider,
+          engine: route?.engine || quote.engine,
           source: 'ghost',
         });
         setTradeResponse(trade);

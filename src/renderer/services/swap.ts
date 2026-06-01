@@ -35,6 +35,7 @@ export interface TradeDetails {
 
 export interface ExchangeRoute {
   provider: string;
+  engine?: string;
   amount_to: number;
   amount_from: number;
   kyc: string;
@@ -53,6 +54,7 @@ export interface ExchangeQuote {
   min: number;
   max: number;
   provider: string;
+  engine?: string;
   kyc_rating: string;
   eta: number;
   routes?: ExchangeRoute[];
@@ -408,6 +410,7 @@ export async function quoteBatchTrades(
     providerUsage[selectedRoute.provider] = (providerUsage[selectedRoute.provider] || 0) + 1;
     finalResults.push({
       request_id: res.req.id, trade_id: res.quoteId, provider: selectedRoute.provider,
+      engine: selectedRoute.engine,
       amount_from_estimated: selectedRoute.amount_from, amount_to: res.req.amountTo,
       success: true, original_request: res.req
     });
@@ -429,7 +432,7 @@ export async function executeBatchTrades(quotes: BatchQuoteResult[], destination
         id: q.trade_id, amountFrom: q.amount_from_estimated, amountTo: q.amount_to,
         fromTicker: q.original_request.fromTicker, fromNetwork: q.original_request.fromNetwork,
         toTicker: q.original_request.toTicker, toNetwork: q.original_request.toNetwork,
-        destinationAddress: destAddr, provider: q.provider, source: "dispenser"
+        destinationAddress: destAddr, provider: q.provider, engine: q.engine, source: "dispenser"
       });
       return {
         request_id: q.request_id, trade_id: trade.trade_id || trade.id || '',
