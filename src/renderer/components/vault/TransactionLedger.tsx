@@ -357,7 +357,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                         <div className={`absolute left-0 top-0 bottom-0 w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isIncoming ? 'bg-xmr-green' : 'bg-xmr-accent'}`} />
 
                         {/* Type indicator */}
-                        <div className={`w-7 h-7 rounded-md flex items-center justify-center mr-3 shrink-0 ${isIncoming ? 'bg-xmr-green/8 border border-xmr-green/20' : 'bg-xmr-accent/8 border border-xmr-accent/20'}`}>
+                        <div className={`w-7 h-7 rounded-sm flex items-center justify-center mr-3 shrink-0 ${isIncoming ? 'bg-xmr-green/8 border border-xmr-green/20' : 'bg-xmr-accent/8 border border-xmr-accent/20'}`}>
                           {isIncoming ? (
                             <ArrowDownLeft size={13} className="text-xmr-green" />
                           ) : (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 

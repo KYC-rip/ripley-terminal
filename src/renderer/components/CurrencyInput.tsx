@@ -158,7 +158,7 @@ export function CurrencyInput({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-200 p-4">
       <div className="absolute inset-0" onClick={() => setIsModalOpen(false)}></div>
 
-      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-lg overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
+      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-sm overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
         {/* Header */}
         <div className="p-4 border-b border-xmr-border flex justify-between items-center bg-xmr-surface">
           <h3 className="font-bold text-xmr-green tracking-[0.2em] text-sm flex items-center gap-2">
@@ -219,7 +219,7 @@ export function CurrencyInput({
         </div>
 
         {/* Footer Status */}
-        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-xs text-xmr-dim flex justify-between rounded-b-lg font-mono">
+        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-xs text-xmr-dim flex justify-between rounded-b-sm font-mono">
           <span>STATUS: {isListReady ? 'ONLINE' : 'SYNCING'}</span>
           <span>{tokenList.length} ASSETS</span>
         </div>

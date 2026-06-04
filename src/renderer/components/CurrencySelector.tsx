@@ -386,7 +386,7 @@ export function CurrencySelector({
             position ? (
               <div
                 ref={portalRef}
-                className={`fixed z-[100] rounded-md shadow-2xl flex flex-col max-h-[48vh] md:max-h-[40vh] animate-in fade-in zoom-in-95 duration-100
+                className={`fixed z-[100] rounded-sm shadow-2xl flex flex-col max-h-[48vh] md:max-h-[40vh] animate-in fade-in zoom-in-95 duration-100
                    ${forceDark ? 'dark' : ''}
                    bg-[var(--color-xmr-surface)] border border-[var(--local-border)]
                 `}
