@@ -441,7 +441,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 }`}
                 onClick={() => { setSelectedRoute(route); setRouteDrawerOpen(false); }}
               >
-                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-${themeColor} rounded-l`} />}
+                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-${themeColor} rounded-l-sm`} />}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     {route.providerLogo && (

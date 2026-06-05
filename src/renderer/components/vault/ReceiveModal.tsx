@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Tag, DollarSign, Copy, CheckCircle2, QrCode, ArrowDownToLine, Shuffle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useVault } from '../../contexts/VaultContext';

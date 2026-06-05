@@ -1,4 +1,3 @@
-import React from 'react';
 import { Lock, Loader2 } from 'lucide-react';
 
 interface DispatchPasswordGateProps {

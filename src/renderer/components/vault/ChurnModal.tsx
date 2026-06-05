@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Wind, Loader2 } from 'lucide-react';
 
 interface ChurnModalProps {

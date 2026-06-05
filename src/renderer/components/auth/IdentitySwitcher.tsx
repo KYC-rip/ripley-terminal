@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PlusCircle, Check, Trash2, ChevronDown, ChevronUp, Users } from 'lucide-react';
 
 interface Identity {

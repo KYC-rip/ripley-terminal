@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Book, PlusCircle, X } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';

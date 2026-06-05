@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Key, Send, Download, Wind, Loader2, Edit2, Scissors, MoreVertical, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AddressBook } from './vault/AddressBook';
 import { AddressList } from './vault/AddressList';

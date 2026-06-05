@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { X, Send, Ghost } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { DispatchPasswordGate } from './DispatchPasswordGate';
