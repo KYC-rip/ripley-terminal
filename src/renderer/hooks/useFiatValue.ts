@@ -66,7 +66,6 @@ export function useFiatValue(ticker?: string, amount?: string | number, withPref
     const cachedData = priceCache[sym];
 
     if (cachedData && (now - cachedData.timestamp < CACHE_DURATION)) {
-      // console.log(`[FiatCache] Hit for ${sym}: $${cachedData.price}`);
       updateUI(cachedData.price);
       return;
     }

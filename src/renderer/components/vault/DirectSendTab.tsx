@@ -360,7 +360,7 @@ export function DirectSendTab({
                       <img
                         src={bioProfile.avatar}
                         alt="Avatar"
-                        className="w-10 h-10 rounded bg-black object-cover border border-xmr-green/30"
+                        className="w-10 h-10 rounded-sm bg-black object-cover border border-xmr-green/30"
                       />
                     )}
                     <div>

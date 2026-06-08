@@ -81,7 +81,7 @@ export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalP
     copyText: string; copied: boolean; onCopy: () => void; sublabel?: string;
   }) => (
     <div className="flex flex-col items-center gap-4">
-      <div className="p-3 bg-white rounded">
+      <div className="p-3 bg-white rounded-sm">
         <QRCodeSVG
           value={qrValue} size={qrSize} level="M" includeMargin={false}
           imageSettings={imgSrc ? { src: imgSrc, x: undefined, y: undefined, height: imgSize || 34, width: imgSize || 34, excavate: true } : undefined}

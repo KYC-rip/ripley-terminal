@@ -372,10 +372,10 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               {isIncoming ? 'Received' : 'Dispatched'}
                             </span>
                             {ghostTrades[tx.id] && (
-                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded text-xmr-accent font-black tracking-wider">Ghost</span>
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded-sm text-xmr-accent font-black tracking-wider">Ghost</span>
                             )}
                             {xmr402Info && (
-                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-warning/10 border border-xmr-warning/20 rounded text-xmr-warning font-black tracking-wider">XMR402</span>
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-warning/10 border border-xmr-warning/20 rounded-sm text-xmr-warning font-black tracking-wider">XMR402</span>
                             )}
                           </div>
                           <div className="text-[9px] text-xmr-dim/40 mt-0.5 truncate">
@@ -593,7 +593,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               ) : (
                                 <div className="text-xs font-mono text-xmr-dim opacity-60 flex items-center gap-2">
                                   <span>¿Unknown Destination?</span>
-                                  <span className="text-xs bg-xmr-dim/10 px-1 rounded uppercase tracking-tighter">Privacy Protected</span>
+                                  <span className="text-xs bg-xmr-dim/10 px-1 rounded-sm uppercase tracking-tighter">Privacy Protected</span>
                                 </div>
                               )}
                             </div>

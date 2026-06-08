@@ -358,7 +358,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                 <div className="relative mt-3 pt-3 border-t border-xmr-border/15" ref={accountListRef}>
                   <button
                     onClick={() => setShowAccountList(!showAccountList)}
-                    className="w-full flex items-center justify-between text-[10px] font-black text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer uppercase tracking-widest px-2.5 py-1.5 border border-xmr-border/20 rounded hover:border-xmr-green/40"
+                    className="w-full flex items-center justify-between text-[10px] font-black text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer uppercase tracking-widest px-2.5 py-1.5 border border-xmr-border/20 rounded-sm hover:border-xmr-green/40"
                   >
                     <span>All Accounts</span>
                     <span className="text-xmr-green/60">{currentAccIdx + 1}/{accounts.length}</span>

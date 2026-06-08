@@ -538,7 +538,7 @@ export function SettingsView() {
                     </div>
                   </div>
 
-                  <div className="border border-xmr-border/30 rounded overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
+                  <div className="border border-xmr-border/30 rounded-sm overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
                     <div
                       className="absolute inset-0 z-0 pointer-events-none"
                       style={{

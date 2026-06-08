@@ -122,7 +122,7 @@ export function VigilDashboard({
             </div>
 
             <div className="flex flex-col items-end gap-2">
-              <div className={`flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border backdrop-blur-sm
+              <div className={`flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded-sm border backdrop-blur-sm
                 ${priceConnected
                   ? 'text-xmr-green border-xmr-green/20 bg-xmr-green/5'
                   : 'text-xmr-error border-xmr-error/20 bg-xmr-error/5 animate-pulse'
@@ -132,7 +132,7 @@ export function VigilDashboard({
                 {priceConnected ? 'LIVE FEED' : 'CONNECTING...'}
               </div>
 
-              <div className={`text-[9px] font-mono uppercase tracking-widest px-2 py-1 rounded border
+              <div className={`text-[9px] font-mono uppercase tracking-widest px-2 py-1 rounded-sm border
                 ${isTriggered
                   ? 'text-xmr-error border-xmr-error/30 bg-xmr-error/10 animate-pulse'
                   : 'text-xmr-ghost border-xmr-ghost/20 bg-xmr-ghost/5'
@@ -146,7 +146,7 @@ export function VigilDashboard({
           {/* ─── Target Lines ─── */}
           <div className="grid grid-cols-2 gap-4">
             {/* Main Target */}
-            <div className="p-3 rounded border border-xmr-green/20 bg-xmr-green/5 space-y-1">
+            <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-green/5 space-y-1">
               <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-xmr-green" />
                 {mode === 'SNIPE' ? 'BUY DIP TARGET' : 'TAKE PROFIT TARGET'}
@@ -158,7 +158,7 @@ export function VigilDashboard({
             </div>
 
             {/* Stop / Strategy */}
-            <div className={`p-3 rounded border space-y-1
+            <div className={`p-3 rounded-sm border space-y-1
               ${hasStop
                 ? 'border-xmr-error/20 bg-xmr-error/5'
                 : 'border-xmr-border/20 bg-xmr-surface/30'
@@ -190,21 +190,21 @@ export function VigilDashboard({
 
       {/* ─── Mission Parameters ─── */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1">
           <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Amount</div>
           <div className="text-sm font-black font-mono text-xmr-green">
             {config.amount} {config.inputCurrency?.ticker?.toUpperCase() || 'XMR'}
           </div>
         </div>
 
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1">
           <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Output</div>
           <div className="text-sm font-black font-mono text-xmr-green">
             {config.outputCurrency?.ticker?.toUpperCase() || 'USDT'}
           </div>
         </div>
 
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1 overflow-hidden">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1 overflow-hidden">
           <div className="flex justify-between items-center">
             <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Destination</div>
             {config.targetAddress && (

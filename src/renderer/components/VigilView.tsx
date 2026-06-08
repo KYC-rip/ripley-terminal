@@ -155,7 +155,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
         ${isDanger ? 'bg-xmr-error/10 border-xmr-error/30' : 'bg-xmr-base/30 border-xmr-border'}
       `}>
         <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded border transition-colors
+          <div className={`p-1.5 rounded-sm border transition-colors
             ${isDanger
               ? 'bg-xmr-error/20 border-xmr-error text-xmr-error'
               : 'bg-xmr-ghost/10 border-xmr-ghost/20 text-xmr-ghost'
@@ -296,7 +296,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
                     Send the input amount to complete the swap
                   </p>
                 </div>
-                <div className="p-3 bg-xmr-base border border-xmr-accent/20 rounded space-y-2">
+                <div className="p-3 bg-xmr-base border border-xmr-accent/20 rounded-sm space-y-2">
                   <div className="flex justify-between text-[10px] font-mono uppercase">
                     <span className="text-xmr-dim">Amount</span>
                     <span className="text-xmr-accent font-bold">

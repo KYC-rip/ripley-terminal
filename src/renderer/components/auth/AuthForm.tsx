@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FormEvent } from 'react';
 import { Lock, Skull, RefreshCw, Key, Download, Sparkles, ArrowLeft, Calendar } from 'lucide-react';
 
 interface LogEntry {
@@ -25,8 +25,7 @@ interface AuthFormProps {
   logs: LogEntry[];
   
   // Actions
-  handleUnlockSubmit: (e: React.FormEvent) => void;
-  handleCreateFinalize: () => void; 
+  handleUnlockSubmit: (e: FormEvent) => void;
 }
 
 export function AuthForm({ 

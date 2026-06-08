@@ -323,7 +323,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
         {/* Header */}
         <div className="flex justify-between items-end border-b border-xmr-border/30 pb-1.5">
           <div className="flex items-center gap-2">
-            <div className={`p-1 rounded ${useStop ? 'bg-xmr-ghost/20 text-xmr-ghost' : 'bg-xmr-dim/10 text-xmr-dim'}`}>
+            <div className={`p-1 rounded-sm ${useStop ? 'bg-xmr-ghost/20 text-xmr-ghost' : 'bg-xmr-dim/10 text-xmr-dim'}`}>
               <Activity size={12} />
             </div>
             <span className="text-[10px] text-xmr-dim font-mono uppercase tracking-widest">
@@ -331,7 +331,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded border border-xmr-border/30">
+          <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded-sm border border-xmr-border/30">
             <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-xmr-green opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-xmr-green" />
@@ -357,7 +357,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                 placeholder="0.00"
                 value={data.triggerPrice}
                 onChange={(e: any) => setData({ ...data, triggerPrice: e.target.value })}
-                className={`w-full bg-xmr-base border rounded py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
+                className={`w-full bg-xmr-base border rounded-sm py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
                   ${mainStatus === 'immediate' ? 'border-xmr-warning text-xmr-warning' : 'border-xmr-border focus:border-xmr-ghost'}
                 `}
               />
@@ -381,7 +381,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                   placeholder="0.00"
                   value={data.stopPrice}
                   onChange={(e: any) => setData({ ...data, stopPrice: e.target.value })}
-                  className={`w-full bg-xmr-base border rounded py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
+                  className={`w-full bg-xmr-base border rounded-sm py-2 px-3 pl-6 text-sm font-mono text-current focus:outline-none transition-colors
                     ${stopStatus === 'immediate' ? 'border-xmr-warning text-xmr-warning' : 'border-xmr-border focus:border-xmr-error/50'}
                   `}
                 />
@@ -400,7 +400,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
               if (useStop) setData({ ...data, stopPrice: '' });
               setUseStop(!useStop);
             }}
-            className={`text-[9px] uppercase tracking-wider border rounded px-3 py-1.5 transition-all flex items-center gap-2
+            className={`text-[9px] uppercase tracking-wider border rounded-sm px-3 py-1.5 transition-all flex items-center gap-2
               ${useStop
                 ? 'bg-xmr-ghost/10 border-xmr-ghost text-xmr-ghost shadow-[0_0_10px_rgba(168,85,247,0.2)]'
                 : 'border-xmr-border text-xmr-dim hover:text-xmr-green hover:border-xmr-dim'
@@ -477,7 +477,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             }
             value={data.targetAddress}
             onChange={(e: any) => setData({ ...data, targetAddress: e.target.value })}
-            className={`w-full bg-xmr-base border rounded py-2 px-3 font-mono text-xs text-current focus:outline-none transition-colors placeholder:text-xmr-dim/30
+            className={`w-full bg-xmr-base border rounded-sm py-2 px-3 font-mono text-xs text-current focus:outline-none transition-colors placeholder:text-xmr-dim/30
               ${data.targetAddress && !isValid && !isValidating ? 'border-xmr-error/50 focus:border-xmr-error' : 'border-xmr-border focus:border-xmr-ghost'}
             `}
           />
@@ -491,7 +491,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
                 placeholder="0 (Required by destination)"
                 value={data.memo || ''}
                 onChange={(e: any) => setData({ ...data, memo: e.target.value })}
-                className="w-full bg-xmr-base border border-xmr-border rounded py-2 px-3 font-mono text-xs text-current focus:outline-none focus:border-xmr-ghost"
+                className="w-full bg-xmr-base border border-xmr-border rounded-sm py-2 px-3 font-mono text-xs text-current focus:outline-none focus:border-xmr-ghost"
               />
             </div>
           )}

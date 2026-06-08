@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { Ghost, ArrowDown, ArrowRight, ArrowUpDown, Zap, Shield, RefreshCw, AlertCircle, Copy, Check, X, Radio, CheckCircle2, Loader2, ChevronRight, Clock, Server } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { Card } from './Card';
@@ -471,10 +471,10 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 {isGhost && route.hops?.length > 0 && (
                   <div className="flex items-center gap-1 mt-1.5 text-[8px] text-xmr-dim">
                     {route.hops.map((hop: any, hi: number) => (
-                      <React.Fragment key={hi}>
+                      <Fragment key={hi}>
                         {hi > 0 && <ChevronRight size={7} className="text-xmr-border" />}
                         <span className="px-1 py-0.5 bg-xmr-base border border-xmr-border/20 uppercase">{hop.name}</span>
-                      </React.Fragment>
+                      </Fragment>
                     ))}
                   </div>
                 )}
