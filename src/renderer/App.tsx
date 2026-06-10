@@ -391,7 +391,7 @@ function MainApp() {
 
           <NavGroup label="Exchange" groupKey="exchange">
             <NavButton id="exchange" label="Exchange" icon={ArrowDown} />
-            {!isPackaged && <NavButton id="vigil" label="Vigil / Limit" icon={Crosshair} />}
+            <NavButton id="vigil" label="Vigil / Limit" icon={Crosshair} />
           </NavGroup>
 
           <NavGroup label="Tools" groupKey="tools">
@@ -507,7 +507,7 @@ function MainApp() {
               <div className={view === 'home' ? 'block' : 'hidden'}><HomeView setView={setView} stats={stats} loading={statsLoading} /></div>
                 <div className={view === 'vault' ? 'block' : 'hidden'}><VaultView setView={setView} vault={vault} handleBurn={() => purgeIdentity(activeId)} appConfig={appConfig} /></div>
                 <div className={view === 'exchange' ? 'block' : 'hidden'}><ExchangeView localXmrAddress={address} /></div>
-                {!isPackaged && <div className={view === 'vigil' ? 'block' : 'hidden'}><VigilView localXmrAddress={address} /></div>}
+                <div className={view === 'vigil' ? 'block' : 'hidden'}><VigilView localXmrAddress={address} /></div>
 
               <div className={view === 'settings' ? 'block' : 'hidden'}><SettingsView /></div>
                 <div className={view === 'agent' ? 'block' : 'hidden'}><AgentTab /></div>

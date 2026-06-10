@@ -43,6 +43,14 @@ const api = {
   },
   proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
 
+  // Vigil strike-wallet persistence (encrypted blobs + session snapshots)
+  vigilSaveStrikeKey: (identityId: string, blob: any) => ipcRenderer.invoke('vigil-save-strike-key', identityId, blob),
+  vigilGetStrikeKey: (identityId: string) => ipcRenderer.invoke('vigil-get-strike-key', identityId),
+  vigilDeleteStrikeKey: (identityId: string) => ipcRenderer.invoke('vigil-delete-strike-key', identityId),
+  vigilSaveSession: (identityId: string, session: any) => ipcRenderer.invoke('vigil-save-session', identityId, session),
+  vigilGetSession: (identityId: string) => ipcRenderer.invoke('vigil-get-session', identityId),
+  vigilClearSession: (identityId: string) => ipcRenderer.invoke('vigil-clear-session', identityId),
+
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   openPath: (targetPath: string) => ipcRenderer.invoke('open-path', targetPath),
   openExternal: (url: string, options?: { width?: number; height?: number }) => ipcRenderer.invoke('open-external', url, options),

@@ -8,6 +8,7 @@ import { WalletManager } from './WalletManager';
 import { SyncWatcher } from './SyncWatcher';
 import { AppConfig } from './types';
 import { registerIdentityHandlers } from './handlers/IdentityHandler';
+import { registerVigilHandlers } from './handlers/VigilHandler';
 import { AgentGateway } from './AgentGateway';
 
 if (process.defaultApp) {
@@ -239,6 +240,7 @@ app.whenReady().then(async () => {
 
   // 🔌 Register the Identity/Vault Handlers
   registerIdentityHandlers(store);
+  registerVigilHandlers(store);
 
   agentGateway = new AgentGateway(mainWindow, store);
   if (store.get('agent_config.enabled')) {

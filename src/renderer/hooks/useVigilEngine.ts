@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createTrade, type ComplianceState, type ComplianceLevel, type ExchangeRoute } from '../services/swap';
+import { createTrade, getTradeStatus, type ComplianceState, type ExchangeRoute } from '../services/swap';
 import { getApiBase } from '../services/client';
 import { useFiatValue } from './useFiatValue';
 import { useVault } from './useVault';
+import { usePriceWatcher, getKrakenMonitoringPair, type PriceTrigger } from './usePriceWatcher';
+import { StrikeWallet, type StrikeBalances, type GasCheck } from '../services/strikeWallet';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type EngineState = 'IDLE' | 'WATCHING' | 'TRIGGERED' | 'EXECUTING' | 'COMPLETED' | 'ERROR';
+export type EngineState = 'IDLE' | 'WATCHING' | 'TRIGGERED' | 'EXECUTING' | 'POLLING' | 'COMPLETED' | 'ERROR';
 
 export interface VigilSession {
   mode: 'SNIPE' | 'EJECT';
@@ -26,20 +28,27 @@ export interface VigilSession {
   state: EngineState;
 }
 
-interface VigilTrigger {
-  id: string;
-  operator: '>=' | '<=';
-  price: number;
+/** Persisted snapshot (schema v1). Never contains key material. */
+export interface PersistedVigilSession {
+  version: 1;
+  identityId: string;
+  mode: 'SNIPE' | 'EJECT';
+  phase: 'ARMED' | 'EXECUTING' | 'POLLING';
+  triggers: PriceTrigger[];
+  config: VigilSession['config'];
+  tradeId?: string;
+  txHash?: string;
+  createdAt: number;
 }
+
+export const VIGIL_SESSION_VERSION = 1;
 
 interface TriggerPayload {
   provider: string;
   engine: string;
-  eta: number;
   amount_to: number;
   krakenPrice: number;
   triggerId: string;
-  quote: ExchangeRoute;
 }
 
 interface LogEntry {
@@ -52,13 +61,6 @@ interface LogEntry {
 interface EstimateResponse {
   amount_to: number;
   routes: ExchangeRoute[];
-}
-
-interface DepositInfo {
-  address: string;
-  amount: number;
-  ticker: string;
-  memo?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,32 +76,52 @@ const getPrivacyParams = (c: ComplianceState) => ({
 });
 
 // ---------------------------------------------------------------------------
-// Kraken WebSocket Helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
-const KRAKEN_WS = 'wss://ws.kraken.com';
+const currencyDefaults = (session: VigilSession) => ({
+  fromTicker: session.config.inputCurrency?.ticker || (session.mode === 'SNIPE' ? 'USDT' : 'XMR'),
+  fromNetwork: session.config.inputCurrency?.network || (session.mode === 'SNIPE' ? 'ERC20' : 'Mainnet'),
+  toTicker: session.config.outputCurrency?.ticker || (session.mode === 'SNIPE' ? 'XMR' : 'USDT'),
+  toNetwork: session.config.outputCurrency?.network || (session.mode === 'SNIPE' ? 'Mainnet' : 'ERC20'),
+});
 
-/**
- * Derives the Kraken monitoring pair from swap currencies.
- * e.g. SNIPE USDT->XMR  => "XMR/USD"
- *      EJECT XMR->USDT   => "XMR/USD"
- */
-const getKrakenMonitoringPair = (mode: 'SNIPE' | 'EJECT', from: string, to: string): string => {
-  const clean = (t: string) =>
-    t.toUpperCase()
-      .replace(/S(XMR|ETH)/i, '$1')
-      .replace('USDT', 'USD')
-      .replace('USDC', 'USD')
-      .replace('DAI', 'USD');
+export function buildTriggers(mode: 'SNIPE' | 'EJECT', triggerPrice: string, stopPrice?: string): PriceTrigger[] {
+  const triggers: PriceTrigger[] = [];
+  const pMain = parseFloat(triggerPrice || '0');
+  const pStop = parseFloat(stopPrice || '0');
 
-  const cFrom = clean(from);
-  const cTo = clean(to);
-
-  let subject = mode === 'SNIPE' ? cTo : cFrom;
-  if (['USD', 'EUR'].includes(subject)) {
-    subject = mode === 'SNIPE' ? cFrom : cTo;
+  if (mode === 'SNIPE') {
+    if (pMain > 0) triggers.push({ id: 'BUY_DIP', operator: '<=', price: pMain });
+    if (pStop > 0) triggers.push({ id: 'BUY_BREAKOUT', operator: '>=', price: pStop });
+  } else {
+    if (pMain > 0) triggers.push({ id: 'TAKE_PROFIT', operator: '>=', price: pMain });
+    if (pStop > 0) triggers.push({ id: 'STOP_LOSS', operator: '<=', price: pStop });
   }
-  return `${subject}/USD`;
+  return triggers;
+}
+
+/** Validates a persisted session blob; returns null for anything unusable. */
+export function loadPersistedSession(raw: any, identityId: string): PersistedVigilSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.version !== VIGIL_SESSION_VERSION) {
+    console.warn(`[Vigil] Ignoring session with unsupported version ${raw.version} (created by a newer app?)`);
+    return null;
+  }
+  if (raw.identityId !== identityId) return null;
+  if (!['SNIPE', 'EJECT'].includes(raw.mode)) return null;
+  if (!['ARMED', 'EXECUTING', 'POLLING'].includes(raw.phase)) return null;
+  if (!Array.isArray(raw.triggers)) return null;
+  return raw as PersistedVigilSession;
+}
+
+// Status polling cadence
+const POLL_BASE_MS = 10_000;
+const POLL_MAX_MS = 60_000;
+const POLL_DEADLINE_MS = 24 * 60 * 60 * 1000;
+
+const STATUS_PROGRESS: Record<string, number> = {
+  WAITING: 20, CONFIRMING: 35, EXCHANGING: 60, SENDING: 85, FINISHED: 100,
 };
 
 // ---------------------------------------------------------------------------
@@ -113,7 +135,6 @@ export function useVigilEngine() {
   const [executionStatus, setExecutionStatus] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
   const [activeSession, setActiveSession] = useState<VigilSession | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
   const [completedTrade, setCompletedTrade] = useState<{
     id: string;
     amount: string;
@@ -121,28 +142,30 @@ export function useVigilEngine() {
     inputCurrency: any;
     outputCurrency: any;
   } | null>(null);
-  const [depositInfo, setDepositInfo] = useState<DepositInfo | null>(null);
 
-  // Kraken live price (from inline WS)
-  const [price, setPrice] = useState<number | null>(null);
+  // Restart recovery: a persisted session found on mount, awaiting user action
+  const [pendingSession, setPendingSession] = useState<PersistedVigilSession | null>(null);
 
-  // Refs for WS and trigger state (must be refs so callbacks see latest values)
-  const wsRef = useRef<WebSocket | null>(null);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggersRef = useRef<VigilTrigger[]>([]);
+  // --- Strike wallet (SNIPE funding) ---
+  const strikeRef = useRef<StrikeWallet | null>(null);
+  const [strikeAddress, setStrikeAddress] = useState<string>('');
+  const [strikeBalances, setStrikeBalances] = useState<StrikeBalances | null>(null);
+  const [strikeGas, setStrikeGas] = useState<GasCheck | null>(null);
+  const [strikeCreated, setStrikeCreated] = useState(false); // true right after first key generation
+
   const isVerifyingRef = useRef(false);
-  const isConnectingRef = useRef(false);
   const sessionRef = useRef<VigilSession | null>(null);
   const stateRef = useRef<EngineState>('IDLE');
+  const pollAbortRef = useRef(false);
+  const retryPayloadRef = useRef<TriggerPayload | null>(null);
 
-  // Keep refs in sync
   useEffect(() => { sessionRef.current = activeSession; }, [activeSession]);
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Vault context for sending XMR and getting receive address
   const vault = useVault();
+  const identityId = vault.activeId;
 
-  // Fiat price fallback
+  // Fiat price fallback for the idle config screen
   const { fiatText: fiatPrice } = useFiatValue('XMR', 1, false);
 
   const API_BASE = getApiBase();
@@ -154,7 +177,7 @@ export function useVigilEngine() {
   const logger = useCallback((text: string, type: LogEntry['type'] = 'info') => {
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    setLogs(prev => [...prev.slice(-50), { id: Date.now(), time: timeStr, text, type }]);
+    setLogs(prev => [...prev.slice(-50), { id: Date.now() + Math.random(), time: timeStr, text, type }]);
 
     if (type === 'process' || type === 'error') {
       setExecutionStatus(text);
@@ -162,28 +185,200 @@ export function useVigilEngine() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Kraken WebSocket (inline, no Web Worker)
+  // Session persistence (config snapshots only — never key material)
   // ---------------------------------------------------------------------------
 
-  const closeWebSocket = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      wsRef.current.onmessage = null;
-      try { wsRef.current.close(); } catch (_) { /* noop */ }
-      wsRef.current = null;
-    }
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-  }, []);
+  const persistSession = useCallback(async (
+    session: VigilSession,
+    phase: PersistedVigilSession['phase'],
+    extra?: { tradeId?: string; txHash?: string }
+  ) => {
+    if (!identityId) return;
+    const snapshot: PersistedVigilSession = {
+      version: VIGIL_SESSION_VERSION,
+      identityId,
+      mode: session.mode,
+      phase,
+      triggers: buildTriggers(session.mode, session.config.triggerPrice, session.config.stopPrice),
+      config: session.config,
+      createdAt: Date.now(),
+      ...extra,
+    };
+    const res = await window.api.vigilSaveSession(identityId, snapshot);
+    if (!res.success) console.warn('[Vigil] Failed to persist session:', res.error);
+  }, [identityId]);
 
-  /**
-   * Verify the trigger by fetching the v2 estimate, then fire executeStrike
-   * if the route is confirmed.
-   */
-  const verifyAndExecute = useCallback(async (currentPrice: number, activeTrigger: VigilTrigger) => {
+  const clearPersistedSession = useCallback(async () => {
+    if (!identityId) return;
+    await window.api.vigilClearSession(identityId).catch((e: any) =>
+      console.warn('[Vigil] Failed to clear persisted session:', e));
+  }, [identityId]);
+
+  // Load any persisted session for this identity on mount / identity switch
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!identityId || identityId === 'primary') return;
+      const raw = await window.api.vigilGetSession(identityId).catch(() => null);
+      if (cancelled) return;
+      const session = loadPersistedSession(raw, identityId);
+      if (session && stateRef.current === 'IDLE') {
+        setPendingSession(session);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [identityId]);
+
+  // ---------------------------------------------------------------------------
+  // Status polling (after the swap order exists)
+  // ---------------------------------------------------------------------------
+
+  const pollTradeStatus = useCallback(async (tradeId: string, txHash: string | undefined, session: VigilSession) => {
+    setState('POLLING');
+    pollAbortRef.current = false;
+
+    const startedAt = Date.now();
+    let interval = POLL_BASE_MS;
+    let consecutiveErrors = 0;
+
+    logger(`Tracking swap ${tradeId}...`, 'process');
+
+    while (!pollAbortRef.current) {
+      if (Date.now() - startedAt > POLL_DEADLINE_MS) {
+        logger(`Tracking timed out after 24h. Check the provider manually (trade ${tradeId}).`, 'error');
+        setState('ERROR');
+        return;
+      }
+
+      try {
+        const status = await getTradeStatus(tradeId);
+        consecutiveErrors = 0;
+        interval = POLL_BASE_MS;
+
+        const s = (status.status || '').toUpperCase();
+        setProgress(STATUS_PROGRESS[s] ?? 20);
+        setExecutionStatus(`SWAP ${s || 'PENDING'}`);
+
+        if (s === 'FINISHED') {
+          setCompletedTrade({
+            id: tradeId,
+            amount: session.config.amount,
+            txHash: (status as any).tx_out || txHash,
+            inputCurrency: session.config.inputCurrency,
+            outputCurrency: session.config.outputCurrency,
+          });
+          logger('Swap finished. Funds delivered.', 'success');
+          setState('COMPLETED');
+          setActiveSession(null);
+          await clearPersistedSession();
+          return;
+        }
+        if (['FAILED', 'REFUNDED', 'EXPIRED'].includes(s)) {
+          logger(`Swap ended with status ${s}. Check the provider for details (trade ${tradeId}).`, 'error');
+          setState('ERROR');
+          return;
+        }
+      } catch (e: any) {
+        consecutiveErrors++;
+        interval = Math.min(POLL_BASE_MS * 2 ** consecutiveErrors, POLL_MAX_MS);
+        console.warn(`[Vigil] Status poll failed (${consecutiveErrors}x), backing off to ${interval / 1000}s:`, e.message);
+      }
+
+      await new Promise(r => setTimeout(r, interval));
+    }
+  }, [logger, clearPersistedSession]);
+
+  // ---------------------------------------------------------------------------
+  // Execute Strike
+  // ---------------------------------------------------------------------------
+
+  const executeStrike = useCallback(async (payload: TriggerPayload) => {
+    if (stateRef.current === 'EXECUTING' || stateRef.current === 'TRIGGERED') return;
+
+    const session = sessionRef.current;
+    if (!session) return;
+
+    retryPayloadRef.current = payload;
+    setState('TRIGGERED');
+    logger(`Target hit at $${payload.krakenPrice} [${payload.triggerId}]`, 'warn');
+
+    await new Promise(r => setTimeout(r, 500));
+    setState('EXECUTING');
+    await persistSession(session, 'EXECUTING');
+    logger('Executing strike...', 'process');
+
+    try {
+      const { fromTicker, fromNetwork, toTicker, toNetwork } = currencyDefaults(session);
+
+      const amount = parseFloat(session.config.amount);
+      if (amount <= 0) throw new Error('Invalid amount');
+
+      // SNIPE: receive address is the vault subaddress; EJECT: user-provided target
+      const destinationAddress = session.config.targetAddress;
+
+      logger('Creating swap order...', 'process');
+
+      const trade = await createTrade({
+        id: `vigil_${Date.now()}`,
+        amountFrom: amount,
+        amountTo: 0,
+        fromTicker,
+        fromNetwork,
+        toTicker,
+        toNetwork,
+        destinationAddress,
+        provider: payload.provider,
+        engine: payload.engine,
+        source: session.mode === 'SNIPE' ? 'ghost vigil' : 'ghost vigil sweep',
+        fixed: false,
+      });
+
+      const depositAddress = trade.address_provider || trade.deposit_address;
+      if (!depositAddress) throw new Error('Failed to get deposit address from provider');
+
+      const tradeId = trade.trade_id || trade.id || '';
+      logger(`Order created. ID: ${tradeId}`, 'success');
+
+      let txHash: string | undefined;
+
+      if (session.mode === 'EJECT') {
+        // Send the exact XMR amount from the vault. No fallback: a failed
+        // send surfaces as an error with a retry — never sweep the wallet.
+        logger('Sending XMR from vault...', 'process');
+        txHash = await vault.sendXmr(depositAddress, amount);
+        logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
+      } else {
+        // SNIPE: auto-fund from the strike wallet
+        const strike = strikeRef.current;
+        if (!strike) throw new Error('Strike wallet not unlocked');
+
+        const gas = await strike.checkGas();
+        if (!gas.ok) throw new Error(`Strike wallet is short ~${gas.missingEth} ETH for gas`);
+
+        const depositAmount = trade.deposit_amount || amount;
+        logger(`Funding swap: ${depositAmount} ${fromTicker} from strike wallet...`, 'process');
+        txHash = await strike.sendToken(depositAddress, depositAmount, fromTicker);
+        logger(`Strike TX confirmed: ${txHash}`, 'success');
+      }
+
+      await persistSession(session, 'POLLING', { tradeId, txHash });
+      retryPayloadRef.current = null;
+      await pollTradeStatus(tradeId, txHash, session);
+    } catch (e: any) {
+      logger(`Execution failed: ${e.message}`, 'error');
+      setState('ERROR');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logger, vault.sendXmr, persistSession, pollTradeStatus]);
+
+  const executeStrikeRef = useRef(executeStrike);
+  useEffect(() => { executeStrikeRef.current = executeStrike; }, [executeStrike]);
+
+  // ---------------------------------------------------------------------------
+  // Price feed + trigger verification
+  // ---------------------------------------------------------------------------
+
+  const verifyAndExecute = useCallback(async (currentPrice: number, activeTrigger: PriceTrigger) => {
     if (isVerifyingRef.current) return;
     isVerifyingRef.current = true;
 
@@ -193,11 +388,7 @@ export function useVigilEngine() {
     try {
       console.log(`[Vigil] Trigger [${activeTrigger.id}] hit at $${currentPrice}. Verifying route...`);
 
-      const fromTicker = session.config.inputCurrency?.ticker || (session.mode === 'SNIPE' ? 'USDT' : 'XMR');
-      const fromNetwork = session.config.inputCurrency?.network || (session.mode === 'SNIPE' ? 'ERC20' : 'Mainnet');
-      const toTicker = session.config.outputCurrency?.ticker || (session.mode === 'SNIPE' ? 'XMR' : 'USDT');
-      const toNetwork = session.config.outputCurrency?.network || (session.mode === 'SNIPE' ? 'Mainnet' : 'ERC20');
-
+      const { fromTicker, fromNetwork, toTicker, toNetwork } = currencyDefaults(session);
       const { kyc, log } = getPrivacyParams(session.config.compliance);
       const query = new URLSearchParams({
         from: fromTicker,
@@ -210,15 +401,13 @@ export function useVigilEngine() {
       });
 
       const baseUrl = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
-      const url = `${baseUrl}/v2/exchange/estimate?${query.toString()}`;
-
-      const res = await fetch(url);
+      const res = await fetch(`${baseUrl}/v2/exchange/estimate?${query.toString()}`);
       if (!res.ok) throw new Error(`Estimate request failed: ${res.status}`);
 
       const data: EstimateResponse = await res.json();
 
-      // Bail if triggers were cleared (abort happened while verifying)
-      if (triggersRef.current.length === 0) {
+      // Bail if the watcher was disarmed while verifying
+      if (!watcher.hasTriggers()) {
         console.warn('[Vigil] Verification cancelled (engine stopped).');
         return;
       }
@@ -241,148 +430,81 @@ export function useVigilEngine() {
       const bestRoute = data.routes.reduce((a, b) => (a.amount_to > b.amount_to ? a : b));
       console.log(`[Vigil] Route verified. Provider: ${bestRoute.provider}. Executing...`);
 
-      // Fire the execution in the React state machine
-      const payload: TriggerPayload = {
+      // Stop watching before executing
+      watcher.stop();
+
+      executeStrikeRef.current({
         provider: bestRoute.provider,
         engine: (bestRoute as any).engine || bestRoute.provider,
-        eta: bestRoute.eta,
         amount_to: bestRoute.amount_to,
         krakenPrice: currentPrice,
         triggerId: activeTrigger.id,
-        quote: bestRoute,
-      };
-
-      // Stop watching before executing
-      triggersRef.current = [];
-      closeWebSocket();
-
-      executeStrike(payload);
+      });
     } catch (e: any) {
       console.error('[Vigil] Verification failed:', e);
     } finally {
       isVerifyingRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [API_BASE, closeWebSocket]);
+  }, [API_BASE]);
 
-  const checkTriggers = useCallback((currentPrice: number): VigilTrigger | null => {
-    for (const trigger of triggersRef.current) {
-      if (trigger.operator === '>=' && currentPrice >= trigger.price) return trigger;
-      if (trigger.operator === '<=' && currentPrice <= trigger.price) return trigger;
+  const watcher = usePriceWatcher(verifyAndExecute);
+
+  // ---------------------------------------------------------------------------
+  // Strike wallet management (SNIPE)
+  // ---------------------------------------------------------------------------
+
+  const refreshStrike = useCallback(async (session?: VigilSession | null) => {
+    const strike = strikeRef.current;
+    if (!strike) return;
+    const ticker = (session || sessionRef.current)?.config.inputCurrency?.ticker;
+    const tickers = ticker ? [ticker] : ['USDT', 'USDC'];
+    try {
+      const [balances, gas] = await Promise.all([strike.getBalances(tickers), strike.checkGas()]);
+      setStrikeBalances(balances);
+      setStrikeGas(gas);
+    } catch (e: any) {
+      console.warn('[Vigil] Strike balance refresh failed:', e.message);
     }
-    return null;
   }, []);
 
-  const connectWebSocket = useCallback((krakenPair: string) => {
-    if (isConnectingRef.current) return;
+  /**
+   * Verify the vault password and load (or create) this identity's strike
+   * wallet. Must be called before arming a SNIPE.
+   */
+  const unlockStrike = useCallback(async (vaultPassword: string, network: string) => {
+    if (!identityId || identityId === 'primary') throw new Error('No active identity');
 
-    // Clean up any existing connection
-    closeWebSocket();
-    isConnectingRef.current = true;
+    // Verify the password against the real vault before trusting it for
+    // key encryption (same pattern as the dispatch password gate).
+    const res = await window.api.walletAction('open', { name: identityId, pwd: vaultPassword });
+    if (!res.success) throw new Error(res.error || 'Invalid password');
 
-    try {
-      const ws = new WebSocket(KRAKEN_WS);
+    const { wallet, address, created } = await StrikeWallet.createOrLoad(identityId, vaultPassword, network, logger);
+    strikeRef.current = wallet;
+    setStrikeAddress(address);
+    setStrikeCreated(created);
+    logger(created ? '✨ Strike wallet generated. Back up the key before funding!' : `⚡ Strike wallet loaded: ${address.slice(0, 8)}...`, created ? 'warn' : 'info');
+    await refreshStrike();
+    return { address, created };
+  }, [identityId, logger, refreshStrike]);
 
-      ws.onopen = () => {
-        console.log(`[Vigil] WS connected. Subscribing to ${krakenPair}...`);
-        setWsConnected(true);
-        isConnectingRef.current = false;
+  const exportStrikeKey = useCallback(async (vaultPassword: string) => {
+    const strike = strikeRef.current;
+    if (!strike) throw new Error('Strike wallet not unlocked');
+    return strike.exportKey(vaultPassword);
+  }, []);
 
-        ws.send(JSON.stringify({
-          event: 'subscribe',
-          pair: [krakenPair],
-          subscription: { name: 'trade' },
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          if (data.event === 'heartbeat') return;
-          if (data.event === 'systemStatus') return;
-
-          if (data.event === 'subscriptionStatus') {
-            if (data.status === 'error') {
-              console.error(`[Vigil] Kraken subscription error: ${data.errorMessage}`);
-              if (data.errorMessage?.includes('pair') || data.errorMessage?.includes('Currency')) {
-                triggersRef.current = [];
-                closeWebSocket();
-              }
-            }
-            return;
-          }
-
-          // Trade data: [channelId, [[price, vol, time, side]], "trade", pair]
-          if (Array.isArray(data) && data[2] === 'trade') {
-            const trades = data[1];
-            const latestTrade = trades[trades.length - 1];
-            const currentPrice = parseFloat(latestTrade[0]);
-            setPrice(currentPrice);
-
-            const hit = checkTriggers(currentPrice);
-            if (hit) {
-              verifyAndExecute(currentPrice, hit);
-            }
-          }
-        } catch (_) {
-          // Ignore parse errors (heartbeat packets etc.)
-        }
-      };
-
-      ws.onclose = (event) => {
-        isConnectingRef.current = false;
-        setWsConnected(false);
-
-        // Only reconnect if we still have active triggers
-        if (triggersRef.current.length > 0) {
-          console.warn(`[Vigil] WS closed (code: ${event.code}). Reconnecting in 5s...`);
-          retryTimeoutRef.current = setTimeout(() => {
-            if (triggersRef.current.length > 0) connectWebSocket(krakenPair);
-          }, 5000);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error('[Vigil] WS error:', err);
-        // onclose will fire after this, handling reconnect
-      };
-
-      wsRef.current = ws;
-    } catch (e) {
-      isConnectingRef.current = false;
-      console.error('[Vigil] WS init failed:', e);
-    }
-  }, [closeWebSocket, checkTriggers, verifyAndExecute]);
-
-  // ---------------------------------------------------------------------------
-  // Start Watching
-  // ---------------------------------------------------------------------------
-
-  const startWatching = useCallback((session: VigilSession) => {
-    const fromTicker = session.config.inputCurrency?.ticker || (session.mode === 'SNIPE' ? 'USDT' : 'XMR');
-    const toTicker = session.config.outputCurrency?.ticker || (session.mode === 'SNIPE' ? 'XMR' : 'USDT');
-
-    // Build triggers
-    const triggers: VigilTrigger[] = [];
-    const pMain = parseFloat(session.config.triggerPrice || '0');
-    const pStop = parseFloat(session.config.stopPrice || '0');
-
-    if (session.mode === 'SNIPE') {
-      if (pMain > 0) triggers.push({ id: 'BUY_DIP', operator: '<=', price: pMain });
-      if (pStop > 0) triggers.push({ id: 'BUY_BREAKOUT', operator: '>=', price: pStop });
-    } else {
-      if (pMain > 0) triggers.push({ id: 'TAKE_PROFIT', operator: '>=', price: pMain });
-      if (pStop > 0) triggers.push({ id: 'STOP_LOSS', operator: '<=', price: pStop });
-    }
-
-    triggersRef.current = triggers;
-
-    const krakenPair = getKrakenMonitoringPair(session.mode, fromTicker, toTicker);
-    logger(`Vigil Armed. Mode: ${session.mode}. Pair: ${krakenPair}. Triggers: ${triggers.map(t => `${t.id} ${t.operator} $${t.price}`).join(' | ')}`);
-
-    connectWebSocket(krakenPair);
-  }, [connectWebSocket, logger]);
+  const refundStrike = useCallback(async (toAddress: string) => {
+    const strike = strikeRef.current;
+    if (!strike) throw new Error('Strike wallet not unlocked');
+    const ticker = sessionRef.current?.config.inputCurrency?.ticker;
+    logger('Refunding strike wallet leftovers...', 'process');
+    const txHash = await strike.refund(toAddress, ticker);
+    logger(`Refund sent: ${txHash}`, 'success');
+    await refreshStrike();
+    return txHash;
+  }, [logger, refreshStrike]);
 
   // ---------------------------------------------------------------------------
   // Arm
@@ -390,198 +512,138 @@ export function useVigilEngine() {
 
   const arm = useCallback(async (mode: 'SNIPE' | 'EJECT', config: VigilSession['config']) => {
     try {
+      if (mode === 'SNIPE') {
+        const strike = strikeRef.current;
+        if (!strike) throw new Error('Unlock the strike wallet before arming a SNIPE');
+
+        // Funding preconditions: token balance covers the order, ETH covers gas
+        const ticker = config.inputCurrency?.ticker || 'USDT';
+        const balances = await strike.getBalances([ticker]);
+        const have = parseFloat(balances.tokens[ticker] ?? balances.eth);
+        if (have < parseFloat(config.amount)) {
+          throw new Error(`Strike wallet holds ${have} ${ticker}, order needs ${config.amount}`);
+        }
+        const gas = await strike.checkGas();
+        if (!gas.ok) throw new Error(`Strike wallet is short ~${gas.missingEth} ETH for gas`);
+      }
+
       const session: VigilSession = { mode, config, state: 'WATCHING' };
       setActiveSession(session);
-      setDepositInfo(null);
       setCompletedTrade(null);
+      setPendingSession(null);
       setProgress(0);
       setExecutionStatus('');
       setLogs([]);
 
-      setState('WATCHING');
-      logger(`Engine armed in ${mode} mode. Watching market...`, 'info');
+      const triggers = buildTriggers(mode, config.triggerPrice, config.stopPrice);
+      if (triggers.length === 0) throw new Error('No valid trigger price');
 
-      startWatching(session);
+      const { fromTicker, toTicker } = currencyDefaults(session);
+      const krakenPair = getKrakenMonitoringPair(mode, fromTicker, toTicker);
+
+      setState('WATCHING');
+      logger(`Engine armed in ${mode} mode. Pair: ${krakenPair}. Triggers: ${triggers.map(t => `${t.id} ${t.operator} $${t.price}`).join(' | ')}`, 'info');
+
+      watcher.watch(krakenPair, triggers);
+      await persistSession(session, 'ARMED');
     } catch (e: any) {
       logger(`Arming failed: ${e.message}`, 'error');
       setState('ERROR');
     }
-  }, [logger, startWatching]);
-
-  // ---------------------------------------------------------------------------
-  // Execute Strike
-  // ---------------------------------------------------------------------------
-
-  const executeStrike = useCallback(async (payload: TriggerPayload) => {
-    if (stateRef.current === 'EXECUTING' || stateRef.current === 'TRIGGERED') return;
-
-    const session = sessionRef.current;
-    if (!session) return;
-
-    setState('TRIGGERED');
-    logger(`Target hit at $${payload.krakenPrice} [${payload.triggerId}]`, 'warn');
-
-    // Brief delay for UI transition
-    await new Promise(r => setTimeout(r, 500));
-    setState('EXECUTING');
-    logger('Executing strike...', 'process');
-
-    try {
-      const fromTicker = session.config.inputCurrency?.ticker || (session.mode === 'SNIPE' ? 'USDT' : 'XMR');
-      const fromNetwork = session.config.inputCurrency?.network || (session.mode === 'SNIPE' ? 'ERC20' : 'Mainnet');
-      const toTicker = session.config.outputCurrency?.ticker || (session.mode === 'SNIPE' ? 'XMR' : 'USDT');
-      const toNetwork = session.config.outputCurrency?.network || (session.mode === 'SNIPE' ? 'Mainnet' : 'ERC20');
-
-      const amount = parseFloat(session.config.amount);
-      if (amount <= 0) throw new Error('Invalid amount');
-
-      // For SNIPE: receive address is the vault's primary address
-      // For EJECT: receive address is the user-provided target address
-      const destinationAddress = session.config.targetAddress;
-
-      logger('Creating swap order...', 'process');
-
-      const trade = await createTrade({
-        id: `vigil_${Date.now()}`,
-        amountFrom: amount,
-        amountTo: 0,
-        fromTicker,
-        fromNetwork,
-        toTicker,
-        toNetwork,
-        destinationAddress,
-        provider: payload.provider,
-        engine: payload.engine,
-        source: 'ghost vigil sweep',
-        fixed: false,
-      });
-
-      const depositAddress = trade.address_provider || trade.deposit_address;
-      if (!depositAddress) throw new Error('Failed to get deposit address from provider');
-
-      const tradeId = trade.trade_id || trade.id || '';
-      logger(`Order created. ID: ${tradeId}`, 'success');
-
-      if (session.mode === 'EJECT') {
-        // ---------------------------------------------------------------
-        // EJECT: Send XMR from vault to the exchange deposit address
-        // ---------------------------------------------------------------
-        logger('Sweeping XMR from vault...', 'process');
-
-        let txHash: string | undefined;
-        try {
-          txHash = await vault.sendXmr(depositAddress, amount);
-        } catch (sendErr: any) {
-          // If sendXmr fails, try sweep_all via IPC as fallback
-          logger(`sendXmr failed (${sendErr.message}), attempting sweep_all...`, 'warn');
-          const sweepResult = await window.api.walletAction('mnemonic' as any, {});
-          // The actual sweep is done through proxyRequest for sweep_all
-          const rpcResult = await window.api.proxyRequest({
-            method: 'sweep_all',
-            params: { address: depositAddress },
-          });
-          if (!rpcResult.success) throw new Error(rpcResult.error || 'sweep_all failed');
-          txHash = rpcResult.result?.tx_hash_list?.[0] || 'sweep_submitted';
-        }
-
-        logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
-
-        setCompletedTrade({
-          id: tradeId,
-          amount: amount.toString(),
-          txHash,
-          inputCurrency: session.config.inputCurrency,
-          outputCurrency: session.config.outputCurrency,
-        });
-
-        setState('COMPLETED');
-        setActiveSession(null);
-
-      } else {
-        // ---------------------------------------------------------------
-        // SNIPE: Show deposit info for user to fund externally
-        // ---------------------------------------------------------------
-        const depositMemo = (trade as any).address_provider_memo;
-        setDepositInfo({
-          address: depositAddress,
-          amount: trade.deposit_amount || amount,
-          ticker: fromTicker,
-          memo: depositMemo,
-        });
-
-        setCompletedTrade({
-          id: tradeId,
-          amount: amount.toString(),
-          inputCurrency: session.config.inputCurrency,
-          outputCurrency: session.config.outputCurrency,
-        });
-
-        logger(`Deposit ${trade.deposit_amount || amount} ${fromTicker} to: ${depositAddress}${depositMemo ? ` (memo: ${depositMemo})` : ''}`, 'success');
-        setState('COMPLETED');
-        setActiveSession(null);
-      }
-    } catch (e: any) {
-      logger(`Execution failed: ${e.message}`, 'error');
-      // On failure, return to WATCHING so user can retry or abort
-      setState('ERROR');
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logger, vault.sendXmr]);
+  }, [logger, persistSession]);
 
   // ---------------------------------------------------------------------------
-  // Abort
+  // Restart recovery
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resume a persisted session. ARMED (and EXECUTING, which cannot be safely
+   * re-fired) re-arm the watcher; POLLING resumes status tracking. SNIPE
+   * sessions need the strike wallet unlocked first.
+   */
+  const rearmPendingSession = useCallback(async () => {
+    const pending = pendingSession;
+    if (!pending) return;
+
+    if (pending.mode === 'SNIPE' && !strikeRef.current && pending.phase !== 'POLLING') {
+      throw new Error('Unlock the strike wallet first');
+    }
+
+    const session: VigilSession = { mode: pending.mode, config: pending.config, state: 'WATCHING' };
+    setActiveSession(session);
+    setPendingSession(null);
+
+    if (pending.phase === 'POLLING' && pending.tradeId) {
+      logger(`Resuming swap tracking (${pending.tradeId})...`, 'info');
+      await pollTradeStatus(pending.tradeId, pending.txHash, session);
+      return;
+    }
+
+    if (pending.phase === 'EXECUTING') {
+      logger('Previous trigger fired but execution did not complete. Re-arming watcher — review the provider before retrying.', 'warn');
+    }
+
+    await arm(pending.mode, pending.config);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSession, arm, pollTradeStatus, logger]);
+
+  const discardPendingSession = useCallback(async () => {
+    setPendingSession(null);
+    await clearPersistedSession();
+  }, [clearPersistedSession]);
+
+  // ---------------------------------------------------------------------------
+  // Retry (after an execution error)
+  // ---------------------------------------------------------------------------
+
+  const retry = useCallback(async () => {
+    const payload = retryPayloadRef.current;
+    const session = sessionRef.current;
+    if (!payload || !session) return;
+    logger('Retrying execution...', 'process');
+    setState('WATCHING'); // allow executeStrike's reentrancy guard to pass
+    await executeStrikeRef.current(payload);
+  }, [logger]);
+
+  // ---------------------------------------------------------------------------
+  // Abort / Reset
   // ---------------------------------------------------------------------------
 
   const abort = useCallback(() => {
     logger('Aborting vigil...', 'warn');
-    triggersRef.current = [];
-    closeWebSocket();
+    pollAbortRef.current = true;
+    watcher.stop();
     setActiveSession(null);
     setState('IDLE');
-    setDepositInfo(null);
     setExecutionStatus('');
     setProgress(0);
+    clearPersistedSession();
     logger('Vigil disarmed.', 'info');
-  }, [closeWebSocket, logger]);
-
-  // ---------------------------------------------------------------------------
-  // Reset
-  // ---------------------------------------------------------------------------
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logger, clearPersistedSession]);
 
   const reset = useCallback(() => {
-    triggersRef.current = [];
-    closeWebSocket();
+    pollAbortRef.current = true;
+    watcher.stop();
     setActiveSession(null);
     setState('IDLE');
     setLogs([]);
     setExecutionStatus('');
     setProgress(0);
     setCompletedTrade(null);
-    setDepositInfo(null);
-    setPrice(null);
-    setWsConnected(false);
-  }, [closeWebSocket]);
+    retryPayloadRef.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ---------------------------------------------------------------------------
-  // Cleanup on unmount
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    return () => {
-      triggersRef.current = [];
-      closeWebSocket();
-    };
-  }, [closeWebSocket]);
+  // Stop polling on unmount (the WS is cleaned up inside usePriceWatcher)
+  useEffect(() => () => { pollAbortRef.current = true; }, []);
 
   // ---------------------------------------------------------------------------
   // Derived price: prefer live WS price, fallback to fiat API
   // ---------------------------------------------------------------------------
 
-  const finalPrice = price ?? (parseFloat(fiatPrice || '0') || null);
-
-  // ---------------------------------------------------------------------------
-  // Return
-  // ---------------------------------------------------------------------------
+  const finalPrice = watcher.price ?? (parseFloat(fiatPrice || '0') || null);
 
   return {
     state,
@@ -590,11 +652,27 @@ export function useVigilEngine() {
     progress,
     arm,
     abort,
-    price: finalPrice,
     reset,
-    wsConnected,
+    retry,
+    price: finalPrice,
+    wsConnected: watcher.connected,
+    wsDegraded: watcher.degraded,
+    reconnectFeed: watcher.reconnect,
     activeSession,
     completedTrade,
-    depositInfo,
+    // Restart recovery
+    pendingSession,
+    rearmPendingSession,
+    discardPendingSession,
+    // Strike wallet
+    strikeAddress,
+    strikeBalances,
+    strikeGas,
+    strikeCreated,
+    strikeUnlocked: !!strikeAddress,
+    unlockStrike,
+    exportStrikeKey,
+    refundStrike,
+    refreshStrike,
   };
 }

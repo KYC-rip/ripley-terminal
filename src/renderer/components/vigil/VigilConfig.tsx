@@ -28,6 +28,9 @@ interface Props {
   setData: (data: any) => void;
   onArm: () => void;
   currentPrice: number;
+  /** External arming block (e.g. strike wallet not funded yet) */
+  armDisabled?: boolean;
+  armDisabledReason?: string;
 }
 
 // ─── Hold-to-Arm Button ───
@@ -122,7 +125,7 @@ function HoldToArmButton({
 
 // ─── Main Component ───
 
-export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice }: Props) {
+export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice, armDisabled, armDisabledReason }: Props) {
   const isSnipe = mode === 'SNIPE';
   const { currencies, loading: isCurrencyLoading } = useCurrencies();
   const [useStop, setUseStop] = useState(false);
@@ -512,7 +515,8 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
       {/* ─── Arm Button ─── */}
       <HoldToArmButton
         onComplete={onArm}
-        disabled={!data.triggerPrice || !data.amount || !data.inputCurrency || !data.outputCurrency || !isValid || !!amountError}
+        disabled={!data.triggerPrice || !data.amount || !data.inputCurrency || !data.outputCurrency || !isValid || !!amountError || armDisabled}
+        label={armDisabled && armDisabledReason ? armDisabledReason : 'INITIALIZE VIGIL'}
       />
     </div>
   );
