@@ -11,7 +11,7 @@ export function setNetworkLabel(label: string) {
   currentLabel = label || '';
 }
 
-export function getNetworkLabel(): string {
+export function getActiveNetworkLabel(): string {
   return currentLabel;
 }
 

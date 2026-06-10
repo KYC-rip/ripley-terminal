@@ -25,10 +25,12 @@ export function FaucetCard({ address }: { address: string }) {
     setError(null);
     try {
       const base = getApiBase().replace(/\/$/, '');
+      // 15s ceiling so a hung Worker never leaves an infinite spinner
       const res = await fetch(`${base}/v1/faucet/stressnet/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address }),
+        signal: AbortSignal.timeout(15_000),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.txid) {
