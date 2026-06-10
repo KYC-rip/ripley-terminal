@@ -214,6 +214,16 @@ export function useVigilEngine() {
       console.warn('[Vigil] Failed to clear persisted session:', e));
   }, [identityId]);
 
+  // Identity switch invalidates the in-memory strike wallet — the new
+  // identity has its own key (and its own vault password).
+  useEffect(() => {
+    strikeRef.current = null;
+    setStrikeAddress('');
+    setStrikeBalances(null);
+    setStrikeGas(null);
+    setStrikeCreated(false);
+  }, [identityId]);
+
   // Load any persisted session for this identity on mount / identity switch
   useEffect(() => {
     let cancelled = false;
@@ -473,7 +483,9 @@ export function useVigilEngine() {
    * wallet. Must be called before arming a SNIPE.
    */
   const unlockStrike = useCallback(async (vaultPassword: string, network: string) => {
-    if (!identityId || identityId === 'primary') throw new Error('No active identity');
+    if (!identityId || identityId === 'primary') {
+      throw new Error('Vigil needs a named identity — create one in Settings before using the strike wallet');
+    }
 
     // Verify the password against the real vault before trusting it for
     // key encryption (same pattern as the dispatch password gate).
@@ -602,7 +614,9 @@ export function useVigilEngine() {
     const session = sessionRef.current;
     if (!payload || !session) return;
     logger('Retrying execution...', 'process');
-    setState('WATCHING'); // allow executeStrike's reentrancy guard to pass
+    // executeStrike refuses to run while state is TRIGGERED/EXECUTING (its
+    // reentrancy guard); stepping back to WATCHING is what re-opens the gate.
+    setState('WATCHING');
     await executeStrikeRef.current(payload);
   }, [logger]);
 

@@ -36,6 +36,14 @@ export function StrikeWalletPanel({
   // Surface the backup prompt automatically right after key generation
   useEffect(() => { if (created) setShowExport(true); }, [created]);
 
+  // Auto-refresh balances while the panel is visible so incoming pre-funding
+  // shows up without manual refreshes
+  useEffect(() => {
+    if (!unlocked) return;
+    const interval = setInterval(() => { onRefresh().catch(() => { }); }, 30_000);
+    return () => clearInterval(interval);
+  }, [unlocked, onRefresh]);
+
   const handleUnlock = async () => {
     if (!password || busy) return;
     setBusy(true);
@@ -207,6 +215,10 @@ export function StrikeWalletPanel({
               <Eye size={10} /> Export / back up key
             </button>
           )}
+
+          <div className="text-[8px] text-xmr-dim/60 uppercase tracking-wider">
+            EVM RPC follows the app network mode — Tor-routed when Tor is enabled
+          </div>
         </div>
       )}
     </div>

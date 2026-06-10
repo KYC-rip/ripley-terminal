@@ -1,6 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateTriggers, getKrakenMonitoringPair, type PriceTrigger } from '../usePriceWatcher';
 import { buildTriggers, loadPersistedSession, VIGIL_SESSION_VERSION, type PersistedVigilSession } from '../useVigilEngine';
+import { isNativeEVM, getTokenConfig } from '@kyc-rip/stealth-engines/chains';
+
+describe('chains registry (strike wallet dependencies)', () => {
+  it('classifies native coins the strike wallet relies on', () => {
+    expect(isNativeEVM('eth')).toBe(true);
+    expect(isNativeEVM('ETH')).toBe(true);
+    expect(isNativeEVM('bnb')).toBe(true);
+    expect(isNativeEVM('usdt')).toBe(false);
+    expect(isNativeEVM('usdc')).toBe(false);
+  });
+
+  it('resolves ERC-20 contracts for the default SNIPE tokens', () => {
+    expect(getTokenConfig('usdt', 'ERC20')?.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(getTokenConfig('usdc', 'ERC20')?.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+  });
+});
 
 describe('evaluateTriggers', () => {
   const triggers: PriceTrigger[] = [

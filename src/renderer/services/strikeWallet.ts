@@ -28,10 +28,32 @@ export interface GasCheck {
   missingEth?: string;
 }
 
+// Typed wrapper (not a cast): if either side's signature drifts, this stops compiling.
+const createTradeForEngine: StealthEnvironment['createTrade'] = (params) =>
+  createTrade({
+    id: params.id,
+    amountFrom: params.amountFrom,
+    amountTo: params.amountTo,
+    fromTicker: params.fromTicker,
+    fromNetwork: params.fromNetwork,
+    toTicker: params.toTicker,
+    toNetwork: params.toNetwork,
+    destinationAddress: params.destinationAddress,
+    provider: params.provider,
+    engine: params.engine,
+    // Engines pass free-form sources; the desktop API accepts a known union
+    source: (params.source ?? 'ghost') as Parameters<typeof createTrade>[0]['source'],
+    fixed: params.fixed,
+  });
+
 const desktopStealthEnv: StealthEnvironment = {
-  createTrade: createTrade as unknown as StealthEnvironment['createTrade'],
+  createTrade: createTradeForEngine,
   getTokenConfig,
   isNativeEVM,
+  // The engine never derives HD seeds on desktop (keys are imported), but
+  // give it real storage so future engine paths never hit the throwing stub.
+  // (Guarded for non-browser contexts like vitest.)
+  storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
 };
 
 export type StrikeLogger = (msg: string, type?: 'info' | 'success' | 'warn' | 'process' | 'error') => void;
@@ -66,7 +88,11 @@ export class StrikeWallet {
     if (blob) {
       privateKey = await decryptStrikeKey(blob, vaultPassword);
     } else {
-      privateKey = ethers.Wallet.createRandom().privateKey;
+      try {
+        privateKey = ethers.Wallet.createRandom().privateKey;
+      } catch (e: any) {
+        throw new Error(`Failed to generate strike key (entropy source unavailable?): ${e.message}`);
+      }
       const newBlob = await encryptStrikeKey(privateKey, vaultPassword);
       const res = await window.api.vigilSaveStrikeKey(identityId, newBlob);
       if (!res.success) throw new Error(res.error || 'Failed to persist strike key');
@@ -128,8 +154,13 @@ export class StrikeWallet {
 }
 
 /**
- * Re-encrypt the strike key when the vault password changes, keeping the
- * burner recoverable. Call with both passwords during a password-change flow.
+ * Re-encrypt the strike key under a new vault password, keeping the burner
+ * recoverable. NOTE: the app currently has NO vault password-change flow
+ * (passwords are fixed at identity creation; neither SettingsView nor any
+ * IPC calls monero-wallet-rpc change_wallet_password). This function is the
+ * mandatory hook for that flow — if a password change feature is ever added,
+ * it MUST call this with both passwords or the strike key becomes
+ * unrecoverable under the new password.
  */
 export async function reencryptStrikeKey(identityId: string, oldPassword: string, newPassword: string): Promise<boolean> {
   const blob = await window.api.vigilGetStrikeKey(identityId);
