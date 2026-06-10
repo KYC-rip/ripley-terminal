@@ -103,7 +103,7 @@ export function ComplianceSelector({
 
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
            {/* Summary Badge */}
-           <div className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-mono font-bold whitespace-nowrap ${summary.color} ${summary.bg}`}>
+           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-sm border text-[11px] font-mono font-bold whitespace-nowrap ${summary.color} ${summary.bg}`}>
               {summary.label === 'MAX PRIVACY' && <Lock size={10} className="shrink-0" />}
               {summary.label === 'BEST RATE (RISK)' && <Zap size={10} className="shrink-0" />}
               {summary.label === 'BALANCED' && <ShieldCheck size={10} className="shrink-0" />}

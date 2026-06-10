@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, Info, ExternalLink } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { useStats } from '../../hooks/useStats';
@@ -360,7 +360,7 @@ export function DirectSendTab({
                       <img
                         src={bioProfile.avatar}
                         alt="Avatar"
-                        className="w-10 h-10 rounded bg-black object-cover border border-xmr-green/30"
+                        className="w-10 h-10 rounded-sm bg-black object-cover border border-xmr-green/30"
                       />
                     )}
                     <div>

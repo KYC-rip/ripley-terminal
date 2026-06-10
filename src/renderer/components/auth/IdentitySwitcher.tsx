@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PlusCircle, Check, Trash2, ChevronDown, ChevronUp, Users, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { PlusCircle, Check, Trash2, ChevronDown, ChevronUp, Users } from 'lucide-react';
 
 interface Identity {
   id: string;

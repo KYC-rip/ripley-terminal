@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Info, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 
@@ -29,7 +29,7 @@ export function SettingsView() {
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [targetHeight, setTargetHeight] = useState<string>('');
-  const [isRescanning, setIsRescaning] = useState(false);
+  const [isRescanning, setIsRescanning] = useState(false);
 
   // 📦 App Info & Updates state
   const [appInfo, setAppInfo] = useState<{ version: string; appDataPath: string; walletsPath: string; platform: string } | null>(null);
@@ -168,14 +168,14 @@ export function SettingsView() {
     if (isNaN(h)) return alert("INVALID_HEIGHT");
 
     if (confirm(`INITIATE_RESCAN from height ${h}? This will clear local wallet cache.`)) {
-      setIsRescaning(true);
+      setIsRescanning(true);
       try {
         await rescan(h);
         alert("RESCAN_SIGNAL_BROADCASTED.");
       } catch (e: any) {
         alert(`RESCAN_FAILED: ${e.message}`);
       } finally {
-        setIsRescaning(false);
+        setIsRescanning(false);
       }
     }
   };
@@ -538,7 +538,7 @@ export function SettingsView() {
                     </div>
                   </div>
 
-                  <div className="border border-xmr-border/30 rounded overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
+                  <div className="border border-xmr-border/30 rounded-sm overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
                     <div
                       className="absolute inset-0 z-0 pointer-events-none"
                       style={{

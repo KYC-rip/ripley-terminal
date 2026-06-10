@@ -29,7 +29,7 @@ const TokenRow = ({ token, isActive, onClick }: { token: Currency, isActive: boo
   <button
     onClick={onClick}
     className={`
-          w-full flex items-center justify-between p-3 rounded cursor-pointer transition-all border content-visibility-auto
+          w-full flex items-center justify-between p-3 rounded-sm cursor-pointer transition-all border content-visibility-auto
           ${['testnet', 'stagenet', 'sepolia'].includes(token?.network.toLowerCase() || '') ? 'border-xmr-warning text-xmr-surface' : ''}
           ${isActive
         ? 'bg-xmr-green/10 border-xmr-green/30'
@@ -46,7 +46,7 @@ const TokenRow = ({ token, isActive, onClick }: { token: Currency, isActive: boo
         </div>
         <div className="text-xs text-xmr-dim/70 uppercase font-bold tracking-wider flex items-center gap-2">
           {token.name}
-          <span className="bg-xmr-surface border border-xmr-border px-1 rounded opacity-80">{token.network}</span>
+          <span className="bg-xmr-surface border border-xmr-border px-1 rounded-sm opacity-80">{token.network}</span>
         </div>
       </div>
     </div>
@@ -158,7 +158,7 @@ export function CurrencyInput({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-xmr-base/90 backdrop-blur-md animate-in fade-in duration-200 p-4">
       <div className="absolute inset-0" onClick={() => setIsModalOpen(false)}></div>
 
-      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-lg overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
+      <div className="relative w-full max-w-sm bg-xmr-base border border-xmr-green/50 shadow-[0_0_50px_rgba(0,255,65,0.1)] rounded-sm overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-200 z-10">
         {/* Header */}
         <div className="p-4 border-b border-xmr-border flex justify-between items-center bg-xmr-surface">
           <h3 className="font-bold text-xmr-green tracking-[0.2em] text-sm flex items-center gap-2">
@@ -177,7 +177,7 @@ export function CurrencyInput({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="SEARCH (Ticker, Name)..."
-            className="w-full bg-xmr-surface border border-xmr-border rounded px-3 py-2 text-sm text-xmr-dim focus:border-xmr-green outline-none placeholder-xmr-dim/50 uppercase"
+            className="w-full bg-xmr-surface border border-xmr-border rounded-sm px-3 py-2 text-sm text-xmr-dim focus:border-xmr-green outline-none placeholder-xmr-dim/50 uppercase"
           />
         </div>
 
@@ -210,7 +210,7 @@ export function CurrencyInput({
               )}
 
               {displayList.length === 0 && (
-                <div className="p-8 text-center text-xmr-dim text-xs border border-dashed border-xmr-dim/20 rounded m-2">
+                <div className="p-8 text-center text-xmr-dim text-xs border border-dashed border-xmr-dim/20 rounded-sm m-2">
                   NO_ASSETS_FOUND
                 </div>
               )}
@@ -219,7 +219,7 @@ export function CurrencyInput({
         </div>
 
         {/* Footer Status */}
-        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-xs text-xmr-dim flex justify-between rounded-b-lg font-mono">
+        <div className="p-2 border-t border-xmr-border bg-xmr-surface text-xs text-xmr-dim flex justify-between rounded-b-sm font-mono">
           <span>STATUS: {isListReady ? 'ONLINE' : 'SYNCING'}</span>
           <span>{tokenList.length} ASSETS</span>
         </div>

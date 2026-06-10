@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Copy, Edit2, Check, X, Wind, Send } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
@@ -36,7 +36,7 @@ export function AddressList({
     }
   };
 
-  const handleVanish = async (e: React.MouseEvent, index: number) => {
+  const handleVanish = async (e: MouseEvent, index: number) => {
     e.stopPropagation();
     try {
       setVanishingIndex(index);

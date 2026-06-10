@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { Ghost, ArrowDown, ArrowRight, ArrowUpDown, Zap, Shield, RefreshCw, AlertCircle, Copy, Check, X, Radio, CheckCircle2, Loader2, ChevronRight, Clock, Server } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { Card } from './Card';
@@ -358,7 +358,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
 
   // ─── Mode tab ───
   const ModeTab = () => (
-    <div className="flex items-center gap-1.5 bg-xmr-base border border-xmr-border/30 rounded-md p-1">
+    <div className="flex items-center gap-1.5 bg-xmr-base border border-xmr-border/30 rounded-sm p-1">
       {([
         { id: 'swap' as const, label: 'Swap', icon: Zap },
         { id: 'ghost' as const, label: 'Ghost', icon: Ghost },
@@ -433,7 +433,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             return (
               <button
                 key={`${route.engine || route.provider}-${route.fixed ? 'f' : 'v'}-${i}`}
-                className={`w-full text-left cursor-pointer transition-all border rounded-md p-3 relative ${isSelected
+                className={`w-full text-left cursor-pointer transition-all border rounded-sm p-3 relative ${isSelected
                   ? isGhost
                     ? 'border-xmr-ghost bg-xmr-ghost/5 shadow-[0_0_12px_rgba(168,85,247,0.1)]'
                     : 'border-xmr-accent bg-xmr-accent/5 shadow-[0_0_12px_rgba(255,102,0,0.1)]'
@@ -441,7 +441,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 }`}
                 onClick={() => { setSelectedRoute(route); setRouteDrawerOpen(false); }}
               >
-                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-${themeColor} rounded-l`} />}
+                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-${themeColor} rounded-l-sm`} />}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     {route.providerLogo && (
@@ -471,10 +471,10 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 {isGhost && route.hops?.length > 0 && (
                   <div className="flex items-center gap-1 mt-1.5 text-[8px] text-xmr-dim">
                     {route.hops.map((hop: any, hi: number) => (
-                      <React.Fragment key={hi}>
+                      <Fragment key={hi}>
                         {hi > 0 && <ChevronRight size={7} className="text-xmr-border" />}
                         <span className="px-1 py-0.5 bg-xmr-base border border-xmr-border/20 uppercase">{hop.name}</span>
-                      </React.Fragment>
+                      </Fragment>
                     ))}
                   </div>
                 )}
@@ -521,7 +521,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
 
   // ─── Log Console (shared) ───
   const LogConsole = ({ label }: { label: string }) => (
-    <div className="bg-xmr-base border border-xmr-border/20 rounded-md overflow-hidden">
+    <div className="bg-xmr-base border border-xmr-border/20 rounded-sm overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-xmr-border/20 bg-xmr-surface/30">
         <div className="flex items-center gap-2">
           <span className="relative flex h-1.5 w-1.5">
@@ -574,7 +574,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 </div>
               )}
             </Card>
-            <button onClick={handleReset} className="px-8 py-3 border border-xmr-ghost/50 text-xmr-ghost text-[10px] font-black uppercase tracking-[0.2em] hover:bg-xmr-ghost/10 transition-all cursor-pointer rounded-md">NEW_EXCHANGE</button>
+            <button onClick={handleReset} className="px-8 py-3 border border-xmr-ghost/50 text-xmr-ghost text-[10px] font-black uppercase tracking-[0.2em] hover:bg-xmr-ghost/10 transition-all cursor-pointer rounded-sm">NEW_EXCHANGE</button>
           </div>
         </div>
       );
@@ -602,7 +602,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
               )}
             </Card>
           )}
-          <button onClick={handleReset} className="px-8 py-3 border border-xmr-green/50 text-xmr-green text-[10px] font-black uppercase tracking-[0.2em] hover:bg-xmr-green/10 transition-all cursor-pointer rounded-md">NEW_EXCHANGE</button>
+          <button onClick={handleReset} className="px-8 py-3 border border-xmr-green/50 text-xmr-green text-[10px] font-black uppercase tracking-[0.2em] hover:bg-xmr-green/10 transition-all cursor-pointer rounded-sm">NEW_EXCHANGE</button>
         </div>
       </div>
     );
@@ -664,7 +664,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 <div className="text-[10px] text-xmr-ghost font-mono uppercase tracking-widest font-bold">Deposit_Required</div>
                 <p className="text-[9px] text-xmr-dim">Send the amount below to initiate the ghost sequence</p>
               </div>
-              <div className="p-4 bg-xmr-base border border-xmr-ghost/20 rounded-md space-y-3">
+              <div className="p-4 bg-xmr-base border border-xmr-ghost/20 rounded-sm space-y-3">
                 <div className="flex justify-between text-[10px] font-bold uppercase font-mono"><span className="text-xmr-dim">Amount</span><span className="text-xmr-ghost">{leg1.depositAmount} {leg1.fromTicker}</span></div>
                 <div className="flex items-center gap-2">
                   <AddressDisplay address={leg1.depositAddress} className="text-[10px] text-xmr-green font-bold flex-grow" />
@@ -675,7 +675,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           )}
 
           {/* Summary */}
-          <div className="flex items-center gap-4 justify-between text-xs font-bold uppercase tracking-tighter p-4 bg-xmr-surface/50 border border-xmr-border/20 rounded-md">
+          <div className="flex items-center gap-4 justify-between text-xs font-bold uppercase tracking-tighter p-4 bg-xmr-surface/50 border border-xmr-border/20 rounded-sm">
             <div className="flex flex-col gap-1"><span className="text-xmr-dim text-[9px]">You_Send</span><span className="text-xmr-green">{leg1.fromAmount || leg1.depositAmount} {leg1.fromTicker}</span></div>
             <div className="flex items-center gap-1 text-xmr-ghost"><ArrowRight size={10} /><Ghost size={12} /><ArrowRight size={10} /></div>
             <div className="flex flex-col gap-1 text-right"><span className="text-xmr-dim text-[9px]">You_Receive</span><span className="text-xmr-green">{(leg2 || leg1).toAmount} {(leg2 || leg1).toTicker}</span></div>
@@ -691,7 +691,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           )}
 
           <LogConsole label="GHOST_LOG" />
-          <button onClick={handleReset} className="w-full py-3 bg-xmr-error/5 hover:bg-xmr-error/10 border border-xmr-error/20 text-xmr-error text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all cursor-pointer rounded-md"><X size={14} /> Abort_Session</button>
+          <button onClick={handleReset} className="w-full py-3 bg-xmr-error/5 hover:bg-xmr-error/10 border border-xmr-error/20 text-xmr-error text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all cursor-pointer rounded-sm"><X size={14} /> Abort_Session</button>
         </div>
       );
     }
@@ -736,7 +736,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                   <p className="text-[9px] text-xmr-dim">Send the exact amount to the address below</p>
                 )}
               </div>
-              <div className="p-4 bg-xmr-base border border-xmr-accent/20 rounded-md space-y-3">
+              <div className="p-4 bg-xmr-base border border-xmr-accent/20 rounded-sm space-y-3">
                 <div className="flex justify-between text-[10px] font-bold uppercase font-mono"><span className="text-xmr-dim">{isFloating ? 'Suggested Amount' : 'Amount'}</span><span className="text-xmr-accent">{depositAmt} {(activeTrade.ticker_from || fromCoin.ticker).toUpperCase()}</span></div>
                 <div className="flex items-center gap-2">
                   <AddressDisplay address={depositAddr} className="text-[10px] text-xmr-green font-bold flex-grow" />
@@ -746,7 +746,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             </Card>
           )}
 
-          <div className="flex items-center gap-4 justify-between text-xs font-bold uppercase tracking-tighter p-4 bg-xmr-surface/50 border border-xmr-border/20 rounded-md">
+          <div className="flex items-center gap-4 justify-between text-xs font-bold uppercase tracking-tighter p-4 bg-xmr-surface/50 border border-xmr-border/20 rounded-sm">
             <div className="flex flex-col gap-1"><span className="text-xmr-dim text-[9px]">You_Send</span><span className="text-xmr-green">{activeTrade.amount_from} {(activeTrade.ticker_from || '').toUpperCase()}</span></div>
             <ArrowRight size={16} className="text-xmr-dim" />
             <div className="flex flex-col gap-1 text-right"><span className="text-xmr-dim text-[9px]">You_Receive</span><span className="text-xmr-green">{activeTrade.amount_to} {(activeTrade.ticker_to || '').toUpperCase()}</span></div>
@@ -760,7 +760,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           )}
 
           <LogConsole label="SWAP_LOG" />
-          <button onClick={handleReset} className="w-full py-3 bg-xmr-error/5 hover:bg-xmr-error/10 border border-xmr-error/20 text-xmr-error text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all cursor-pointer rounded-md"><X size={14} /> Cancel_Trade</button>
+          <button onClick={handleReset} className="w-full py-3 bg-xmr-error/5 hover:bg-xmr-error/10 border border-xmr-error/20 text-xmr-error text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all cursor-pointer rounded-sm"><X size={14} /> Cancel_Trade</button>
         </div>
       );
     }
@@ -785,7 +785,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         topGradientAccentColor={isGhost ? 'xmr-ghost' : 'xmr-accent'}
       >
         {/* Source */}
-        <div className={`flex gap-2 items-center bg-xmr-base border border-xmr-border/30 px-2 rounded-md h-14 transition-colors ${isGhost ? 'focus-within:border-xmr-ghost/50' : 'focus-within:border-xmr-accent/50'}`}>
+        <div className={`flex gap-2 items-center bg-xmr-base border border-xmr-border/30 px-2 rounded-sm h-14 transition-colors ${isGhost ? 'focus-within:border-xmr-ghost/50' : 'focus-within:border-xmr-accent/50'}`}>
           <div className="w-[45%] shrink-0">
             <CurrencySelector label="" selected={fromCoin} onSelect={setFromCoin} currencies={currencies} hideBorder themeColor={isGhost ? 'xmr-ghost' : undefined} variant="drawer" drawerTitle="Source Asset" />
           </div>
@@ -810,7 +810,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         </div>
 
         {/* Target */}
-        <div className="flex gap-2 items-center bg-xmr-base border border-xmr-border/30 px-2 rounded-md h-14">
+        <div className="flex gap-2 items-center bg-xmr-base border border-xmr-border/30 px-2 rounded-sm h-14">
           <div className="w-[45%] shrink-0">
             <CurrencySelector label="" selected={toCoin} onSelect={setToCoin} currencies={currencies} hideBorder themeColor={isGhost ? 'xmr-ghost' : undefined} variant="drawer" drawerTitle="Target Asset" />
           </div>
@@ -828,7 +828,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         {/* Route selector button */}
         <button
           onClick={() => setRouteDrawerOpen(true)}
-          className={`w-full flex items-center justify-between px-3 py-2 bg-xmr-base border border-xmr-border/30 rounded-md transition-colors cursor-pointer group ${isGhost ? 'hover:border-xmr-ghost/40' : 'hover:border-xmr-accent/40'}`}
+          className={`w-full flex items-center justify-between px-3 py-2 bg-xmr-base border border-xmr-border/30 rounded-sm transition-colors cursor-pointer group ${isGhost ? 'hover:border-xmr-ghost/40' : 'hover:border-xmr-accent/40'}`}
         >
           <div className="flex items-center gap-2">
             <Radio size={11} className={`text-${themeColor}`} />
@@ -862,7 +862,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             value={destAddress}
             onChange={e => setDestAddress(e.target.value)}
             placeholder="Destination address..."
-            className={`w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-md text-xs text-xmr-green font-bold focus:outline-none transition-colors ${isGhost ? 'focus:border-xmr-ghost/50' : 'focus:border-xmr-accent/50'}`}
+            className={`w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none transition-colors ${isGhost ? 'focus:border-xmr-ghost/50' : 'focus:border-xmr-accent/50'}`}
           />
         </div>
 
@@ -871,7 +871,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           <div className="space-y-1">
             <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Memo / Tag</label>
             <input type="text" value={memo} onChange={e => setMemo(e.target.value)} placeholder="Required for this coin..."
-              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-md text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-accent/50 transition-colors" />
+              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-accent/50 transition-colors" />
           </div>
         )}
 
@@ -881,7 +881,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Refund_Address</label>
             <input type="text" value={refundAddress} onChange={e => setRefundAddress(e.target.value)}
               placeholder={`${fromCoin?.ticker.toUpperCase() || ''} refund address...`}
-              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-md text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-ghost/50 transition-colors" />
+              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-ghost/50 transition-colors" />
           </div>
         )}
 
@@ -892,7 +892,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         <button
           disabled={!selectedRoute || !destAddress || isCreating || (isGhost && (selectedRoute as BridgeRoute)?.requiresRefund && !refundAddress)}
           onClick={handleExecute}
-          className={`w-full py-3 font-black uppercase tracking-[0.2em] text-sm rounded-md transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] shadow-lg ${
+          className={`w-full py-3 font-black uppercase tracking-[0.2em] text-sm rounded-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] shadow-lg ${
             isGhost
               ? 'bg-xmr-ghost text-white hover:brightness-110 shadow-xmr-ghost/10'
               : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base shadow-xmr-accent/10'

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, Copy, ExternalLink, Info, Loader2, Key, ShieldCheck, Fingerprint, CheckCircle, ShieldAlert, Zap, Ghost } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
@@ -357,7 +357,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                         <div className={`absolute left-0 top-0 bottom-0 w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isIncoming ? 'bg-xmr-green' : 'bg-xmr-accent'}`} />
 
                         {/* Type indicator */}
-                        <div className={`w-7 h-7 rounded-md flex items-center justify-center mr-3 shrink-0 ${isIncoming ? 'bg-xmr-green/8 border border-xmr-green/20' : 'bg-xmr-accent/8 border border-xmr-accent/20'}`}>
+                        <div className={`w-7 h-7 rounded-sm flex items-center justify-center mr-3 shrink-0 ${isIncoming ? 'bg-xmr-green/8 border border-xmr-green/20' : 'bg-xmr-accent/8 border border-xmr-accent/20'}`}>
                           {isIncoming ? (
                             <ArrowDownLeft size={13} className="text-xmr-green" />
                           ) : (
@@ -372,10 +372,10 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               {isIncoming ? 'Received' : 'Dispatched'}
                             </span>
                             {ghostTrades[tx.id] && (
-                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded text-xmr-accent font-black tracking-wider">Ghost</span>
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-accent/10 border border-xmr-accent/20 rounded-sm text-xmr-accent font-black tracking-wider">Ghost</span>
                             )}
                             {xmr402Info && (
-                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-warning/10 border border-xmr-warning/20 rounded text-xmr-warning font-black tracking-wider">XMR402</span>
+                              <span className="text-[7px] px-1.5 py-0.5 bg-xmr-warning/10 border border-xmr-warning/20 rounded-sm text-xmr-warning font-black tracking-wider">XMR402</span>
                             )}
                           </div>
                           <div className="text-[9px] text-xmr-dim/40 mt-0.5 truncate">
@@ -593,7 +593,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                               ) : (
                                 <div className="text-xs font-mono text-xmr-dim opacity-60 flex items-center gap-2">
                                   <span>¿Unknown Destination?</span>
-                                  <span className="text-xs bg-xmr-dim/10 px-1 rounded uppercase tracking-tighter">Privacy Protected</span>
+                                  <span className="text-xs bg-xmr-dim/10 px-1 rounded-sm uppercase tracking-tighter">Privacy Protected</span>
                                 </div>
                               )}
                             </div>
