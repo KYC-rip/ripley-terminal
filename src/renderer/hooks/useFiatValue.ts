@@ -70,17 +70,47 @@ export function useFiatValue(ticker?: string, amount?: string | number, withPref
       return;
     }
 
+    // CryptoCompare's free min-api now requires an API key (401), so we
+    // chain keyless public sources: Kraken first (lists XMR; Binance
+    // delisted it and serves frozen prices), then CoinGecko.
+    const fetchKraken = async (): Promise<number | null> => {
+      const pair = `${sym === 'BTC' ? 'XBT' : sym}USD`;
+      const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
+      const data = await res.json();
+      if (data.error?.length || !data.result) return null;
+      const first = Object.values(data.result)[0] as { c?: string[] };
+      const price = parseFloat(first?.c?.[0] || '');
+      return price > 0 ? price : null;
+    };
+
+    const COINGECKO_IDS: Record<string, string> = {
+      BTC: 'bitcoin', ETH: 'ethereum', XMR: 'monero', SOL: 'solana',
+      LTC: 'litecoin', BCH: 'bitcoin-cash', DOGE: 'dogecoin', BNB: 'binancecoin',
+      TRX: 'tron', XRP: 'ripple', AVAX: 'avalanche-2', POL: 'matic-network',
+      MATIC: 'matic-network', ZEC: 'zcash',
+    };
+
+    const fetchCoinGecko = async (): Promise<number | null> => {
+      const id = COINGECKO_IDS[sym];
+      if (!id) return null;
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);
+      const data = await res.json();
+      const price = data?.[id]?.usd;
+      return price > 0 ? price : null;
+    };
+
     const fetchValue = async () => {
-      try {
-        const res = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${sym}&tsyms=USD`);
-        const data = await res.json();
-        
-        if (data.USD) {
-          priceCache[sym] = { price: data.USD, timestamp: Date.now() };
-          updateUI(data.USD);
+      for (const source of [fetchKraken, fetchCoinGecko]) {
+        try {
+          const price = await source();
+          if (price) {
+            priceCache[sym] = { price, timestamp: Date.now() };
+            updateUI(price);
+            return;
+          }
+        } catch (e) {
+          console.warn('Fiat fetch error:', e);
         }
-      } catch (e) {
-        console.warn('Fiat fetch error:', e);
       }
     };
 
