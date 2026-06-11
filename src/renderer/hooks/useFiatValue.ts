@@ -1,5 +1,6 @@
 // ui/src/hooks/useFiatValue.ts
 import { useState, useEffect } from 'react';
+import { getApiBase } from '../services/client';
 
 // struct: { "BTC": { price: 98000, timestamp: 1712345678900 } }
 const priceCache: Record<string, { price: number; timestamp: number }> = {};
@@ -70,17 +71,16 @@ export function useFiatValue(ticker?: string, amount?: string | number, withPref
       return;
     }
 
-    // CryptoCompare's free min-api now requires an API key (401), so we
-    // chain keyless public sources: Kraken first (lists XMR; Binance
-    // delisted it and serves frozen prices), then CoinGecko.
-    const fetchKraken = async (): Promise<number | null> => {
-      const pair = `${sym === 'BTC' ? 'XBT' : sym}USD`;
-      const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
+    // Primary: our own API (CORS-enabled, multi-source server-side chain,
+    // KV-cached ~5min, reachable over Tor like all api.kyc.rip traffic).
+    // Kraken/Binance REST block browser CORS, so they are useless from the
+    // renderer; CoinGecko allows CORS and serves as the only direct fallback.
+    const fetchKycRip = async (): Promise<number | null> => {
+      const base = getApiBase().replace(/\/$/, '');
+      const res = await fetch(`${base}/v1/price/${sym}`);
+      if (!res.ok) return null;
       const data = await res.json();
-      if (data.error?.length || !data.result) return null;
-      const first = Object.values(data.result)[0] as { c?: string[] };
-      const price = parseFloat(first?.c?.[0] || '');
-      return price > 0 ? price : null;
+      return data?.usd > 0 ? data.usd : null;
     };
 
     const COINGECKO_IDS: Record<string, string> = {
@@ -100,7 +100,7 @@ export function useFiatValue(ticker?: string, amount?: string | number, withPref
     };
 
     const fetchValue = async () => {
-      for (const source of [fetchKraken, fetchCoinGecko]) {
+      for (const source of [fetchKycRip, fetchCoinGecko]) {
         try {
           const price = await source();
           if (price) {
