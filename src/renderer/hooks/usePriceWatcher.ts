@@ -69,7 +69,20 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
     try {
       const ws = new WebSocket(KRAKEN_WS);
 
+      // Proxies that blackhole the connection (no RST) leave the socket in
+      // CONNECTING until the OS TCP timeout (~75s), which delays the whole
+      // backoff->degraded escalation by minutes. Force-close stuck handshakes
+      // so onclose fires and the normal retry path takes over quickly.
+      const connectTimeout = setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.warn('[PriceWatcher] WS handshake timed out after 15s (proxy blackhole?). Forcing retry.');
+          connectingRef.current = false;
+          try { ws.close(); } catch { /* noop */ }
+        }
+      }, 15_000);
+
       ws.onopen = () => {
+        clearTimeout(connectTimeout);
         connectingRef.current = false;
         failuresRef.current = 0;
         setConnected(true);
@@ -114,6 +127,7 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
       };
 
       ws.onclose = (event) => {
+        clearTimeout(connectTimeout);
         connectingRef.current = false;
         setConnected(false);
 
