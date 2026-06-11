@@ -714,6 +714,7 @@ export function useVigilEngine() {
   // Abort / Reset
   // ---------------------------------------------------------------------------
 
+  // Ref avoids a stale closure on abort inside the network-switch effect
   const abortRef = useRef<(() => void) | null>(null);
   const abort = useCallback(() => {
     logger('Aborting vigil...', 'warn');
