@@ -6,7 +6,7 @@ import { VigilDashboard } from './vigil/VigilDashboard';
 import { StrikeWalletPanel } from './vigil/StrikeWalletPanel';
 import { Card } from './Card';
 import { CurrencySelector } from './CurrencySelector';
-import { useVigilEngine } from '../hooks/useVigilEngine';
+import { useVigil } from '../contexts/VigilContext';
 import { useVault } from '../hooks/useVault';
 import { getOrCreateSubaddress } from '../services/subaddressService';
 // Lightweight notification (avoids react-hot-toast dependency)
@@ -35,6 +35,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     reset,
     wsConnected,
     wsDegraded,
+    priceHistory,
     reconnectFeed,
     activeSession,
     completedTrade,
@@ -49,7 +50,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     unlockStrike,
     exportStrikeKey,
     refreshStrike,
-  } = useVigilEngine();
+  } = useVigil();
   const { createSubaddress, subaddresses } = useVault();
 
   const [mode, setMode] = useState<'SNIPE' | 'EJECT'>('EJECT'); // Default EJECT for wallet app
@@ -317,6 +318,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
               realPrice={price}
               priceConnected={!!price && wsConnected !== false}
               externalLogs={logs}
+              priceHistory={priceHistory}
             />
           </div>
         )}

@@ -115,3 +115,30 @@ describe('loadPersistedSession', () => {
     expect(loadPersistedSession({ ...valid, triggers: 'nope' }, 'vault_123')).toBeNull();
   });
 });
+
+import { pushTick, TICK_CAP, type TickPoint } from '../usePriceWatcher';
+
+describe('pushTick (heartbeat chart buffer)', () => {
+  it('collapses ticks in the same 2s window, latest wins', () => {
+    const buf: TickPoint[] = [];
+    pushTick(buf, 100, 10);
+    pushTick(buf, 101, 11); // same window (100-101)
+    expect(buf).toEqual([{ time: 100, value: 11 }]);
+    pushTick(buf, 102, 12); // next window
+    expect(buf).toEqual([{ time: 100, value: 11 }, { time: 102, value: 12 }]);
+  });
+
+  it('ignores out-of-order ticks', () => {
+    const buf: TickPoint[] = [{ time: 200, value: 5 }];
+    pushTick(buf, 150, 9);
+    expect(buf).toEqual([{ time: 200, value: 5 }]);
+  });
+
+  it('caps the buffer at TICK_CAP points, dropping the oldest', () => {
+    const buf: TickPoint[] = [];
+    for (let i = 0; i <= TICK_CAP; i++) pushTick(buf, i * 2, i);
+    expect(buf.length).toBe(TICK_CAP);
+    expect(buf[0].time).toBe(2); // oldest (0) shifted out
+    expect(buf[buf.length - 1].value).toBe(TICK_CAP);
+  });
+});

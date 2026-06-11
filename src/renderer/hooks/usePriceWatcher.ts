@@ -26,6 +26,30 @@ export function evaluateTriggers(triggers: PriceTrigger[], price: number): Price
   return null;
 }
 
+export interface TickPoint { time: number; value: number }
+
+/**
+ * Rolling tick buffer for the heartbeat chart: keeps the LATEST tick per
+ * 2-second window (latest-wins preserves the trigger-relevant extreme at
+ * window close; no averaging), capped at 1800 points (~1 hour).
+ * Pure so it can be unit-tested; mutates and returns the same array unless
+ * the cap forces a shift.
+ */
+export const TICK_WINDOW_S = 2;
+export const TICK_CAP = 1800;
+export function pushTick(buffer: TickPoint[], time: number, value: number): TickPoint[] {
+  const windowTime = Math.floor(time / TICK_WINDOW_S) * TICK_WINDOW_S;
+  const last = buffer[buffer.length - 1];
+  if (last && last.time === windowTime) {
+    last.value = value; // same window: latest wins
+    return buffer;
+  }
+  if (last && windowTime < last.time) return buffer; // ignore out-of-order
+  buffer.push({ time: windowTime, value });
+  if (buffer.length > TICK_CAP) buffer.shift();
+  return buffer;
+}
+
 const KRAKEN_WS = 'wss://ws.kraken.com';
 const BACKOFF_BASE_MS = 5_000;
 const BACKOFF_MAX_MS = 60_000;
@@ -36,6 +60,8 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
   const [connected, setConnected] = useState(false);
   const [degraded, setDegraded] = useState(false);
   const [lastTickAt, setLastTickAt] = useState<number | null>(null);
+  const [priceHistory, setPriceHistory] = useState<TickPoint[]>([]);
+  const historyRef = useRef<TickPoint[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,6 +146,12 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
             setPrice(currentPrice);
             setLastTickAt(Date.now());
 
+            const before = historyRef.current.length;
+            pushTick(historyRef.current, Math.floor(Date.now() / 1000), currentPrice);
+            if (historyRef.current.length !== before) {
+              setPriceHistory([...historyRef.current]); // new window committed
+            }
+
             const hit = evaluateTriggers(triggersRef.current, currentPrice);
             if (hit) onTriggerRef.current(currentPrice, hit);
           }
@@ -181,7 +213,7 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
 
   useEffect(() => () => { triggersRef.current = []; closeSocket(); }, [closeSocket]);
 
-  return { price, connected, degraded, lastTickAt, watch, reconnect, stop, hasTriggers: () => triggersRef.current.length > 0, clearTriggers: () => { triggersRef.current = []; } };
+  return { price, connected, degraded, lastTickAt, priceHistory, watch, reconnect, stop, hasTriggers: () => triggersRef.current.length > 0, clearTriggers: () => { triggersRef.current = []; } };
 }
 
 /**

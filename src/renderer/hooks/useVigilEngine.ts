@@ -11,7 +11,7 @@ import { StrikeWallet, type StrikeBalances, type GasCheck } from '../services/st
 // Types
 // ---------------------------------------------------------------------------
 
-export type EngineState = 'IDLE' | 'WATCHING' | 'TRIGGERED' | 'EXECUTING' | 'POLLING' | 'COMPLETED' | 'ERROR';
+export type EngineState = 'IDLE' | 'WATCHING' | 'TRIGGERED' | 'EXECUTING' | 'PAUSED_LOCKED' | 'POLLING' | 'COMPLETED' | 'ERROR';
 
 export interface VigilSession {
   mode: 'SNIPE' | 'EJECT';
@@ -158,12 +158,20 @@ export function useVigilEngine() {
   const stateRef = useRef<EngineState>('IDLE');
   const pollAbortRef = useRef(false);
   const retryPayloadRef = useRef<TriggerPayload | null>(null);
+  // EJECT trigger that fired while the vault was locked: trade exists,
+  // XMR dispatch is held until unlock (PAUSED_LOCKED).
+  const pausedDispatchRef = useRef<{ tradeId: string; depositAddress: string; amount: number } | null>(null);
 
   useEffect(() => { sessionRef.current = activeSession; }, [activeSession]);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const vault = useVault();
   const identityId = vault.activeId;
+
+  // Mirror the lock state into a ref so async execution paths (which may be
+  // mid-flight when the auto-lock fires) always see the current value.
+  const vaultLockedRef = useRef(vault.isLocked);
+  useEffect(() => { vaultLockedRef.current = vault.isLocked; }, [vault.isLocked]);
 
   // Fiat price fallback for the idle config screen
   const { fiatText: fiatPrice } = useFiatValue('XMR', 1, false);
@@ -181,6 +189,24 @@ export function useVigilEngine() {
 
     if (type === 'process' || type === 'error') {
       setExecutionStatus(text);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Desktop notifications (renderer Notification API, no permission prompt in
+  // Electron). Deduped per key within 60s so price oscillation around the
+  // trigger can't spam; execution itself is already guarded by isVerifyingRef.
+  // ---------------------------------------------------------------------------
+
+  const notifiedAtRef = useRef<Map<string, number>>(new Map());
+  const notify = useCallback((key: string, title: string, body: string) => {
+    const last = notifiedAtRef.current.get(key) || 0;
+    if (Date.now() - last < 60_000) return;
+    notifiedAtRef.current.set(key, Date.now());
+    try {
+      new Notification(title, { body });
+    } catch (e) {
+      console.warn('[Vigil] Notification unavailable:', e);
     }
   }, []);
 
@@ -223,6 +249,56 @@ export function useVigilEngine() {
     setStrikeGas(null);
     setStrikeCreated(false);
   }, [identityId]);
+
+  // PAUSED_LOCKED -> EXECUTING on unlock: the trade was created while the
+  // vault was locked; validate it is still live (getTradeStatus) and dispatch
+  // the held XMR send, else fall to the existing ERROR/Retry surface (which
+  // re-creates expired trades).
+  useEffect(() => {
+    if (vault.isLocked || stateRef.current !== 'PAUSED_LOCKED') return;
+    const held = pausedDispatchRef.current;
+    const session = sessionRef.current;
+    if (!held || !session) return;
+    (async () => {
+      try {
+        setState('EXECUTING');
+        logger('Vault unlocked — validating held trade...', 'process');
+        const status = await getTradeStatus(held.tradeId);
+        const st = (status.status || '').toUpperCase();
+        if (['EXPIRED', 'FAILED', 'REFUNDED'].includes(st)) {
+          throw new Error(`Trade ${held.tradeId} is ${st} — use Retry to re-create it`);
+        }
+        logger('Dispatching held XMR send...', 'process');
+        const txHash = await vault.sendXmr(held.depositAddress, held.amount);
+        logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
+        pausedDispatchRef.current = null;
+        await persistSession(session, 'POLLING', { tradeId: held.tradeId, txHash });
+        await pollTradeStatus(held.tradeId, txHash, session);
+      } catch (e: any) {
+        logger(`Held dispatch failed: ${e.message}`, 'error');
+        setState('ERROR');
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.isLocked]);
+
+  // Monero network switch (mainnet<->stagenet) reloads the whole engine and
+  // invalidates routes/addresses captured at arm time — disarm and drop the
+  // strike state rather than risk firing against the wrong chain.
+  const stagenetRef = useRef(vault.isStagenet);
+  useEffect(() => {
+    if (stagenetRef.current === vault.isStagenet) return;
+    stagenetRef.current = vault.isStagenet;
+    if (stateRef.current !== 'IDLE') {
+      logger('Network changed — disarming vigil (re-arm on the new network).', 'warn');
+      abortRef.current?.();
+    }
+    strikeRef.current = null;
+    setStrikeAddress('');
+    setStrikeBalances(null);
+    setStrikeGas(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.isStagenet]);
 
   // Load any persisted session for this identity on mount / identity switch
   useEffect(() => {
@@ -278,6 +354,7 @@ export function useVigilEngine() {
             outputCurrency: session.config.outputCurrency,
           });
           logger('Swap finished. Funds delivered.', 'success');
+          notify(`done:${tradeId}`, 'Vigil complete', `Swap ${tradeId} finished — funds delivered.`);
           setState('COMPLETED');
           setActiveSession(null);
           await clearPersistedSession();
@@ -311,6 +388,7 @@ export function useVigilEngine() {
     retryPayloadRef.current = payload;
     setState('TRIGGERED');
     logger(`Target hit at $${payload.krakenPrice} [${payload.triggerId}]`, 'warn');
+    notify(`trigger:${payload.triggerId}`, 'Vigil trigger hit', `${payload.triggerId} at $${payload.krakenPrice} — executing ${session.mode}`);
 
     await new Promise(r => setTimeout(r, 500));
     setState('EXECUTING');
@@ -352,6 +430,18 @@ export function useVigilEngine() {
       let txHash: string | undefined;
 
       if (session.mode === 'EJECT') {
+        // Dispatching XMR needs the OPEN vault. If the trigger fired while
+        // locked, hold here (PAUSED_LOCKED): the trade exists, the unlock
+        // effect below auto-dispatches if it is still valid.
+        if (vaultLockedRef.current) {
+          pausedDispatchRef.current = { tradeId, depositAddress, amount };
+          await persistSession(session, 'EXECUTING', { tradeId });
+          setState('PAUSED_LOCKED');
+          logger('Vault is locked — unlock to dispatch XMR (deposit window expires in minutes).', 'warn');
+          notify(`paused:${tradeId}`, 'Vigil: unlock to dispatch', 'EJECT trigger fired while locked — unlock Ripley to send XMR before the deposit window expires.');
+          return;
+        }
+
         // Send the exact XMR amount from the vault. No fallback: a failed
         // send surfaces as an error with a retry — never sweep the wallet.
         logger('Sending XMR from vault...', 'process');
@@ -624,6 +714,7 @@ export function useVigilEngine() {
   // Abort / Reset
   // ---------------------------------------------------------------------------
 
+  const abortRef = useRef<(() => void) | null>(null);
   const abort = useCallback(() => {
     logger('Aborting vigil...', 'warn');
     pollAbortRef.current = true;
@@ -636,6 +727,7 @@ export function useVigilEngine() {
     logger('Vigil disarmed.', 'info');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logger, clearPersistedSession]);
+  useEffect(() => { abortRef.current = abort; }, [abort]);
 
   const reset = useCallback(() => {
     pollAbortRef.current = true;
@@ -671,6 +763,7 @@ export function useVigilEngine() {
     price: finalPrice,
     wsConnected: watcher.connected,
     wsDegraded: watcher.degraded,
+    priceHistory: watcher.priceHistory,
     reconnectFeed: watcher.reconnect,
     activeSession,
     completedTrade,

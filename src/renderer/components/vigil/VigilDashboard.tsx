@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
 import { Radio, XCircle, Shield, ArrowDown, Copy, Check } from 'lucide-react';
+import { HeartbeatChart } from './HeartbeatChart';
 // Lightweight toast-like notification (avoids react-hot-toast dependency)
 const notify = (msg: string) => console.log(`[Vigil] ${msg}`);
 
@@ -21,6 +22,7 @@ interface Props {
   realPrice?: number | null;
   priceConnected?: boolean;
   externalLogs?: LogLine[];
+  priceHistory?: { time: number; value: number }[];
 }
 
 // ─── Main Component ───
@@ -33,6 +35,7 @@ export function VigilDashboard({
   realPrice,
   priceConnected = true,
   externalLogs = [],
+  priceHistory = [],
 }: Props) {
   const isTriggered = state === 'TRIGGERED' || state === 'EXECUTING';
   const displayPrice = realPrice ?? parseFloat(config.triggerPrice) ?? 0;
@@ -144,6 +147,18 @@ export function VigilDashboard({
           </div>
 
           {/* ─── Target Lines ─── */}
+          {/* Live heartbeat chart (built from the WS tick buffer) */}
+          <div className="mb-4">
+            <HeartbeatChart
+              triggerPrice={triggerVal}
+              stopPrice={hasStop ? parseFloat(config.stopPrice) : undefined}
+              mode={mode}
+              isTriggered={isTriggered}
+              realPrice={realPrice}
+              priceHistory={priceHistory}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             {/* Main Target */}
             <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-green/5 space-y-1">
