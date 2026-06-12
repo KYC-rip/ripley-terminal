@@ -93,6 +93,7 @@ pub fn run() {
             commands::vigil::vigil_save_session,
             commands::vigil::vigil_get_session,
             commands::vigil::vigil_clear_session,
+            commands::vigil::fetch_price_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

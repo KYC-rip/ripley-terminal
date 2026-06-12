@@ -160,3 +160,72 @@ pub async fn vigil_clear_session(app: AppHandle, identity_id: String) -> Result<
     if let Some(obj) = store["sessions"].as_object_mut() { obj.remove(&identity_id); }
     persist(&app, &store)
 }
+
+// ── Price history seed (Kraken OHLC) ──
+
+fn valid_pair(pair: &str) -> bool {
+    // e.g. "XMR/USD" — two 2-8 char alphanumeric legs
+    match pair.split_once('/') {
+        Some((a, b)) => {
+            let ok = |s: &str| (2..=8).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphanumeric());
+            ok(a) && ok(b)
+        }
+        None => false,
+    }
+}
+
+/// Seed the vigil chart with 1-minute OHLC closes. Kraken's REST API blocks
+/// browser CORS, so the renderer cannot fetch this directly — we do it here.
+/// Returns { success, points: [{ time, value }] } | { success: false, error }.
+/// NOTE: clearnet, matching the existing nodes.json fetch in scanner.rs;
+/// Tor-routing the app's outbound HTTP is a separate follow-up. The renderer
+/// degrades gracefully (live-tick accumulation) when this fails.
+#[tauri::command]
+pub async fn fetch_price_history(pair: String) -> Result<Value, String> {
+    if !valid_pair(&pair) {
+        return Ok(json!({ "success": false, "error": "Invalid pair" }));
+    }
+    let rest_pair = pair.replace('/', "");
+    let url = format!("https://api.kraken.com/0/public/OHLC?pair={}&interval=1", rest_pair);
+
+    let resp = match reqwest::Client::new().get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
+    };
+    let data: Value = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
+    };
+
+    if let Some(errs) = data.get("error").and_then(|e| e.as_array()) {
+        if !errs.is_empty() {
+            let msg: Vec<String> = errs.iter().filter_map(|e| e.as_str().map(String::from)).collect();
+            return Ok(json!({ "success": false, "error": msg.join(", ") }));
+        }
+    }
+
+    // result is an object keyed by the resolved pair name plus a "last" field
+    let result = match data.get("result").and_then(|r| r.as_object()) {
+        Some(r) => r,
+        None => return Ok(json!({ "success": false, "error": "No OHLC data" })),
+    };
+    let candles = result.iter().find(|(k, _)| k.as_str() != "last").map(|(_, v)| v);
+    let candles = match candles.and_then(|c| c.as_array()) {
+        Some(c) => c,
+        None => return Ok(json!({ "success": false, "error": "No OHLC data" })),
+    };
+
+    // Candle: [time, open, high, low, close, vwap, volume, count] — keep closes
+    let points: Vec<Value> = candles.iter().filter_map(|c| {
+        let arr = c.as_array()?;
+        let time = arr.first()?.as_u64()?;
+        let close: f64 = arr.get(4)?.as_str()?.parse().ok()?;
+        if time > 0 && close > 0.0 {
+            Some(json!({ "time": time, "value": close }))
+        } else {
+            None
+        }
+    }).collect();
+
+    Ok(json!({ "success": true, "points": points }))
+}
