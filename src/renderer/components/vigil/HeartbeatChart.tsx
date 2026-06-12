@@ -56,7 +56,7 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       },
       rightPriceScale: { visible: false, borderVisible: false },
       leftPriceScale: {
-        visible: true,
+        visible: false,
         borderVisible: false,
         ticksVisible: false,
         scaleMargins: { top: 0.2, bottom: 0.2 } // Leave top/bottom margins so lines don't touch the edges
@@ -82,6 +82,7 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       bottomColor: areaBottomColor,
       lineWidth: 2,
       priceLineVisible: false,
+      lastValueVisible: false,
       crosshairMarkerVisible: true,
       priceScaleId: 'left',
     });
@@ -102,7 +103,7 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       color: successColor,
       lineWidth: 1,
       lineStyle: 2, // Dashed
-      axisLabelVisible: true,
+      axisLabelVisible: false,
       title: mode === 'SNIPE' ? 'BUY DIP' : 'TAKE PROFIT',
     });
 
@@ -124,7 +125,7 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
         color: dangerColor,
         lineWidth: 1,
         lineStyle: 1, // Dotted
-        axisLabelVisible: true,
+        axisLabelVisible: false,
         title: mode === 'SNIPE' ? 'BREAKOUT' : 'STOP LOSS',
       });
     }
