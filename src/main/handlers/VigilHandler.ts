@@ -17,6 +17,7 @@ const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 const MAX_SESSION_BYTES = 16 * 1024;
 
 const KEYS_BUCKET = 'vigil_strike_keys';
+const RETIRED_BUCKET = 'vigil_strike_keys_retired';
 const SESSIONS_BUCKET = 'vigil_sessions';
 
 export const VIGIL_SESSION_VERSION = 1;
@@ -67,6 +68,23 @@ export function registerVigilHandlers(store: any) {
     const keys = store.get(KEYS_BUCKET) || {};
     delete keys[identityId];
     store.set(KEYS_BUCKET, keys);
+    return { success: true };
+  });
+
+  // Burner rotation: move the current blob to a retired archive instead of
+  // overwriting it. Retired blobs stay recoverable forever with the vault
+  // password — a mistaken rotation can never strand funds permanently.
+  ipcMain.handle('vigil-archive-strike-key', (_, identityId: string) => {
+    if (!isValidId(identityId)) return { success: false, error: 'Invalid identity id' };
+    const keys = store.get(KEYS_BUCKET) || {};
+    const blob = keys[identityId];
+    if (blob) {
+      const retired = store.get(RETIRED_BUCKET) || {};
+      retired[identityId] = [...(retired[identityId] || []), { ...blob, retiredAt: Date.now() }];
+      store.set(RETIRED_BUCKET, retired);
+      delete keys[identityId];
+      store.set(KEYS_BUCKET, keys);
+    }
     return { success: true };
   });
 

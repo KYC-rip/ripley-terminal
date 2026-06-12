@@ -51,6 +51,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     exportStrikeKey,
     refreshStrike,
     refundStrike,
+    regenerateStrike,
   } = useVigil();
   const { createSubaddress, subaddresses } = useVault();
 
@@ -290,6 +291,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
                   onExportKey={exportStrikeKey}
                   onRefresh={refreshStrike}
                   onRefund={refundStrike}
+                  onRegenerate={(pwd) => regenerateStrike(pwd, localConfig.inputCurrency?.network || 'ERC20')}
                 />
               </div>
             )}

@@ -48,6 +48,7 @@ const api = {
   vigilSaveStrikeKey: (identityId: string, blob: any) => ipcRenderer.invoke('vigil-save-strike-key', identityId, blob),
   vigilGetStrikeKey: (identityId: string) => ipcRenderer.invoke('vigil-get-strike-key', identityId),
   vigilDeleteStrikeKey: (identityId: string) => ipcRenderer.invoke('vigil-delete-strike-key', identityId),
+  vigilArchiveStrikeKey: (identityId: string) => ipcRenderer.invoke('vigil-archive-strike-key', identityId),
   vigilSaveSession: (identityId: string, session: any) => ipcRenderer.invoke('vigil-save-session', identityId, session),
   vigilGetSession: (identityId: string) => ipcRenderer.invoke('vigil-get-session', identityId),
   vigilClearSession: (identityId: string) => ipcRenderer.invoke('vigil-clear-session', identityId),

@@ -651,6 +651,43 @@ export function useVigilEngine() {
     return strike.exportKey(vaultPassword);
   }, []);
 
+  /**
+   * Burner rotation for forward privacy: archive the current key (kept
+   * recoverable forever in the retired bucket) and mint a fresh one.
+   * Refused while a vigil is active or while the burner still holds funds —
+   * 'Sweep leftovers' first. The fresh key re-triggers the backup prompt.
+   */
+  const regenerateStrike = useCallback(async (vaultPassword: string, network: string) => {
+    if (!identityId || identityId === 'primary') throw new Error('No active identity');
+    if (stateRef.current !== 'IDLE' && stateRef.current !== 'COMPLETED' && stateRef.current !== 'ERROR') {
+      throw new Error('Disarm the vigil before rotating the burner');
+    }
+    const strike = strikeRef.current;
+    if (!strike) throw new Error('Unlock the strike wallet first');
+
+    // Zero-balance gate: no confirm dialog protects funds like refusing does
+    const tickers = ['USDT', 'USDC'];
+    const balances = await strike.getBalances(tickers);
+    const hasToken = Object.values(balances.tokens).some(b => parseFloat(b || '0') > 0.01);
+    if (hasToken || parseFloat(balances.eth || '0') > 0.0005) {
+      throw new Error('Burner still holds funds — sweep leftovers before rotating');
+    }
+
+    const res = await window.api.walletAction('open', { name: identityId, pwd: vaultPassword });
+    if (!res.success) throw new Error(res.error || 'Invalid password');
+
+    const archived = await window.api.vigilArchiveStrikeKey(identityId);
+    if (!archived.success) throw new Error(archived.error || 'Failed to archive the old key');
+
+    const { wallet, address, created } = await StrikeWallet.createOrLoad(identityId, vaultPassword, network, logger);
+    strikeRef.current = wallet;
+    setStrikeAddress(address);
+    setStrikeCreated(created); // fresh key -> backup prompt fires again
+    logger(`🔄 Burner rotated. New address: ${address.slice(0, 10)}… — back up the new key.`, 'warn');
+    await refreshStrike();
+    return { address };
+  }, [identityId, logger, refreshStrike]);
+
   const refundStrike = useCallback(async (toAddress: string, ticker?: string) => {
     const strike = strikeRef.current;
     if (!strike) throw new Error('Strike wallet not unlocked');
@@ -836,6 +873,7 @@ export function useVigilEngine() {
     strikeUnlocked: !!strikeAddress,
     unlockStrike,
     exportStrikeKey,
+    regenerateStrike,
     refundStrike,
     refreshStrike,
   };

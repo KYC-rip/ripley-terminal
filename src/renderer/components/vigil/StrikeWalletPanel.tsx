@@ -16,6 +16,7 @@ interface Props {
   onExportKey: (vaultPassword: string) => Promise<string>;
   onRefresh: () => Promise<void>;
   onRefund: (toAddress: string, ticker?: string) => Promise<string>;
+  onRegenerate: (vaultPassword: string) => Promise<unknown>;
 }
 
 /**
@@ -25,7 +26,7 @@ interface Props {
 export function StrikeWalletPanel({
   unlocked, address, balances, gas, created,
   requiredAmount, requiredTicker,
-  onUnlock, onExportKey, onRefresh, onRefund,
+  onUnlock, onExportKey, onRefresh, onRefund, onRegenerate,
 }: Props) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,6 +38,8 @@ export function StrikeWalletPanel({
   const [sweepBusy, setSweepBusy] = useState(false);
   const [sweepResult, setSweepResult] = useState<string | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
+  const [showRotate, setShowRotate] = useState(false);
+  const [rotateError, setRotateError] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Surface the backup prompt automatically right after key generation
@@ -89,6 +92,21 @@ export function StrikeWalletPanel({
       setSweepError(e.message || 'Sweep failed');
     } finally {
       setSweepBusy(false);
+    }
+  };
+
+  const handleRotate = async () => {
+    if (!password || busy) return;
+    setBusy(true);
+    setRotateError('');
+    try {
+      await onRegenerate(password);
+      setPassword('');
+      setShowRotate(false);
+    } catch (e) {
+      setRotateError((e as Error).message || 'Rotation failed');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -239,6 +257,37 @@ export function StrikeWalletPanel({
                 className="text-[9px] text-xmr-dim uppercase tracking-wider hover:text-xmr-accent transition-colors flex items-center gap-1">
                 <Send size={10} /> Sweep leftovers
               </button>
+              <button onClick={() => { setShowRotate(!showRotate); setRotateError(''); }}
+                className="text-[9px] text-xmr-dim uppercase tracking-wider hover:text-xmr-accent transition-colors flex items-center gap-1">
+                <RefreshCw size={10} /> New burner
+              </button>
+            </div>
+          )}
+
+          {/* Burner rotation: fresh address for forward privacy. The engine
+              refuses while funds remain (sweep first) or a vigil is armed. */}
+          {showRotate && (
+            <div className="border border-xmr-ghost/30 bg-xmr-ghost/5 rounded-sm p-2 space-y-2">
+              <p className="text-[9px] text-xmr-dim leading-relaxed uppercase font-mono">
+                Retires the current address (old key stays recoverable) and mints a fresh one.
+                Requires an empty burner — sweep leftovers first. Fund each burner from varied sources for best effect.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={password}
+                  placeholder="Vault password"
+                  onChange={(e) => { setPassword(e.target.value); setRotateError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRotate()}
+                  className="flex-1 bg-xmr-base border border-xmr-border rounded-sm py-1.5 px-2 text-[10px] font-mono focus:outline-none focus:border-xmr-ghost"
+                />
+                <button onClick={handleRotate} disabled={!password || busy}
+                  className="px-3 py-1.5 border border-xmr-ghost/50 text-xmr-ghost rounded-sm text-[9px] font-black uppercase hover:bg-xmr-ghost/10 disabled:opacity-30 transition-all">
+                  {busy ? <Loader2 size={10} className="animate-spin" /> : 'Rotate'}
+                </button>
+                <button onClick={() => setShowRotate(false)} className="px-2 text-xmr-dim text-[9px] uppercase hover:text-current">Close</button>
+              </div>
+              {rotateError && <div className="text-[10px] text-xmr-error font-mono uppercase">{rotateError}</div>}
             </div>
           )}
 

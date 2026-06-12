@@ -94,6 +94,7 @@ export interface IApi {
   vigilSaveStrikeKey: (identityId: string, blob: { v: number; salt: string; iv: string; ct: string }) => Promise<{ success: boolean; error?: string }>;
   vigilGetStrikeKey: (identityId: string) => Promise<{ v: number; salt: string; iv: string; ct: string } | null>;
   vigilDeleteStrikeKey: (identityId: string) => Promise<{ success: boolean; error?: string }>;
+  vigilArchiveStrikeKey: (identityId: string) => Promise<{ success: boolean; error?: string }>;
   vigilSaveSession: (identityId: string, session: object) => Promise<{ success: boolean; error?: string }>;
   vigilGetSession: (identityId: string) => Promise<Record<string, any> | null>;
   vigilClearSession: (identityId: string) => Promise<{ success: boolean; error?: string }>;
