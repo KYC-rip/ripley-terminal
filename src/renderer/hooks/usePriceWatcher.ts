@@ -213,6 +213,28 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
     failuresRef.current = 0;
     setDegraded(false);
     connect(krakenPair);
+
+    // Seed the chart with 1-min OHLC closes (fetched in the main process —
+    // Kraken REST blocks renderer CORS) so the chart is complete instantly
+    // instead of accumulating from zero. Live ticks append after the last
+    // candle; older candles are merged in front of anything already buffered.
+    window.api.fetchPriceHistory(krakenPair).then((res) => {
+      if (!res.success || !res.points?.length) {
+        if (res.error) console.warn('[PriceWatcher] History seed unavailable:', res.error);
+        return;
+      }
+      const existing = historyRef.current;
+      const cutoff = existing.length > 0 ? existing[0].time : Infinity;
+      const older = res.points.filter(p => p.time < cutoff).sort((a, b) => a.time - b.time);
+      if (older.length === 0) return;
+      historyRef.current = [...older, ...existing].slice(-TICK_CAP);
+      setPriceHistory([...historyRef.current]);
+      if (!priceRef.current) {
+        const latest = historyRef.current[historyRef.current.length - 1];
+        priceRef.current = latest.value;
+        setPrice(latest.value);
+      }
+    }).catch((e) => console.warn('[PriceWatcher] History seed failed:', e));
   }, [connect]);
 
   /** Manual reconnect from the degraded-state banner. */

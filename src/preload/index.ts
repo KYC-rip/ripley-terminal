@@ -42,6 +42,7 @@ const api = {
     return () => ipcRenderer.removeListener('deep-link', handler);
   },
   proxyRequest: (payload: any) => ipcRenderer.invoke('proxy-request', payload),
+  fetchPriceHistory: (pair: string) => ipcRenderer.invoke('fetch-price-history', pair),
 
   // Vigil strike-wallet persistence (encrypted blobs + session snapshots)
   vigilSaveStrikeKey: (identityId: string, blob: any) => ipcRenderer.invoke('vigil-save-strike-key', identityId, blob),

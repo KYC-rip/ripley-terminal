@@ -88,6 +88,7 @@ export interface IApi {
 
   // --- Proxy RPC ---
   proxyRequest: (payload: { method: string; params: any }) => Promise<{ success: boolean; result?: any; error?: string }>;
+  fetchPriceHistory: (pair: string) => Promise<{ success: boolean; points?: { time: number; value: number }[]; error?: string }>;
 
   // --- Vigil strike wallet + session persistence ---
   vigilSaveStrikeKey: (identityId: string, blob: { v: number; salt: string; iv: string; ct: string }) => Promise<{ success: boolean; error?: string }>;
