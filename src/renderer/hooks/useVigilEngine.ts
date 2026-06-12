@@ -657,7 +657,7 @@ export function useVigilEngine() {
    * Refused while a vigil is active or while the burner still holds funds —
    * 'Sweep leftovers' first. The fresh key re-triggers the backup prompt.
    */
-  const regenerateStrike = useCallback(async (vaultPassword: string, network: string) => {
+  const regenerateStrike = useCallback(async (vaultPassword: string, network: string, selectedTicker?: string) => {
     if (!identityId || identityId === 'primary') throw new Error('No active identity');
     if (stateRef.current !== 'IDLE' && stateRef.current !== 'COMPLETED' && stateRef.current !== 'ERROR') {
       throw new Error('Disarm the vigil before rotating the burner');
@@ -665,10 +665,15 @@ export function useVigilEngine() {
     const strike = strikeRef.current;
     if (!strike) throw new Error('Unlock the strike wallet first');
 
-    // Zero-balance gate: no confirm dialog protects funds like refusing does
-    const tickers = ['USDT', 'USDC'];
+    // Zero-balance gate: no confirm dialog protects funds like refusing does.
+    // Checks the common SNIPE stables PLUS whatever ticker is currently
+    // selected in the config — a burner funded with e.g. DAI must not pass
+    // unseen. Tokens outside this set can't be detected (registry lookup is
+    // per-ticker); the sweep UI handles arbitrary tickers, so sweep first.
+    // Any token balance at all blocks; ETH allows true dust below sweepable.
+    const tickers = [...new Set(['USDT', 'USDC', selectedTicker?.toUpperCase()].filter(Boolean))] as string[];
     const balances = await strike.getBalances(tickers);
-    const hasToken = Object.values(balances.tokens).some(b => parseFloat(b || '0') > 0.01);
+    const hasToken = Object.values(balances.tokens).some(b => parseFloat(b || '0') > 0);
     if (hasToken || parseFloat(balances.eth || '0') > 0.0005) {
       throw new Error('Burner still holds funds — sweep leftovers before rotating');
     }

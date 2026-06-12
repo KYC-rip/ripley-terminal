@@ -291,7 +291,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
                   onExportKey={exportStrikeKey}
                   onRefresh={refreshStrike}
                   onRefund={refundStrike}
-                  onRegenerate={(pwd) => regenerateStrike(pwd, localConfig.inputCurrency?.network || 'ERC20')}
+                  onRegenerate={(pwd) => regenerateStrike(pwd, localConfig.inputCurrency?.network || 'ERC20', localConfig.inputCurrency?.ticker)}
                 />
               </div>
             )}
