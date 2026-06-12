@@ -271,7 +271,10 @@ pub async fn get_outputs(
     _state: State<'_, WalletState>,
     _account_index: u32,
 ) -> Result<Vec<WalletOutput>, String> {
-    // TODO: Return tracked unspent outputs
+    // TODO(mvp): map scanned monero_wallet::WalletOutput -> types::WalletOutput.
+    // Needs real key-image derivation (spend key), unlock-height, and frozen
+    // tracking before this can feed coin control safely — returning a
+    // half-correct list would mislead spend selection. Tracked in Tauri MVP.
     Ok(vec![])
 }
 
