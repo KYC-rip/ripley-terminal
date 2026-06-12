@@ -85,6 +85,14 @@ pub fn run() {
             // Tor
             commands::tor::get_tor_status,
             commands::tor::restart_tor,
+            // Vigil (limit-order persistence)
+            commands::vigil::vigil_save_strike_key,
+            commands::vigil::vigil_get_strike_key,
+            commands::vigil::vigil_delete_strike_key,
+            commands::vigil::vigil_archive_strike_key,
+            commands::vigil::vigil_save_session,
+            commands::vigil::vigil_get_session,
+            commands::vigil::vigil_clear_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
