@@ -101,6 +101,18 @@ export function VigilDashboard({
           <div className="absolute inset-0 bg-xmr-error/5 animate-pulse" />
         )}
 
+        {/* Live heartbeat chart as the card's background layer (web parity) */}
+        <div className="absolute inset-0 top-16 z-0">
+          <HeartbeatChart
+            triggerPrice={triggerVal}
+            stopPrice={hasStop ? parseFloat(config.stopPrice) : undefined}
+            mode={mode}
+            isTriggered={isTriggered}
+            realPrice={realPrice}
+            priceHistory={priceHistory}
+          />
+        </div>
+
         <div className="relative z-10">
           {/* Top bar */}
           <div className="flex justify-between items-start mb-6">
@@ -147,18 +159,6 @@ export function VigilDashboard({
           </div>
 
           {/* ─── Target Lines ─── */}
-          {/* Live heartbeat chart (built from the WS tick buffer) */}
-          <div className="mb-4">
-            <HeartbeatChart
-              triggerPrice={triggerVal}
-              stopPrice={hasStop ? parseFloat(config.stopPrice) : undefined}
-              mode={mode}
-              isTriggered={isTriggered}
-              realPrice={realPrice}
-              priceHistory={priceHistory}
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             {/* Main Target */}
             <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-green/5 space-y-1">
