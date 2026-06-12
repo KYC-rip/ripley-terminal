@@ -159,12 +159,23 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       seriesRef.current.setData(priceHistory.map(d => ({ time: d.time as Time, value: d.value })));
 
       // 2. Seed helper line data (to stretch the Y axis range)
-      // The hidden series must contain data so the chart auto-scales to include these prices
-      const dataPoints = priceHistory.map(d => ({ time: d.time as Time, value: triggerPrice }));
+      // The hidden series must contain data so the chart auto-scales to
+      // include these prices — but ONLY when the target is within reach.
+      // Forcing a far-away target (e.g. +60%) into frame flattens the live
+      // price into a dead horizontal line; beyond the band we let the price
+      // action own the scale and the dashed line sits off-frame.
+      const lastValue = priceHistory[priceHistory.length - 1].value;
+      const inBand = (p: number) => lastValue > 0 && Math.abs(p - lastValue) / lastValue <= 0.15;
+
+      const dataPoints = inBand(triggerPrice)
+        ? priceHistory.map(d => ({ time: d.time as Time, value: triggerPrice }))
+        : [];
       mainLineRef.current?.setData(dataPoints);
 
       if (stopLineRef.current && stopPrice) {
-        const stopPoints = priceHistory.map(d => ({ time: d.time as Time, value: stopPrice }));
+        const stopPoints = inBand(stopPrice)
+          ? priceHistory.map(d => ({ time: d.time as Time, value: stopPrice }))
+          : [];
         stopLineRef.current.setData(stopPoints);
       }
 
