@@ -417,7 +417,8 @@ export function useVigilEngine() {
         destinationAddress,
         provider: payload.provider,
         engine: payload.engine,
-        source: session.mode === 'SNIPE' ? 'ghost vigil' : 'ghost vigil sweep',
+        // Plain swaps, not ghost-bridge legs — name them for what they are
+        source: session.mode === 'SNIPE' ? 'vigil-snipe' : 'vigil-eject',
         fixed: false,
       });
 
