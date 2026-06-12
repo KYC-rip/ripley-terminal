@@ -25,7 +25,8 @@
     "deploy:subtree": "cd .. && git subtree push --prefix desktop git@github-xbtoshi:KYC-rip/ghost-terminal.git main",
     "tauri:dev": "cargo tauri dev",
     "tauri:build": "cargo tauri build",
-    "dev:renderer": "vite --config vite.config.ts"
+    "dev:renderer": "vite --config vite.config.ts",
+    "build:renderer": "vite build --config vite.config.ts"
   },
   "build": {
     "publish": [
