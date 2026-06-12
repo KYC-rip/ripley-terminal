@@ -50,6 +50,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
     unlockStrike,
     exportStrikeKey,
     refreshStrike,
+    refundStrike,
   } = useVigil();
   const { createSubaddress, subaddresses } = useVault();
 
