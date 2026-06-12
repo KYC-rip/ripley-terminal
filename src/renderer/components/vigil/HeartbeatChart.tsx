@@ -83,6 +83,22 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
+      // Enforce a minimum visible range of ±0.25% around the mid so a quiet
+      // market reads as a calm line instead of full-height micro-noise, and
+      // genuinely flat stretches still get a sensible scale.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      autoscaleInfoProvider: (original: () => any) => {
+        const res = original();
+        if (res?.priceRange) {
+          const { minValue, maxValue } = res.priceRange;
+          const mid = (minValue + maxValue) / 2;
+          const minSpan = mid * 0.005;
+          if (maxValue - minValue < minSpan) {
+            return { ...res, priceRange: { minValue: mid - minSpan / 2, maxValue: mid + minSpan / 2 } };
+          }
+        }
+        return res;
+      },
       crosshairMarkerVisible: true,
       priceScaleId: 'left',
     });
