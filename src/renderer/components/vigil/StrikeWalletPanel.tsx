@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Zap, Lock, Loader2, RefreshCw, Eye, EyeOff, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Zap, Lock, Loader2, RefreshCw, Eye, EyeOff, Copy, Check, AlertTriangle, Send } from 'lucide-react';
 import { AddressDisplay } from '../common/AddressDisplay';
 import type { StrikeBalances, GasCheck } from '../../services/strikeWallet';
 
@@ -15,6 +15,7 @@ interface Props {
   onUnlock: (vaultPassword: string) => Promise<unknown>;
   onExportKey: (vaultPassword: string) => Promise<string>;
   onRefresh: () => Promise<void>;
+  onRefund: (toAddress: string, ticker?: string) => Promise<string>;
 }
 
 /**
@@ -24,13 +25,18 @@ interface Props {
 export function StrikeWalletPanel({
   unlocked, address, balances, gas, created,
   requiredAmount, requiredTicker,
-  onUnlock, onExportKey, onRefresh,
+  onUnlock, onExportKey, onRefresh, onRefund,
 }: Props) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [showSweep, setShowSweep] = useState(false);
+  const [sweepAddr, setSweepAddr] = useState('');
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepResult, setSweepResult] = useState<string | null>(null);
+  const [sweepError, setSweepError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Surface the backup prompt automatically right after key generation
@@ -69,6 +75,20 @@ export function StrikeWalletPanel({
       setError(e.message || 'Export failed');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSweep = async () => {
+    if (sweepBusy || !/^0x[0-9a-fA-F]{40}$/.test(sweepAddr)) return;
+    setSweepBusy(true);
+    setSweepError(null);
+    try {
+      setSweepResult(await onRefund(sweepAddr, requiredTicker));
+      setSweepAddr('');
+    } catch (e: any) {
+      setSweepError(e.message || 'Sweep failed');
+    } finally {
+      setSweepBusy(false);
     }
   };
 
@@ -210,10 +230,49 @@ export function StrikeWalletPanel({
             </div>
           )}
           {!showExport && !revealedKey && (
-            <button onClick={() => setShowExport(true)}
-              className="text-[9px] text-xmr-dim uppercase tracking-wider hover:text-xmr-accent transition-colors flex items-center gap-1">
-              <Eye size={10} /> Export / back up key
-            </button>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setShowExport(true)}
+                className="text-[9px] text-xmr-dim uppercase tracking-wider hover:text-xmr-accent transition-colors flex items-center gap-1">
+                <Eye size={10} /> Export / back up key
+              </button>
+              <button onClick={() => { setShowSweep(!showSweep); setSweepResult(null); setSweepError(null); }}
+                className="text-[9px] text-xmr-dim uppercase tracking-wider hover:text-xmr-accent transition-colors flex items-center gap-1">
+                <Send size={10} /> Sweep leftovers
+              </button>
+            </div>
+          )}
+
+          {/* Sweep leftovers: token balance + remaining ETH minus gas */}
+          {showSweep && !sweepResult && (
+            <div className="border border-xmr-border/40 bg-black/20 rounded-sm p-2 space-y-2">
+              <p className="text-[9px] text-xmr-dim leading-relaxed uppercase font-mono">
+                Sweeps {requiredTicker || 'token'} + remaining ETH (minus gas) to an address you control
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={sweepAddr}
+                  placeholder="0x… destination"
+                  onChange={(e) => { setSweepAddr(e.target.value.trim()); setSweepError(null); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSweep()}
+                  className="flex-1 bg-xmr-base border border-xmr-border rounded-sm py-1.5 px-2 text-[10px] font-mono focus:outline-none focus:border-xmr-accent"
+                />
+                <button onClick={handleSweep} disabled={sweepBusy || !/^0x[0-9a-fA-F]{40}$/.test(sweepAddr)}
+                  className="px-3 py-1.5 border border-xmr-accent/50 text-xmr-accent rounded-sm text-[9px] font-black uppercase hover:bg-xmr-accent/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                  {sweepBusy ? <Loader2 size={10} className="animate-spin" /> : 'Sweep'}
+                </button>
+                <button onClick={() => setShowSweep(false)} className="px-2 text-xmr-dim text-[9px] uppercase hover:text-current">Close</button>
+              </div>
+              {sweepError && <div className="text-[10px] text-xmr-error font-mono uppercase">{sweepError}</div>}
+            </div>
+          )}
+          {sweepResult && (
+            <div className="border border-xmr-green/30 bg-xmr-green/5 rounded-sm p-2 space-y-1">
+              <div className="text-[9px] text-xmr-green font-mono uppercase font-black">Leftovers swept</div>
+              <div className="text-[9px] font-mono text-xmr-dim break-all">TX: {sweepResult}</div>
+              <button onClick={() => { setSweepResult(null); setShowSweep(false); }}
+                className="text-[9px] text-xmr-dim uppercase hover:text-current">Done</button>
+            </div>
           )}
 
           <div className="text-[8px] text-xmr-dim/60 uppercase tracking-wider">

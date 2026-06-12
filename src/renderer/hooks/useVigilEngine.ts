@@ -651,12 +651,14 @@ export function useVigilEngine() {
     return strike.exportKey(vaultPassword);
   }, []);
 
-  const refundStrike = useCallback(async (toAddress: string) => {
+  const refundStrike = useCallback(async (toAddress: string, ticker?: string) => {
     const strike = strikeRef.current;
     if (!strike) throw new Error('Strike wallet not unlocked');
-    const ticker = sessionRef.current?.config.inputCurrency?.ticker;
+    // No active session when sweeping from the idle config screen — the
+    // panel passes the selected input ticker so the token sweep still runs.
+    const sweepTicker = ticker ?? sessionRef.current?.config.inputCurrency?.ticker;
     logger('Refunding strike wallet leftovers...', 'process');
-    const txHash = await strike.refund(toAddress, ticker);
+    const txHash = await strike.refund(toAddress, sweepTicker);
     logger(`Refund sent: ${txHash}`, 'success');
     await refreshStrike();
     return txHash;

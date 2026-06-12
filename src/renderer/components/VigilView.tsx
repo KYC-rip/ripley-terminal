@@ -288,6 +288,7 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
                   onUnlock={(pwd) => unlockStrike(pwd, localConfig.inputCurrency?.network || 'ERC20')}
                   onExportKey={exportStrikeKey}
                   onRefresh={refreshStrike}
+                  onRefund={refundStrike}
                 />
               </div>
             )}
