@@ -159,9 +159,9 @@ export function VigilDashboard({
           </div>
 
           {/* ─── Target Lines ─── */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mt-24">
             {/* Main Target */}
-            <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-surface/70 backdrop-blur-sm space-y-1">
+            <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-surface/35 backdrop-blur-[2px] space-y-1">
               <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-xmr-green" />
                 {mode === 'SNIPE' ? 'BUY DIP TARGET' : 'TAKE PROFIT TARGET'}
@@ -173,7 +173,7 @@ export function VigilDashboard({
             </div>
 
             {/* Stop / Strategy */}
-            <div className={`p-3 rounded-sm border space-y-1 bg-xmr-surface/70 backdrop-blur-sm
+            <div className={`p-3 rounded-sm border space-y-1 bg-xmr-surface/35 backdrop-blur-[2px]
               ${hasStop ? 'border-xmr-error/20' : 'border-xmr-border/20'}
             `}>
               {hasStop ? (

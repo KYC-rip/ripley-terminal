@@ -64,6 +64,8 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
   const historyRef = useRef<TickPoint[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const priceRef = useRef<number | null>(null);
+  const connectedRef = useRef(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggersRef = useRef<PriceTrigger[]>([]);
   const pairRef = useRef<string>('');
@@ -111,6 +113,7 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
         clearTimeout(connectTimeout);
         connectingRef.current = false;
         failuresRef.current = 0;
+        connectedRef.current = true;
         setConnected(true);
         setDegraded(false);
         // Trade channel fires only on executed trades — on a thin pair that
@@ -157,6 +160,7 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
               currentPrice = parseFloat(data[1]?.c?.[0]);
             }
             if (!(currentPrice > 0)) return;
+            priceRef.current = currentPrice;
             setPrice(currentPrice);
             setLastTickAt(Date.now());
 
@@ -175,6 +179,7 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
       ws.onclose = (event) => {
         clearTimeout(connectTimeout);
         connectingRef.current = false;
+        connectedRef.current = false;
         setConnected(false);
 
         if (triggersRef.current.length === 0) return; // nothing armed, stay quiet
@@ -224,6 +229,22 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
     setConnected(false);
     setDegraded(false);
   }, [closeSocket]);
+
+  // Quiet markets starve the buffer, making the chart jump between scales
+  // whenever a lone tick finally lands. While the feed is up, repeat the
+  // last known price into each empty 2s window — the line stays continuous
+  // and the scale stays put even with no incoming trades.
+  useEffect(() => {
+    const heartbeat = setInterval(() => {
+      if (!connectedRef.current || !priceRef.current) return;
+      const before = historyRef.current.length;
+      pushTick(historyRef.current, Math.floor(Date.now() / 1000), priceRef.current);
+      if (historyRef.current.length !== before) {
+        setPriceHistory([...historyRef.current]);
+      }
+    }, TICK_WINDOW_S * 1000);
+    return () => clearInterval(heartbeat);
+  }, []);
 
   useEffect(() => () => { triggersRef.current = []; closeSocket(); }, [closeSocket]);
 
