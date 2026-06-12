@@ -113,10 +113,18 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
         failuresRef.current = 0;
         setConnected(true);
         setDegraded(false);
+        // Trade channel fires only on executed trades — on a thin pair that
+        // can be minutes apart. Ticker fires on every book update, keeping
+        // the price and the chart buffer lively; both carry the last price.
         ws.send(JSON.stringify({
           event: 'subscribe',
           pair: [krakenPair],
           subscription: { name: 'trade' },
+        }));
+        ws.send(JSON.stringify({
+          event: 'subscribe',
+          pair: [krakenPair],
+          subscription: { name: 'ticker' },
         }));
       };
 
@@ -139,10 +147,16 @@ export function usePriceWatcher(onTrigger: (price: number, trigger: PriceTrigger
           }
 
           // Trade data: [channelId, [[price, vol, time, side]], "trade", pair]
-          if (Array.isArray(data) && data[2] === 'trade') {
-            const trades = data[1];
-            const latest = trades[trades.length - 1];
-            const currentPrice = parseFloat(latest[0]);
+          // Ticker data: [channelId, {c: [lastPrice, lastVol], ...}, "ticker", pair]
+          if (Array.isArray(data) && (data[2] === 'trade' || data[2] === 'ticker')) {
+            let currentPrice = NaN;
+            if (data[2] === 'trade') {
+              const trades = data[1];
+              currentPrice = parseFloat(trades[trades.length - 1][0]);
+            } else {
+              currentPrice = parseFloat(data[1]?.c?.[0]);
+            }
+            if (!(currentPrice > 0)) return;
             setPrice(currentPrice);
             setLastTickAt(Date.now());
 

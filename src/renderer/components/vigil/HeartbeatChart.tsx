@@ -214,7 +214,7 @@ export function HeartbeatChart({ triggerPrice, stopPrice, mode, isTriggered, rea
       />
 
       {/* Building-chart overlay while the tick buffer warms up */}
-      {priceHistory.length < 15 && (
+      {priceHistory.length < 2 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <span className="text-[9px] uppercase font-mono text-xmr-dim">LIVE FEED — building chart…</span>
         </div>
