@@ -518,6 +518,11 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice,
         disabled={!data.triggerPrice || !data.amount || !data.inputCurrency || !data.outputCurrency || !isValid || !!amountError || armDisabled}
         label={armDisabled && armDisabledReason ? armDisabledReason : 'INITIALIZE VIGIL'}
       />
+      {!isSnipe && (
+        <p className="text-[9px] text-xmr-dim font-mono uppercase tracking-wider text-center">
+          While armed, the vault stays open behind the lock screen so this order can execute unattended. Abort the vigil to fully lock.
+        </p>
+      )}
     </div>
   );
 }

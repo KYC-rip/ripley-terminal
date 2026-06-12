@@ -61,11 +61,10 @@ function MainApp() {
   const [showScanlines, setShowScanlines] = useState(resolvedTheme === 'dark');
   const [autoLockMinutes, setAutoLockMinutes] = useState(0);
   const vigil = useVigil();
+  // Auto-lock is never inhibited anymore: an armed EJECT keeps the wallet
+  // hot behind the locked UI (see vigilHotWallet), which is strictly safer
+  // than keeping the whole app unlocked.
   const vigilArmed = vigil.state !== 'IDLE' && vigil.state !== 'COMPLETED' && vigil.state !== 'ERROR';
-  const vigilArmedModeRef = useRef<'SNIPE' | 'EJECT' | null>(null);
-  useEffect(() => {
-    vigilArmedModeRef.current = vigilArmed ? (vigil.activeSession?.mode ?? null) : null;
-  }, [vigilArmed, vigil.activeSession]);
 
   const [uplink, setUplink] = useState<string>('SCANNING...');
   const [uplinkUrl, setUplinkUrl] = useState<string>('');
@@ -122,10 +121,6 @@ function MainApp() {
     if (isLocked) return;
     const checkLock = setInterval(() => {
       if (autoLockMinutes <= 0) return;
-      // An armed EJECT needs the open wallet to dispatch on trigger — treat
-      // it as activity and hold the auto-lock. SNIPE runs fine while locked,
-      // so it does not inhibit. Manual lock always wins.
-      if (vigilArmedModeRef.current === 'EJECT') return;
       const now = Date.now();
       const elapsedMs = now - lastActivityRef.current;
       if (elapsedMs > autoLockMinutes * 60 * 1000) {

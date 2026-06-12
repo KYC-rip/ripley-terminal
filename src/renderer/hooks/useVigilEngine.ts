@@ -6,6 +6,7 @@ import { useFiatValue } from './useFiatValue';
 import { useVault } from './useVault';
 import { usePriceWatcher, getKrakenMonitoringPair, type PriceTrigger } from './usePriceWatcher';
 import { StrikeWallet, type StrikeBalances, type GasCheck } from '../services/strikeWallet';
+import { setVigilKeepsWalletOpen } from '../utils/vigilHotWallet';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +79,15 @@ const getPrivacyParams = (c: ComplianceState) => ({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * sendXmr failures meaning the wallet-rpc wallet is not open (deep-lock race,
+ * rpc restart) — these fall back to PAUSED_LOCKED instead of ERROR. String
+ * matching is fragile by nature, but this is a fallback path: an unmatched
+ * message still lands safely in ERROR+Retry.
+ */
+const isWalletClosedError = (msg: string) =>
+  /no wallet file|wallet is closed|econnrefused|connection refused/i.test(msg || '');
 
 const currencyDefaults = (session: VigilSession) => ({
   fromTicker: session.config.inputCurrency?.ticker || (session.mode === 'SNIPE' ? 'USDT' : 'XMR'),
@@ -168,10 +178,22 @@ export function useVigilEngine() {
   const vault = useVault();
   const identityId = vault.activeId;
 
-  // Mirror the lock state into a ref so async execution paths (which may be
-  // mid-flight when the auto-lock fires) always see the current value.
-  const vaultLockedRef = useRef(vault.isLocked);
-  useEffect(() => { vaultLockedRef.current = vault.isLocked; }, [vault.isLocked]);
+  // Hot-wallet contract with VaultContext.lock(): while an EJECT is armed,
+  // the wallet stays open behind a locked UI so the order executes
+  // unattended. When the vigil leaves its active states while still locked,
+  // close the wallet ourselves (same IPC call lock() would have made;
+  // closing an already-closed wallet is a harmless no-op).
+  const wasHotRef = useRef(false);
+  useEffect(() => {
+    const hot = activeSession?.mode === 'EJECT'
+      && ['WATCHING', 'TRIGGERED', 'EXECUTING', 'POLLING', 'PAUSED_LOCKED'].includes(state);
+    setVigilKeepsWalletOpen(hot);
+    if (wasHotRef.current && !hot && vault.isLocked) {
+      window.api.walletAction('close', {}).catch((e: any) =>
+        console.warn('[Vigil] Deferred wallet close failed:', e));
+    }
+    wasHotRef.current = hot;
+  }, [state, activeSession, vault.isLocked]);
 
   // Fiat price fallback for the idle config screen
   const { fiatText: fiatPrice } = useFiatValue('XMR', 1, false);
@@ -250,10 +272,16 @@ export function useVigilEngine() {
     setStrikeCreated(false);
   }, [identityId]);
 
-  // PAUSED_LOCKED -> EXECUTING on unlock: the trade was created while the
-  // vault was locked; validate it is still live (getTradeStatus) and dispatch
-  // the held XMR send, else fall to the existing ERROR/Retry surface (which
-  // re-creates expired trades).
+  // PAUSED_LOCKED -> recovery on unlock (fallback path; the common case now
+  // executes while locked thanks to the hot wallet). Two tiers:
+  //   1. trade still live  -> dispatch the ORIGINAL deposit address (fast,
+  //      no re-estimate);
+  //   2. trade expired/dead -> re-verify the trigger condition against a
+  //      FRESH estimate and re-create automatically — the user's standing
+  //      intent is the armed order; nobody should babysit a Retry button.
+  //      If the condition no longer holds, resume WATCHING.
+  // The price watcher stayed alive the whole time (provider sits above the
+  // lock gate), so watcher.price is current.
   useEffect(() => {
     if (vault.isLocked || stateRef.current !== 'PAUSED_LOCKED') return;
     const held = pausedDispatchRef.current;
@@ -265,15 +293,36 @@ export function useVigilEngine() {
         logger('Vault unlocked — validating held trade...', 'process');
         const status = await getTradeStatus(held.tradeId);
         const st = (status.status || '').toUpperCase();
-        if (['EXPIRED', 'FAILED', 'REFUNDED'].includes(st)) {
-          throw new Error(`Trade ${held.tradeId} is ${st} — use Retry to re-create it`);
+
+        if (!['EXPIRED', 'FAILED', 'REFUNDED'].includes(st)) {
+          logger('Dispatching held XMR send...', 'process');
+          const txHash = await vault.sendXmr(held.depositAddress, held.amount);
+          logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
+          pausedDispatchRef.current = null;
+          await persistSession(session, 'POLLING', { tradeId: held.tradeId, txHash });
+          await pollTradeStatus(held.tradeId, txHash, session);
+          return;
         }
-        logger('Dispatching held XMR send...', 'process');
-        const txHash = await vault.sendXmr(held.depositAddress, held.amount);
-        logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
+
+        // Tier 2: the held trade died while locked — re-verify + re-create
+        logger(`Trade ${held.tradeId} is ${st} — re-verifying the trigger for a fresh order...`, 'warn');
         pausedDispatchRef.current = null;
-        await persistSession(session, 'POLLING', { tradeId: held.tradeId, txHash });
-        await pollTradeStatus(held.tradeId, txHash, session);
+        const triggers = buildTriggers(session.mode, session.config.triggerPrice, session.config.stopPrice);
+        const payload = retryPayloadRef.current;
+        const trig = triggers.find(t => t.id === payload?.triggerId) ?? triggers[0];
+        const livePrice = watcher.price;
+        if (trig && livePrice) {
+          setState('WATCHING'); // re-opens executeStrike's reentrancy gate
+          await verifyAndExecute(livePrice, trig);
+        }
+        // verifyAndExecute only executes if the condition still holds at the
+        // live price; otherwise (or with no live price yet) resume watching.
+        if (stateRef.current === 'WATCHING') {
+          const { fromTicker, toTicker } = currencyDefaults(session);
+          watcher.watch(getKrakenMonitoringPair(session.mode, fromTicker, toTicker), triggers);
+          await persistSession(session, 'ARMED');
+          logger('Condition no longer met at the live price — resumed watching.', 'info');
+        }
       } catch (e: any) {
         logger(`Held dispatch failed: ${e.message}`, 'error');
         setState('ERROR');
@@ -431,22 +480,26 @@ export function useVigilEngine() {
       let txHash: string | undefined;
 
       if (session.mode === 'EJECT') {
-        // Dispatching XMR needs the OPEN vault. If the trigger fired while
-        // locked, hold here (PAUSED_LOCKED): the trade exists, the unlock
-        // effect below auto-dispatches if it is still valid.
-        if (vaultLockedRef.current) {
-          pausedDispatchRef.current = { tradeId, depositAddress, amount };
-          await persistSession(session, 'EXECUTING', { tradeId });
-          setState('PAUSED_LOCKED');
-          logger('Vault is locked — unlock to dispatch XMR (deposit window expires in minutes).', 'warn');
-          notify(`paused:${tradeId}`, 'Vigil: unlock to dispatch', 'EJECT trigger fired while locked — unlock Ripley to send XMR before the deposit window expires.');
-          return;
-        }
-
-        // Send the exact XMR amount from the vault. No fallback: a failed
-        // send surfaces as an error with a retry — never sweep the wallet.
+        // The wallet stays hot behind a locked UI for armed EJECTs (see the
+        // hot-wallet effect), so this executes unattended even at 3am. If the
+        // wallet is somehow NOT open (deep-lock race, wallet-rpc restart),
+        // fall back to PAUSED_LOCKED — the unlock effect recovers: it
+        // dispatches the original trade if still live, or re-creates it.
+        // A failed send never sweeps; unmatched errors land in ERROR+Retry.
         logger('Sending XMR from vault...', 'process');
-        txHash = await vault.sendXmr(depositAddress, amount);
+        try {
+          txHash = await vault.sendXmr(depositAddress, amount);
+        } catch (sendErr: any) {
+          if (isWalletClosedError(sendErr?.message)) {
+            pausedDispatchRef.current = { tradeId, depositAddress, amount };
+            await persistSession(session, 'EXECUTING', { tradeId });
+            setState('PAUSED_LOCKED');
+            logger('Wallet is not open — unlock to dispatch (auto-recovers, re-creating the trade if it expires).', 'warn');
+            notify(`paused:${tradeId}`, 'Vigil: unlock to dispatch', 'EJECT trigger fired but the wallet was closed — unlock Ripley to dispatch. The order auto-recovers even if this trade expires.');
+            return;
+          }
+          throw sendErr;
+        }
         logger(`TX Broadcasted: ${txHash || 'pending'}`, 'success');
       } else {
         // SNIPE: auto-fund from the strike wallet
