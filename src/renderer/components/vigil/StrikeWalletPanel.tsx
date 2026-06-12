@@ -39,6 +39,7 @@ export function StrikeWalletPanel({
   const [sweepResult, setSweepResult] = useState<string | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [showRotate, setShowRotate] = useState(false);
+  const [rotateBusy, setRotateBusy] = useState(false);
   const [rotateError, setRotateError] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -96,17 +97,20 @@ export function StrikeWalletPanel({
   };
 
   const handleRotate = async () => {
-    if (!password || busy) return;
-    setBusy(true);
+    if (!password || rotateBusy) return;
+    setRotateBusy(true);
     setRotateError('');
     try {
+      // Close the rotate panel immediately on success so the auto-opened
+      // backup prompt (fresh key) is the only thing showing — the trailing
+      // balance refresh inside onRegenerate must not keep this spinning.
       await onRegenerate(password);
       setPassword('');
       setShowRotate(false);
     } catch (e) {
       setRotateError((e as Error).message || 'Rotation failed');
     } finally {
-      setBusy(false);
+      setRotateBusy(false);
     }
   };
 
@@ -281,9 +285,9 @@ export function StrikeWalletPanel({
                   onKeyDown={(e) => e.key === 'Enter' && handleRotate()}
                   className="flex-1 bg-xmr-base border border-xmr-border rounded-sm py-1.5 px-2 text-[10px] font-mono focus:outline-none focus:border-xmr-ghost"
                 />
-                <button onClick={handleRotate} disabled={!password || busy}
+                <button onClick={handleRotate} disabled={!password || rotateBusy}
                   className="px-3 py-1.5 border border-xmr-ghost/50 text-xmr-ghost rounded-sm text-[9px] font-black uppercase hover:bg-xmr-ghost/10 disabled:opacity-30 transition-all">
-                  {busy ? <Loader2 size={10} className="animate-spin" /> : 'Rotate'}
+                  {rotateBusy ? <Loader2 size={10} className="animate-spin" /> : 'Rotate'}
                 </button>
                 <button onClick={() => setShowRotate(false)} className="px-2 text-xmr-dim text-[9px] uppercase hover:text-current">Close</button>
               </div>
