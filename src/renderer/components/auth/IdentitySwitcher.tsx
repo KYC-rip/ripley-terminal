@@ -73,13 +73,19 @@ export function IdentitySwitcher({ identities, activeId, onSwitchIdentity, onSta
                 </button>
 
                 {/* Delete button: includes confirmation logic */}
-                <button 
+                <button
                   type="button"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    if (confirm(`⚠️ PURGE IDENTITY: [${id.name}]?\nThis action will erase local keys for this profile.`)) {
-                      onPurge(id.id);
-                    }
+                    // Async Tauri dialog — window.confirm() isn't reliably
+                    // blocking in the webview, which would let a destructive
+                    // purge proceed without real confirmation.
+                    const { ask } = await import('@tauri-apps/plugin-dialog');
+                    const ok = await ask(
+                      `This will erase local keys for [${id.name}]. Continue?`,
+                      { title: "⚠️ PURGE IDENTITY", kind: "warning" }
+                    );
+                    if (ok) onPurge(id.id);
                   }}
                   className="px-2 border border-red-900/20 text-red-900/40 hover:border-red-600 hover:text-red-600 hover:bg-red-600/5 transition-all cursor-pointer"
                 >

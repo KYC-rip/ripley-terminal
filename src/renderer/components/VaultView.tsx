@@ -113,7 +113,15 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
   };
 
   const revealSeed = async () => {
-    if (!confirm("⚠️ SECURITY WARNING ⚠️\n\nReveal Master Seed?\nEnsure no cameras or screen recording software is active.")) return;
+    // Use Tauri's ASYNC dialog and await it. The webview's window.confirm() is
+    // not reliably blocking in Tauri, so a synchronous `if (!confirm())` would
+    // fall through and reveal the seed BEFORE the user confirms.
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    const ok = await ask(
+      "Reveal Master Seed?\nEnsure no cameras or screen recording software is active.",
+      { title: "⚠️ SECURITY WARNING ⚠️", kind: "warning" }
+    );
+    if (!ok) return;
 
     try {
       const res = await window.api.walletAction('mnemonic');
@@ -473,7 +481,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
       {/* 5. MODALS */}
       <VaultModals
         showSeed={modals.seed}
-        onCloseSeed={() => setModals(prev => ({ ...prev, seed: false }))}
+        onCloseSeed={() => { setModals(prev => ({ ...prev, seed: false })); setMnemonic(''); }}
         mnemonic={mnemonic}
         showReceive={modals.receive}
         onCloseReceive={() => { setModals(prev => ({ ...prev, receive: false })); setSelectedSubaddress(null); }}
