@@ -202,6 +202,12 @@ impl WalletState {
         inner.subaddress_labels = subaddress_labels;
         inner.sync_status.status = "SYNCING".to_string();
 
+        // Start from a clean slate: a soft lock leaves scanned_outputs
+        // resident for background sync, so clear before reloading the cache —
+        // otherwise re-unlock (or an identity switch) would append on top and
+        // double-count the balance.
+        inner.scanned_outputs.clear();
+
         // Load cached outputs (avoids full rescan on relaunch)
         let cache = storage::load_output_cache(&inner.data_dir, identity_id);
         if !cache.outputs.is_empty() {
@@ -264,24 +270,18 @@ impl WalletState {
             }
         }
 
+        // Soft lock: zero ONLY the spend-capable secrets. Keep the view key,
+        // scanner, and scanned outputs alive so the background sync keeps
+        // progressing while the UI is locked — otherwise a long restore dies
+        // on the auto-lock timer and can never finish unattended. Syncing only
+        // needs the view key; spending requires re-unlock (which restores the
+        // spend key). View-only data (balance/address) stays resident — the
+        // same lock-survival tradeoff used on the desktop build.
         inner.is_locked = true;
-        inner.accounts.clear();
-        inner.scanned_outputs.clear();
         inner.spend_key = None;
-        inner.view_key = None;
-        inner.view_pair = None;
         inner.mnemonic = None;
-        inner.scanner = None;
         inner.password = None;
-        inner.subaddress_labels.clear();
-        inner.next_subaddress_index = 1;
-        inner.sync_status = SyncStatus {
-            status: "OFFLINE".to_string(),
-            height: 0,
-            daemon_height: 0,
-            sync_percent: 0.0, node_label: String::new(), node_url: String::new(),
-        };
-        log::info!("Wallet locked — keys zeroed");
+        log::info!("Wallet soft-locked — spend key zeroed; view-only background sync continues");
     }
 
     pub async fn get_accounts(&self) -> Vec<MoneroAccount> {
