@@ -7,10 +7,16 @@ fn config_path(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from(".")).join("config.json")
 }
 
+/// Side file for the skin background data URL — kept out of config.json so the
+/// (frequently-rewritten) config stays small even with a multi-MB image.
+fn skin_bg_path(app: &AppHandle) -> PathBuf {
+    app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from(".")).join("skin_bg.b64")
+}
+
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<serde_json::Value, String> {
     let path = config_path(&app);
-    match std::fs::read_to_string(&path) {
+    let mut config = match std::fs::read_to_string(&path) {
         // Merge the stored config OVER the defaults so configs written before a
         // new key existed (e.g. `shortcuts`) get backfilled — otherwise the
         // Settings UI shows empty sections for keys the old file never had.
@@ -35,12 +41,25 @@ pub async fn get_config(app: AppHandle) -> Result<serde_json::Value, String> {
                     m.insert("shortcuts".to_string(), default_config()["shortcuts"].clone());
                 }
             }
-            Ok(merged)
+            merged
         }
-        // Return defaults. Keep these in sync with the renderer's SettingsView
-        // controls so it never reads `undefined`.
-        Err(_) => Ok(default_config()),
+        // Keep these in sync with the renderer's SettingsView controls so it
+        // never reads `undefined`.
+        Err(_) => default_config(),
+    };
+
+    // Reattach the skin background from its side file (it's stored out of
+    // config.json to keep that small). Falls back to whatever's already in the
+    // config if there's no side file (e.g. a pre-offload config still embedding
+    // it — that migrates to the side file on the next save).
+    if let Ok(bg) = std::fs::read_to_string(skin_bg_path(&app)) {
+        if !bg.is_empty() {
+            if let Some(m) = config.as_object_mut() {
+                m.insert("skin_background".to_string(), serde_json::json!(bg));
+            }
+        }
     }
+    Ok(config)
 }
 
 /// Default config shape. Mirrors the controls SettingsView renders.
@@ -108,10 +127,30 @@ pub async fn reveal_path(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn save_config(app: AppHandle, config: serde_json::Value) -> Result<(), String> {
+pub async fn save_config(app: AppHandle, mut config: serde_json::Value) -> Result<(), String> {
     let path = config_path(&app);
     std::fs::create_dir_all(path.parent().unwrap())
         .map_err(|e| format!("Failed to create config dir: {}", e))?;
+
+    // Offload a large skin background (a base64 data URL) to a side file so
+    // config.json stays small — it's rewritten on every save, and embedding a
+    // multi-MB image bloated it. get_config reattaches it on read.
+    let skin_path = skin_bg_path(&app);
+    if let Some(obj) = config.as_object_mut() {
+        match obj.get("skin_background").and_then(|v| v.as_str()) {
+            Some(bg) if !bg.is_empty() => {
+                std::fs::write(&skin_path, bg)
+                    .map_err(|e| format!("Failed to write skin background: {}", e))?;
+                obj.insert("skin_background".to_string(), serde_json::json!(""));
+            }
+            // Explicitly cleared → remove the side file so it doesn't reappear.
+            Some(_) => {
+                let _ = std::fs::remove_file(&skin_path);
+            }
+            None => {}
+        }
+    }
+
     let data = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
     std::fs::write(&path, data)
