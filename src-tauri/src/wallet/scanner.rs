@@ -235,6 +235,10 @@ async fn scan_loop(
     let pool_n = pool.len();
     emit_log(&app, "Sync", "info", &format!("🔗 Fetching across {} nodes in parallel", pool_n));
 
+    // Rolling measured throughput (blocks/sec), seeded then EMA-smoothed from
+    // real batch timings so the ETA reflects actual speed, not a guess.
+    let mut measured_bps: f64 = (pool_n as f64) * 1.5;
+
     loop {
         // Check if superseded
         let ws = app.state::<WalletState>();
@@ -277,16 +281,16 @@ async fn scan_loop(
         let gap = daemon_height - scan_height;
         let batch_size: u64 = if gap > 1_000 { 100 } else { base_batch };
 
-        // Show ETA for large syncs
+        // Show ETA for large syncs, based on MEASURED throughput (updated
+        // after each batch) rather than a hardcoded guess.
         if gap > 10_000 {
-            // ~2 blocks/sec based on observed speed
-            let eta_secs = gap / 2;
+            let eta_secs = (gap as f64 / measured_bps.max(0.1)) as u64;
             let eta_mins = eta_secs / 60;
             let eta_hours = eta_mins / 60;
             if eta_hours > 0 {
-                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}h {}m ({} blocks remaining)", eta_hours, eta_mins % 60, gap));
+                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}h {}m ({} blocks remaining at {:.1} blk/s)", eta_hours, eta_mins % 60, gap, measured_bps));
             } else {
-                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}m ({} blocks remaining)", eta_mins, gap));
+                emit_log(&app, "Sync", "info", &format!("⏱️ ETA: ~{}m ({} blocks remaining at {:.1} blk/s)", eta_mins, gap, measured_bps));
             }
         }
 
@@ -318,6 +322,11 @@ async fn scan_loop(
         match parallel_result {
             Ok(blocks) => {
                 let fetch_ms = fetch_start.elapsed().as_millis();
+                // Update rolling throughput (EMA) from this batch's real timing
+                if fetch_ms > 0 && !blocks.is_empty() {
+                    let batch_bps = blocks.len() as f64 / (fetch_ms as f64 / 1000.0);
+                    measured_bps = measured_bps * 0.6 + batch_bps * 0.4;
+                }
                 emit_log(&app, "Sync", "info", &format!("✅ Got {} blocks in {}ms", blocks.len(), fetch_ms));
                 // Scan each block with the wallet's Scanner
                 let wallet_state = app.state::<WalletState>();
