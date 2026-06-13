@@ -343,7 +343,7 @@ async fn scan_loop(
                                         new_amount += output.commitment().amount;
                                     }
                                     new_output_count += outputs.len() as u64;
-                                    wallet_state.add_outputs(outputs).await;
+                                    wallet_state.add_outputs(outputs, generation).await;
                                 }
                             }
                             Err(e) => {

@@ -315,8 +315,17 @@ impl WalletState {
         self.inner.read().await.scan_height
     }
 
-    pub async fn add_outputs(&self, outputs: Vec<WalletOutput>) {
+    /// Append scanned outputs, but only if `generation` is still the active
+    /// scanner. Checking under the write lock makes the add atomic with
+    /// rescan's reset: if a newer scanner (e.g. a rescan that just cleared
+    /// scanned_outputs) has taken over, a stale scanner's outputs are dropped
+    /// rather than re-appended on top of the fresh state (which would
+    /// double-count the balance).
+    pub async fn add_outputs(&self, outputs: Vec<WalletOutput>, generation: u64) {
         let mut inner = self.inner.write().await;
+        if self.scanner_generation.load(Ordering::SeqCst) != generation {
+            return;
+        }
         inner.scanned_outputs.extend(outputs);
     }
 
