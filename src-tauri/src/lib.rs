@@ -79,6 +79,8 @@ pub fn run() {
             commands::config::save_config,
             commands::config::save_config_only,
             commands::config::save_config_and_reload,
+            commands::config::get_app_info,
+            commands::config::reveal_path,
             // Identity
             commands::identity::get_identities,
             commands::identity::save_identities,

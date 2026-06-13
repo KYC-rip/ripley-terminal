@@ -269,14 +269,18 @@ function createTauriApi() {
     resumeWatcher: () => Promise.resolve(),
 
     // ── App Info ──
-    getAppInfo: () => Promise.resolve({
-      version: '2.0.0',
-      appDataPath: '',
-      walletsPath: '',
-      platform: navigator.platform.includes('Mac') ? 'darwin' : navigator.platform.includes('Win') ? 'win32' : 'linux' as any,
-      isPackaged: false,
-    }),
-    openPath: (_path: string) => Promise.resolve({ success: true }),
+    getAppInfo: () =>
+      invoke('get_app_info').catch(() => ({
+        version: '2.0.0',
+        appDataPath: '',
+        walletsPath: '',
+        platform: navigator.platform.includes('Mac') ? 'darwin' : navigator.platform.includes('Win') ? 'win32' : 'linux',
+        isPackaged: false,
+      })),
+    openPath: (path: string) =>
+      invoke('reveal_path', { path })
+        .then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
     openExternal: (url: string, _options?: any) => {
       // Use Tauri shell plugin for proper external URL opening
       import('@tauri-apps/plugin-shell').then(({ open }) => open(url)).catch(() => window.open(url, '_blank'));

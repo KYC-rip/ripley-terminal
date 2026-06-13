@@ -46,6 +46,45 @@ pub fn default_config() -> serde_json::Value {
     })
 }
 
+/// App metadata + on-disk storage locations for the Settings → Data Storage
+/// panel (the renderer showed "Loading..." because the bridge returned empty
+/// paths). appDataPath holds config/nodes/Tor state; walletsPath holds the
+/// encrypted .vault files.
+#[tauri::command]
+pub async fn get_app_info(app: AppHandle) -> Result<serde_json::Value, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?;
+    let wallets = app_data.join("wallets");
+    Ok(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "appDataPath": app_data.to_string_lossy(),
+        "walletsPath": wallets.to_string_lossy(),
+        "platform": std::env::consts::OS,
+        "isPackaged": !cfg!(debug_assertions),
+    }))
+}
+
+/// Reveal a path in the OS file manager (Settings → Data Storage "Reveal").
+/// Paths originate from get_app_info, so they're trusted; we pass them as a
+/// single argument (no shell interpolation).
+#[tauri::command]
+pub async fn reveal_path(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let program = "open";
+    #[cfg(target_os = "windows")]
+    let program = "explorer";
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let program = "xdg-open";
+
+    std::process::Command::new(program)
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open {path}: {e}"))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn save_config(app: AppHandle, config: serde_json::Value) -> Result<(), String> {
     let path = config_path(&app);
