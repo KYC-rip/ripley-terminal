@@ -197,7 +197,7 @@ async fn scan_loop(
     // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
     let base_batch: u64 = 50;
     // Concurrent block fetches per batch (pipelined RPC round-trips).
-    const FETCH_CONCURRENCY: usize = 10;
+    const FETCH_CONCURRENCY: usize = 12;
 
     if scan_height == u64::MAX {
         emit_log(&app, "Sync", "info", "🔍 New wallet — will sync from daemon tip");
@@ -206,18 +206,34 @@ async fn scan_loop(
     }
 
     // SimpleRequestTransport serializes every request through a single
-    // connection + mutex (read_response_before_next_request), so concurrent
-    // calls on ONE daemon run serially. Build a pool of independent
-    // connections to the same node so block fetches actually parallelize.
+    // mutex-guarded, pool-less connection, so concurrent calls on ONE daemon
+    // run serially. Worse, public nodes cap connections per IP (one capped us
+    // at 3). So build the pool by spreading ONE connection across MANY
+    // distinct nodes — each node sees a single connection (no throttling) and
+    // we still get wide parallelism. Historical blocks are identical across
+    // nodes and every fetch is validated, so multi-node fetch is safe.
     let mut pool = vec![daemon.clone()];
-    for _ in 1..FETCH_CONCURRENCY {
-        match SimpleRequestTransport::new(node_url.clone()).await {
-            Ok(d) => pool.push(d),
-            Err(_) => break, // fall back to however many connections we got
+    {
+        use futures::stream::StreamExt;
+        let others: Vec<(String, String)> = load_nodes(&app)
+            .await
+            .into_iter()
+            .filter(|(_, u)| u != &node_url)
+            .collect();
+        let connected: Vec<Option<_>> = futures::stream::iter(others)
+            .map(|(_, url)| async move { SimpleRequestTransport::new(url).await.ok() })
+            .buffer_unordered(FETCH_CONCURRENCY)
+            .collect()
+            .await;
+        for d in connected.into_iter().flatten() {
+            pool.push(d);
+            if pool.len() >= FETCH_CONCURRENCY {
+                break;
+            }
         }
     }
     let pool_n = pool.len();
-    emit_log(&app, "Sync", "info", &format!("🔗 Opened {} parallel connections to {}", pool_n, node_label));
+    emit_log(&app, "Sync", "info", &format!("🔗 Fetching across {} nodes in parallel", pool_n));
 
     loop {
         // Check if superseded
