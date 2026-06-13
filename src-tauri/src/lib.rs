@@ -25,6 +25,13 @@ pub fn emit_sync_status(app: &AppHandle, status: &str, height: u64, daemon_heigh
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Install a process-wide rustls crypto provider (ring) BEFORE any TLS is
+    // used. Adding tokio-rustls (for TLS-over-Tor) left rustls without an
+    // unambiguous default provider, which made the clearnet transport
+    // (simple-request) panic on every connection — surfacing as "all nodes
+    // failed" even for nodes that are perfectly reachable.
+    let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())

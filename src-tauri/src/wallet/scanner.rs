@@ -653,3 +653,26 @@ async fn scan_loop<C: DaemonConnector>(
         crate::emit_sync_status(&app, "SYNCING", scan_height, daemon_height, percent, &node_label);
     }
 }
+
+#[cfg(test)]
+mod connect_smoke {
+    use monero_simple_request_rpc::SimpleRequestTransport;
+    use monero_daemon_rpc::prelude::*;
+
+    // Reproduce the app's exact clearnet connect path against a known-reachable
+    // node. Run: cargo test -p ripley-terminal clearnet_connect -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn clearnet_connect() {
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+        let url = "http://xmr-node.cakewallet.com:18081".to_string();
+        match SimpleRequestTransport::new(url.clone()).await {
+            Ok(daemon) => {
+                let h = daemon.latest_block_number().await;
+                println!("✅ connected {url} -> height {h:?}");
+                assert!(h.is_ok());
+            }
+            Err(e) => panic!("❌ SimpleRequestTransport::new({url}) failed: {e:?}"),
+        }
+    }
+}
