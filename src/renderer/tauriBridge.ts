@@ -306,6 +306,29 @@ function createTauriApi() {
       }
     },
 
+    // ── Vigil (limit-order) persistence + price history ──
+    vigilSaveStrikeKey: (identityId: string, blob: any) =>
+      invoke('vigil_save_strike_key', { identityId, blob }).then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: e.toString() })),
+    vigilGetStrikeKey: (identityId: string) =>
+      invoke('vigil_get_strike_key', { identityId }).catch(() => null),
+    vigilDeleteStrikeKey: (identityId: string) =>
+      invoke('vigil_delete_strike_key', { identityId }).then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: e.toString() })),
+    vigilArchiveStrikeKey: (identityId: string) =>
+      invoke('vigil_archive_strike_key', { identityId }).then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: e.toString() })),
+    vigilSaveSession: (identityId: string, session: any) =>
+      invoke('vigil_save_session', { identityId, session }).then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: e.toString() })),
+    vigilGetSession: (identityId: string) =>
+      invoke('vigil_get_session', { identityId }).catch(() => null),
+    vigilClearSession: (identityId: string) =>
+      invoke('vigil_clear_session', { identityId }).then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: e.toString() })),
+    fetchPriceHistory: (pair: string) =>
+      invoke('fetch_price_history', { pair }).catch((e: any) => ({ success: false, error: e.toString() })),
+
     confirmShutdown: () => {},
   };
 }

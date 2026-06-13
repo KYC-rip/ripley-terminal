@@ -217,30 +217,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log("🔌 Initializing Core Log Listener...");
     if (window.api.onCoreLog) {
-      const cleanup = window.api.onCoreLog((data: any) => {
-        // Tauri: sync data piggybacks on core-log with source="SYNC_DATA"
-        if (data?.source === 'SYNC_DATA') {
-          console.log('🎯 SYNC_DATA HIT:', data.message);
-          const parts = (data.message as string).split('|');
-          if (parts.length >= 5) {
-            const h = parseInt(parts[1]);
-            const dh = parseInt(parts[2]);
-            const nl = parts[4];
-            setCurrentHeight(h);
-            lastHeightRef.current = h;
-            if (dh > 0) {
-              daemonHeightRef.current = dh;
-              setTotalHeight(dh);
-            }
-            const { status: s, percent: p } = determineSyncStatus(h, dh);
-            setStatus(s);
-            setSyncPercent(p);
-            if (nl) setNodeLabel(nl);
-          }
-          return; // Don't show SYNC_DATA in the log panel
-        }
-
-        // Regular log handling
+      const cleanup = window.api.onCoreLog((data) => {
+        // Backend data usually looks like { source: 'TOR', level: 'info', message: '...' }
         const typeMap: Record<string, string> = {
           'info': 'info',
           'error': 'error',
@@ -256,14 +234,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      return () => cleanup();
+      return () => cleanup(); // Auto-cleanup listener on unmount to prevent leaks
     }
-  }, [addLog, determineSyncStatus]);
+  }, [addLog]);
 
   // 🔄 Wallet Event Listener (Real-time updates from SyncWatcher)
   useEffect(() => {
-    if (window.api?.onWalletEvent) {
-      const cleanup = window.api.onWalletEvent((event: any) => {
+    if (window.api.onWalletEvent) {
+      const cleanup = window.api.onWalletEvent((event) => {
         if (event.type === 'SYNC_UPDATE' && event.payload?.height) {
           const newHeight = event.payload.height;
           const daemonH = event.payload.daemonHeight || 0;
@@ -278,11 +256,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           const { status: s, percent: p } = determineSyncStatus(newHeight, daemonHeightRef.current);
           setStatus(s);
           setSyncPercent(p);
-
-          // Track connected node name
-          if (event.payload.nodeLabel) {
-            setNodeLabel(event.payload.nodeLabel);
-          }
+          // Track connected node name (Tauri scanner reports it in the event payload)
+          if (event.payload.nodeLabel) setNodeLabel(event.payload.nodeLabel);
         }
         if (event.type === 'BALANCE_CHANGED' && event.payload?.balance !== undefined) {
           // During sync, just update balance inline instead of triggering a full
@@ -506,7 +481,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setOutputs([]);
     setStatus('READY');
 
-    // 3. ⏳ Signal Soft Lock to backend (keeps RPC alive but acknowledges lock)
+    // 3. ⏳ Soft-lock the backend. On Tauri this ALWAYS runs (unlike Electron
+    // which skips the close for an armed EJECT) — the Rust soft-lock is the
+    // single source of truth: state.lock() zeroes the spend key UNLESS the
+    // vigil_hot flag is set (an armed EJECT, mirrored via set_vigil_hot), in
+    // which case it keeps the spend key resident so the order dispatches
+    // unattended. The view key + scanner always stay alive for background sync.
     window.api.walletAction('close', {}).catch(() => { });
 
   }, [addLog]);
@@ -535,7 +515,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const address = await WalletService.createSubaddress(label || '', accountIndex || 0);
       await refresh();
       return address;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.warn('[Vault] Subaddress creation failed:', e); }
   }, [refresh]);
 
   const purgeIdentity = useCallback(async (id: string) => {
@@ -596,7 +576,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         const nextActiveId = current || (validIds.length > 0 ? validIds[0].id : '');
         setActiveId(nextActiveId);
         setHasVaultFile(validIds.length > 0 && !!nextActiveId);
-      } catch (err) { } finally {
+      } catch (err) { console.warn('[Vault] Failed to load identities:', err); } finally {
         setIsAppLoading(false);
       }
     };

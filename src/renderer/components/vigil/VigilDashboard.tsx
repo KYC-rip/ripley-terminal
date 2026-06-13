@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
 import { Radio, XCircle, Shield, ArrowDown, Copy, Check } from 'lucide-react';
+import { HeartbeatChart } from './HeartbeatChart';
 // Lightweight toast-like notification (avoids react-hot-toast dependency)
 const notify = (msg: string) => console.log(`[Vigil] ${msg}`);
 
@@ -21,6 +22,7 @@ interface Props {
   realPrice?: number | null;
   priceConnected?: boolean;
   externalLogs?: LogLine[];
+  priceHistory?: { time: number; value: number }[];
 }
 
 // ─── Main Component ───
@@ -33,6 +35,7 @@ export function VigilDashboard({
   realPrice,
   priceConnected = true,
   externalLogs = [],
+  priceHistory = [],
 }: Props) {
   const isTriggered = state === 'TRIGGERED' || state === 'EXECUTING';
   const displayPrice = realPrice ?? parseFloat(config.triggerPrice) ?? 0;
@@ -82,8 +85,8 @@ export function VigilDashboard({
     switch (type) {
       case 'error': return 'text-xmr-error';
       case 'success': return 'text-xmr-green';
-      case 'warn': return 'text-yellow-500';
-      case 'trigger': return 'text-red-500 font-bold';
+      case 'warn': return 'text-xmr-warning';
+      case 'trigger': return 'text-xmr-error font-bold';
       default: return 'text-xmr-dim';
     }
   };
@@ -92,11 +95,23 @@ export function VigilDashboard({
     <div className="w-full max-w-4xl mx-auto space-y-4 animate-in fade-in duration-300">
 
       {/* ─── Price Display ─── */}
-      <div className="relative bg-xmr-base/50 border border-xmr-border/30 rounded-md p-6 overflow-hidden">
+      <div className="relative bg-xmr-base/50 border border-xmr-border/30 rounded-sm p-6 overflow-hidden">
         {/* Background glow when triggered */}
         {isTriggered && (
-          <div className="absolute inset-0 bg-red-500/5 animate-pulse" />
+          <div className="absolute inset-0 bg-xmr-error/5 animate-pulse" />
         )}
+
+        {/* Live heartbeat chart as the card's background layer (web parity) */}
+        <div className="absolute inset-0 top-16 z-0">
+          <HeartbeatChart
+            triggerPrice={triggerVal}
+            stopPrice={hasStop ? parseFloat(config.stopPrice) : undefined}
+            mode={mode}
+            isTriggered={isTriggered}
+            realPrice={realPrice}
+            priceHistory={priceHistory}
+          />
+        </div>
 
         <div className="relative z-10">
           {/* Top bar */}
@@ -106,15 +121,15 @@ export function VigilDashboard({
                 XMR / USD Market Price
               </div>
               <div className={`text-5xl font-black tracking-tighter tabular-nums transition-colors duration-300 drop-shadow-lg font-mono
-                ${isTriggered ? 'text-red-500 animate-pulse' : ''}
+                ${isTriggered ? 'text-xmr-error animate-pulse' : ''}
                 ${priceFlash === 'up' ? 'text-xmr-green' : ''}
-                ${priceFlash === 'down' ? 'text-red-400' : ''}
+                ${priceFlash === 'down' ? 'text-xmr-error' : ''}
                 ${!isTriggered && !priceFlash ? 'text-current' : ''}
               `}>
                 ${displayPrice.toFixed(2)}
               </div>
               {comparison && (
-                <div className={`text-[10px] font-mono mt-1 ${comparison.isClose ? 'text-yellow-500 animate-pulse' : 'text-xmr-dim'}`}>
+                <div className={`text-[10px] font-mono mt-1 ${comparison.isClose ? 'text-xmr-warning animate-pulse' : 'text-xmr-dim'}`}>
                   {comparison.diff > 0 ? '+' : ''}{comparison.diff.toFixed(2)}% FROM TARGET
                   {comparison.isClose && ' -- APPROACHING'}
                 </div>
@@ -122,19 +137,19 @@ export function VigilDashboard({
             </div>
 
             <div className="flex flex-col items-end gap-2">
-              <div className={`flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border backdrop-blur-sm
+              <div className={`flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded-sm border backdrop-blur-sm
                 ${priceConnected
                   ? 'text-xmr-green border-xmr-green/20 bg-xmr-green/5'
-                  : 'text-red-500 border-red-500/20 bg-red-500/5 animate-pulse'
+                  : 'text-xmr-error border-xmr-error/20 bg-xmr-error/5 animate-pulse'
                 }
               `}>
                 <Radio size={12} className={priceConnected ? 'animate-pulse' : ''} />
                 {priceConnected ? 'LIVE FEED' : 'CONNECTING...'}
               </div>
 
-              <div className={`text-[9px] font-mono uppercase tracking-widest px-2 py-1 rounded border
+              <div className={`text-[9px] font-mono uppercase tracking-widest px-2 py-1 rounded-sm border
                 ${isTriggered
-                  ? 'text-red-500 border-red-500/30 bg-red-500/10 animate-pulse'
+                  ? 'text-xmr-error border-xmr-error/30 bg-xmr-error/10 animate-pulse'
                   : 'text-xmr-ghost border-xmr-ghost/20 bg-xmr-ghost/5'
                 }
               `}>
@@ -144,9 +159,9 @@ export function VigilDashboard({
           </div>
 
           {/* ─── Target Lines ─── */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mt-24">
             {/* Main Target */}
-            <div className="p-3 rounded border border-xmr-green/20 bg-xmr-green/5 space-y-1">
+            <div className="p-3 rounded-sm border border-xmr-green/20 bg-xmr-surface/35 backdrop-blur-[2px] space-y-1">
               <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-xmr-green" />
                 {mode === 'SNIPE' ? 'BUY DIP TARGET' : 'TAKE PROFIT TARGET'}
@@ -158,19 +173,16 @@ export function VigilDashboard({
             </div>
 
             {/* Stop / Strategy */}
-            <div className={`p-3 rounded border space-y-1
-              ${hasStop
-                ? 'border-red-500/20 bg-red-500/5'
-                : 'border-xmr-border/20 bg-xmr-surface/30'
-              }
+            <div className={`p-3 rounded-sm border space-y-1 bg-xmr-surface/35 backdrop-blur-[2px]
+              ${hasStop ? 'border-xmr-error/20' : 'border-xmr-border/20'}
             `}>
               {hasStop ? (
                 <>
                   <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-xmr-error" />
                     {mode === 'SNIPE' ? 'BREAKOUT STOP' : 'STOP LOSS'}
                   </div>
-                  <div className="text-xl font-black font-mono text-red-400 flex items-center gap-1.5">
+                  <div className="text-xl font-black font-mono text-xmr-error flex items-center gap-1.5">
                     <Shield size={14} />
                     ${stopVal.toFixed(2)}
                   </div>
@@ -190,21 +202,21 @@ export function VigilDashboard({
 
       {/* ─── Mission Parameters ─── */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1">
           <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Amount</div>
           <div className="text-sm font-black font-mono text-xmr-green">
             {config.amount} {config.inputCurrency?.ticker?.toUpperCase() || 'XMR'}
           </div>
         </div>
 
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1">
           <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Output</div>
           <div className="text-sm font-black font-mono text-xmr-green">
             {config.outputCurrency?.ticker?.toUpperCase() || 'USDT'}
           </div>
         </div>
 
-        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded p-3 space-y-1 overflow-hidden">
+        <div className="bg-xmr-surface/50 border border-xmr-border/20 rounded-sm p-3 space-y-1 overflow-hidden">
           <div className="flex justify-between items-center">
             <div className="text-[9px] text-xmr-dim font-mono uppercase tracking-widest">Destination</div>
             {config.targetAddress && (
@@ -226,7 +238,7 @@ export function VigilDashboard({
       </div>
 
       {/* ─── Log Output ─── */}
-      <div className="bg-xmr-base border border-xmr-border/20 rounded-md overflow-hidden">
+      <div className="bg-xmr-base border border-xmr-border/20 rounded-sm overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-xmr-border/20 bg-xmr-surface/30">
           <div className="flex items-center gap-2">
             <span className="relative flex h-1.5 w-1.5">

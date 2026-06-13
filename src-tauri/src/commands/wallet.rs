@@ -336,6 +336,15 @@ pub async fn refresh(_state: State<'_, WalletState>) -> Result<(), String> {
     Ok(())
 }
 
+/// Mirror of the renderer's vigilHotWallet flag: while an EJECT vigil is armed,
+/// a UI lock retains the Monero spend key so the order can dispatch unattended
+/// (see WalletState::lock). Advisory flag — fire-and-forget from the renderer.
+#[tauri::command]
+pub async fn set_vigil_hot(state: State<'_, WalletState>, hot: bool) -> Result<(), String> {
+    state.vigil_hot.store(hot, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
 /// Reset scan height and restart the scanner from the given height.
 #[tauri::command]
 pub async fn rescan(

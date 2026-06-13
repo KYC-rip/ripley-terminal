@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::RwLock;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -24,6 +24,11 @@ pub struct WalletState {
     /// Incremented each time a new scanner is started. Old scanners check this
     /// and stop if it doesn't match their generation.
     pub scanner_generation: AtomicU64,
+    /// When true (an EJECT vigil is armed), a UI lock retains the Monero spend
+    /// key so the order can dispatch unattended. Mirrors the renderer's
+    /// vigilHotWallet flag via the set_vigil_hot command. Default false: lock
+    /// zeroes the spend key as usual.
+    pub vigil_hot: AtomicBool,
 }
 
 struct WalletInner {
@@ -64,6 +69,7 @@ impl WalletState {
         Self {
             app,
             scanner_generation: AtomicU64::new(0),
+            vigil_hot: AtomicBool::new(false),
             inner: Arc::new(RwLock::new(WalletInner {
                 is_locked: true,
                 active_identity: None,
@@ -278,7 +284,12 @@ impl WalletState {
         // spend key). View-only data (balance/address) stays resident — the
         // same lock-survival tradeoff used on the desktop build.
         inner.is_locked = true;
-        inner.spend_key = None;
+        // Retain the spend key ONLY while an EJECT vigil is armed (set via
+        // set_vigil_hot), so the order can dispatch unattended behind the lock.
+        // mnemonic + password are always zeroed regardless.
+        if !self.vigil_hot.load(Ordering::SeqCst) {
+            inner.spend_key = None;
+        }
         inner.mnemonic = None;
         inner.password = None;
         log::info!("Wallet soft-locked — spend key zeroed; view-only background sync continues");

@@ -26,7 +26,8 @@
     "tauri:dev": "cargo tauri dev",
     "tauri:build": "cargo tauri build",
     "dev:renderer": "vite --config vite.config.ts",
-    "build:renderer": "vite build --config vite.config.ts"
+    "build:renderer": "vite build --config vite.config.ts",
+    "test": "vitest run"
   },
   "build": {
     "publish": [
@@ -75,6 +76,7 @@
     ]
   },
   "dependencies": {
+    "@kyc-rip/stealth-engines": "git+https://github.com/KYC-rip/stealth-engines.git",
     "@tauri-apps/api": "2.10.1",
     "@tauri-apps/plugin-deep-link": "2.4.7",
     "@tauri-apps/plugin-dialog": "2.6.0",
@@ -114,7 +116,8 @@
     "postcss": "8.5.6",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.3",
-    "vite": "7.3.1"
+    "vite": "7.3.1",
+    "vitest": "^3.2.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

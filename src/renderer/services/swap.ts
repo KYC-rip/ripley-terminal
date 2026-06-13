@@ -75,7 +75,7 @@ export interface CreateTradeParams {
   fixed?: boolean;
   isPayment?: boolean;
   memo?: string;
-  source?: 'swap' | 'ghost vigil' |  'ghost vigil sweep' | 'dispenser' | 'ghost';
+  source?: 'swap' | 'ghost vigil' |  'ghost vigil sweep' | 'dispenser' | 'ghost' | 'vigil-snipe' | 'vigil-eject';
 }
 
 export interface ExchangeResponse {
