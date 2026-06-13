@@ -205,6 +205,20 @@ async fn scan_loop(
         emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
     }
 
+    // SimpleRequestTransport serializes every request through a single
+    // connection + mutex (read_response_before_next_request), so concurrent
+    // calls on ONE daemon run serially. Build a pool of independent
+    // connections to the same node so block fetches actually parallelize.
+    let mut pool = vec![daemon.clone()];
+    for _ in 1..FETCH_CONCURRENCY {
+        match SimpleRequestTransport::new(node_url.clone()).await {
+            Ok(d) => pool.push(d),
+            Err(_) => break, // fall back to however many connections we got
+        }
+    }
+    let pool_n = pool.len();
+    emit_log(&app, "Sync", "info", &format!("🔗 Opened {} parallel connections to {}", pool_n, node_label));
+
     loop {
         // Check if superseded
         let ws = app.state::<WalletState>();
@@ -272,12 +286,14 @@ async fn scan_loop(
         // preserving height order, cutting wall-clock by ~Nx.
         let parallel_result = {
             use futures::stream::StreamExt;
-            futures::stream::iter(range)
-                .map(|n| {
-                    let daemon = &daemon;
-                    async move { ProvidesScannableBlocks::scannable_block_by_number(daemon, n).await }
+            futures::stream::iter(range.enumerate())
+                .map(|(i, n)| {
+                    // Round-robin across the connection pool so each in-flight
+                    // request hits a distinct (serialized) connection.
+                    let d = &pool[i % pool_n];
+                    async move { ProvidesScannableBlocks::scannable_block_by_number(d, n).await }
                 })
-                .buffered(FETCH_CONCURRENCY)
+                .buffered(pool_n)
                 .collect::<Vec<_>>()
                 .await
                 .into_iter()
