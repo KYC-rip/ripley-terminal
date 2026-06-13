@@ -191,13 +191,23 @@ pub async fn fetch_price_history(app: AppHandle, pair: String) -> Result<Value, 
     // In Tor mode, fetch over Tor (with TLS) so the price probe doesn't leak the
     // user IP. Both paths degrade gracefully — a failure just returns
     // { success:false } and the renderer falls back to live-tick accumulation.
-    let raw: Vec<u8> = if crate::wallet::scanner::read_routing_mode(&app) == "tor" {
+    let routing = crate::wallet::scanner::read_routing_mode(&app);
+    let raw: Vec<u8> = if routing == "tor" {
         match app.state::<crate::tor::TorState>().get_client().await {
             Some(tor) => match crate::tor::tor_get(&tor, &url).await {
                 Ok(bytes) => bytes,
                 Err(e) => return Ok(json!({ "success": false, "error": format!("Tor: {}", e) })),
             },
             None => return Ok(json!({ "success": false, "error": "Tor not available" })),
+        }
+    } else if routing == "custom" {
+        let proxy = crate::wallet::scanner::read_proxy_address(&app);
+        if proxy.trim().is_empty() {
+            return Ok(json!({ "success": false, "error": "No proxy address set" }));
+        }
+        match crate::tor::socks_get(&proxy, &url).await {
+            Ok(bytes) => bytes,
+            Err(e) => return Ok(json!({ "success": false, "error": format!("Proxy: {}", e) })),
         }
     } else {
         let resp = match reqwest::Client::new().get(&url).send().await {

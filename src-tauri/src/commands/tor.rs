@@ -1,4 +1,4 @@
-use tauri::State;
+use tauri::{AppHandle, State};
 use crate::tor::TorState;
 
 #[tauri::command]
@@ -8,8 +8,8 @@ pub async fn get_tor_status(state: State<'_, TorState>) -> Result<serde_json::Va
 }
 
 #[tauri::command]
-pub async fn restart_tor(state: State<'_, TorState>) -> Result<String, String> {
+pub async fn restart_tor(app: AppHandle, state: State<'_, TorState>) -> Result<String, String> {
     state.disconnect().await;
-    state.connect().await?;
+    state.connect(&app).await?;
     Ok("Tor connected".to_string())
 }

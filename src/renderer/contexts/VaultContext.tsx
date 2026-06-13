@@ -218,6 +218,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     console.log("🔌 Initializing Core Log Listener...");
     if (window.api.onCoreLog) {
       const cleanup = window.api.onCoreLog((data) => {
+        // SYNC_DATA / TOR_STATUS are machine channels piggybacked on core-log
+        // (consumed by onWalletEvent / onTorStatus). Don't show them as logs.
+        if (data.source === 'SYNC_DATA' || data.source === 'TOR_STATUS') return;
+
         // Backend data usually looks like { source: 'TOR', level: 'info', message: '...' }
         const typeMap: Record<string, string> = {
           'info': 'info',

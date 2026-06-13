@@ -73,6 +73,13 @@ function MainApp() {
 
   const [updateBanner, setUpdateBanner] = useState<{ show: boolean; version: string; url: string } | null>(null);
 
+  // Tor bootstrap progress (Phase 3B). Updated from the TOR_STATUS channel.
+  const [torStatus, setTorStatus] = useState<{ status: string; percent: number } | null>(null);
+  useEffect(() => {
+    const off = window.api.onTorStatus?.((s) => setTorStatus({ status: s.status, percent: s.percent }));
+    return () => { off?.(); };
+  }, []);
+
   const lastActivityRef = useRef(Date.now());
   const resetActivity = useCallback(() => { lastActivityRef.current = Date.now(); }, []);
 
@@ -443,10 +450,24 @@ function MainApp() {
               <span className="text-[10px]">◈</span>
               <span className="text-[8px] font-black uppercase tracking-wide">{skinLabel.substring(0, 4).toUpperCase()}</span>
             </button>
-            <button onClick={toggleTor} className={`flex flex-col items-center gap-0.5 py-1.5 rounded-sm border cursor-pointer ${appConfig.routingMode === 'tor' ? 'border-xmr-green/50 text-xmr-green' : 'border-xmr-accent/50 text-xmr-accent'}`} title={appConfig.routingMode === 'tor' ? 'Tor Only' : 'Clearnet'}>
-              <Shield size={12} />
-              <span className="text-[8px] font-black uppercase tracking-wide">{appConfig.routingMode === 'tor' ? 'TOR' : 'CLR'}</span>
-            </button>
+            {(() => {
+              const bootstrapping = appConfig.routingMode !== 'clearnet' && torStatus?.status === 'bootstrapping';
+              const label = appConfig.routingMode === 'clearnet'
+                ? 'CLR'
+                : bootstrapping
+                  ? `${torStatus?.percent ?? 0}%`
+                  : appConfig.routingMode === 'custom' ? 'PRXY' : 'TOR';
+              const title = bootstrapping
+                ? `Bootstrapping Tor… ${torStatus?.percent ?? 0}%`
+                : appConfig.routingMode === 'clearnet' ? 'Clearnet'
+                : appConfig.routingMode === 'custom' ? 'Custom proxy' : 'Tor Only';
+              return (
+                <button onClick={toggleTor} className={`flex flex-col items-center gap-0.5 py-1.5 rounded-sm border cursor-pointer ${appConfig.routingMode !== 'clearnet' ? 'border-xmr-green/50 text-xmr-green' : 'border-xmr-accent/50 text-xmr-accent'}`} title={title}>
+                  <Shield size={12} className={bootstrapping ? 'animate-pulse' : ''} />
+                  <span className="text-[8px] font-black uppercase tracking-wide">{label}</span>
+                </button>
+              );
+            })()}
           </div>
 
           {/* Status row */}

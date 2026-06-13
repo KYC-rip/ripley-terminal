@@ -13,8 +13,14 @@ function createTauriApi() {
   return {
     // ── Config ──
     getConfig: () => invoke('get_config'),
-    saveConfigAndReload: (config: any) => invoke('save_config', { config }),
-    saveConfigOnly: (config: any) => invoke('save_config', { config }),
+    saveConfigAndReload: (config: any) =>
+      invoke('save_config_and_reload', { config })
+        .then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    saveConfigOnly: (config: any) =>
+      invoke('save_config_only', { config })
+        .then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
 
     // ── Identity ──
     getIdentities: () => invoke('get_identities'),
@@ -92,6 +98,18 @@ function createTauriApi() {
     onCoreLog: (callback: any) => {
       let unlisten: UnlistenFn | null = null;
       listen('core-log', (event) => callback(event.payload)).then(fn => unlisten = fn);
+      return () => { unlisten?.(); };
+    },
+    onTorStatus: (callback: any) => {
+      // Piggybacked on core-log with source="TOR_STATUS": "status|percent|message".
+      let unlisten: UnlistenFn | null = null;
+      listen('core-log', (event) => {
+        const p = event.payload as any;
+        if (p.source === 'TOR_STATUS') {
+          const [status, percent, message] = (p.message as string).split('|');
+          callback({ status, percent: parseInt(percent) || 0, message: message || '' });
+        }
+      }).then(fn => unlisten = fn);
       return () => { unlisten?.(); };
     },
     onWalletEvent: (callback: any) => {

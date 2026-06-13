@@ -16,7 +16,7 @@ use monero_daemon_rpc::{HttpTransport, MoneroDaemon};
 use monero_simple_request_rpc::SimpleRequestTransport;
 
 use crate::emit_log;
-use crate::tor::{ArtiTransport, TorState};
+use crate::tor::{ArtiTransport, SocksTransport, TorState};
 use super::state::WalletState;
 use super::types::SyncStatus;
 
@@ -25,6 +25,24 @@ const GITHUB_NODES_URL: &str = "https://raw.githubusercontent.com/KYC-rip/ripley
 /// Read the configured routing mode ("tor" | "clearnet") from config.json.
 /// Defaults to "clearnet" when the file is absent or unparseable.
 pub(crate) fn read_routing_mode(app: &AppHandle) -> String {
+    read_config_str(app, "routingMode").unwrap_or_else(|| "clearnet".to_string())
+}
+
+/// Read the external SOCKS proxy address (custom routing mode) from config.json,
+/// normalized to a bare `host:port` (tokio-socks wants no scheme prefix).
+pub(crate) fn read_proxy_address(app: &AppHandle) -> String {
+    let raw = read_config_str(app, "systemProxyAddress").unwrap_or_default();
+    let trimmed = raw.trim();
+    for prefix in ["socks5h://", "socks5://", "socks://", "http://"] {
+        if let Some(rest) = trimmed.strip_prefix(prefix) {
+            return rest.trim_end_matches('/').to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+/// Read a string field from config.json, if present.
+fn read_config_str(app: &AppHandle, key: &str) -> Option<String> {
     let path = app
         .path()
         .app_data_dir()
@@ -33,8 +51,7 @@ pub(crate) fn read_routing_mode(app: &AppHandle) -> String {
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok())
-        .and_then(|v| v.get("routingMode").and_then(|m| m.as_str()).map(String::from))
-        .unwrap_or_else(|| "clearnet".to_string())
+        .and_then(|v| v.get(key).and_then(|m| m.as_str()).map(String::from))
 }
 
 /// Parse nodes for a given network + section ("clearnet" | "tor") from nodes.json.
@@ -127,6 +144,29 @@ impl DaemonConnector for TorConnector {
     }
 }
 
+/// Custom/Whonix mode: dial nodes through an EXTERNAL SOCKS5 proxy. Uses the
+/// same .onion node section — the proxy's Tor resolves them remotely (SOCKS5h).
+#[derive(Clone)]
+struct CustomProxyConnector {
+    proxy: String,
+}
+
+impl DaemonConnector for CustomProxyConnector {
+    type Transport = SocksTransport;
+    fn section(&self) -> &'static str {
+        "tor"
+    }
+    async fn connect(&self, url: String) -> Option<MoneroDaemon<SocksTransport>> {
+        match SocksTransport::connect(self.proxy.clone(), url.clone()).await {
+            Ok(daemon) => Some(daemon),
+            Err(e) => {
+                log::warn!("SOCKS connect to {url} via {} failed: {e:?}", self.proxy);
+                None
+            }
+        }
+    }
+}
+
 // Force a specific node for testing (set to None for normal racing)
 // Set to Some(("label", "url")) to force a specific node for testing
 const FORCE_NODE: Option<(&str, &str)> = None;
@@ -144,7 +184,8 @@ async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, String)> {
     // 1. Try fetching fresh nodes from GitHub. In Tor mode this goes over Tor
     //    (tor_get); on any failure (e.g. exit-node blocked by GitHub) we fall
     //    through to the cached/bundled copy — never a hard failure.
-    let fetched: Option<String> = if read_routing_mode(app) == "tor" {
+    let mode = read_routing_mode(app);
+    let fetched: Option<String> = if mode == "tor" {
         match app.state::<TorState>().get_client().await {
             Some(tor) => match crate::tor::tor_get(&tor, GITHUB_NODES_URL).await {
                 Ok(bytes) => String::from_utf8(bytes).ok(),
@@ -154,6 +195,19 @@ async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, String)> {
                 }
             },
             None => None,
+        }
+    } else if mode == "custom" {
+        let proxy = read_proxy_address(app);
+        if proxy.trim().is_empty() {
+            None
+        } else {
+            match crate::tor::socks_get(&proxy, GITHUB_NODES_URL).await {
+                Ok(bytes) => String::from_utf8(bytes).ok(),
+                Err(e) => {
+                    log::warn!("SOCKS nodes.json fetch failed ({e}); using cache/bundled");
+                    None
+                }
+            }
         }
     } else {
         match reqwest::Client::new()
@@ -250,17 +304,36 @@ impl BlockScanner {
             // FIRST (so the very first node race already goes over Tor — no
             // clearnet leak), then drive the same scan logic with ArtiTransport.
             let mode = read_routing_mode(&app_clone);
-            if mode == "tor" {
-                emit_log(&app_clone, "Network", "info", "🧅 Routing mode: Tor (arti, pure Rust)");
-                match ensure_tor(&app_clone).await {
-                    Some(tor) => run_outer(app_clone, generation, TorConnector { tor }).await,
-                    // ensure_tor already logged the failure; do not start a
-                    // clearnet fallback — that would leak the IP the user asked
-                    // us to hide.
-                    None => {}
+            match mode.as_str() {
+                "tor" => {
+                    emit_log(&app_clone, "Network", "info", "🧅 Routing mode: Tor (arti, pure Rust)");
+                    match ensure_tor(&app_clone).await {
+                        Some(tor) => run_outer(app_clone, generation, TorConnector { tor }).await,
+                        // ensure_tor already logged the failure; do not start a
+                        // clearnet fallback — that would leak the IP the user
+                        // asked us to hide.
+                        None => {}
+                    }
                 }
-            } else {
-                run_outer(app_clone, generation, ClearnetConnector).await;
+                "custom" => {
+                    let proxy = read_proxy_address(&app_clone);
+                    if proxy.trim().is_empty() {
+                        // Refuse — starting clearnet would leak the IP. Surface
+                        // the misconfiguration instead of silently downgrading.
+                        emit_log(
+                            &app_clone,
+                            "Network",
+                            "error",
+                            "❌ Custom routing selected but no proxy address is set. Sync paused — set a SOCKS proxy in Settings.",
+                        );
+                    } else {
+                        emit_log(&app_clone, "Network", "info", &format!("🧦 Routing mode: custom SOCKS proxy ({proxy})"));
+                        run_outer(app_clone, generation, CustomProxyConnector { proxy }).await;
+                    }
+                }
+                _ => {
+                    run_outer(app_clone, generation, ClearnetConnector).await;
+                }
             }
         });
 
@@ -281,7 +354,7 @@ pub(crate) async fn ensure_tor(app: &AppHandle) -> Option<TorClient<PreferredRun
         "info",
         "🧅 Bootstrapping Tor (downloading consensus — up to ~30-120s on first run)...",
     );
-    match tor_state.connect().await {
+    match tor_state.connect(app).await {
         Ok(()) => {
             emit_log(app, "Tor", "success", "🧅 Tor connected — daemon RPC routes through Tor");
             tor_state.get_client().await

@@ -30,6 +30,7 @@ use http_body_util::{BodyExt, Full, Limited};
 use hyper::{Method, Request};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_socks::tcp::Socks5Stream;
 use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tokio_rustls::TlsConnector;
@@ -93,6 +94,90 @@ impl HttpTransport for ArtiTransport {
     }
 }
 
+/// An `HttpTransport` that tunnels daemon RPC through an EXTERNAL SOCKS5 proxy
+/// (custom/Whonix mode). Unlike `ArtiTransport`, Tor runs outside the app; we
+/// just dial node host:port through the user's proxy. `.onion` targets are
+/// resolved REMOTELY by the proxy (SOCKS5h), so no exit/local DNS is involved.
+#[derive(Clone)]
+pub struct SocksTransport {
+    proxy: String,
+    host: String,
+    port: u16,
+}
+
+impl SocksTransport {
+    /// Build a daemon backed by an external SOCKS5 proxy. `proxy` is "host:port"
+    /// (e.g. Whonix's 10.152.152.10:9050 or a local 127.0.0.1:9050).
+    pub async fn connect(
+        proxy: String,
+        url: String,
+    ) -> Result<MoneroDaemon<SocksTransport>, InterfaceError> {
+        if proxy.trim().is_empty() {
+            return Err(InterfaceError::InterfaceError(
+                "custom routing selected but no proxy address is set".to_owned(),
+            ));
+        }
+        let (host, port) = parse_host_port(&url)?;
+        MoneroDaemon::new(SocksTransport { proxy, host, port }).await
+    }
+}
+
+impl HttpTransport for SocksTransport {
+    fn post(
+        &self,
+        route: &str,
+        body: Vec<u8>,
+        response_size_limit: Option<usize>,
+    ) -> impl Send + Future<Output = Result<Vec<u8>, InterfaceError>> {
+        let proxy = self.proxy.clone();
+        let host = self.host.clone();
+        let port = self.port;
+        let path = if route.starts_with('/') {
+            route.to_string()
+        } else {
+            format!("/{route}")
+        };
+        async move {
+            socks_http(&proxy, Method::POST, &host, port, &path, body, response_size_limit)
+                .await
+                .map_err(InterfaceError::InterfaceError)
+        }
+    }
+}
+
+/// Issue a single HTTP/1.1 request to host:port through a SOCKS5 proxy. Daemon
+/// nodes in custom mode are `.onion` over plain HTTP (no TLS), mirroring
+/// `tor_http`. Remote DNS (SOCKS5h) resolves the onion at the proxy's Tor.
+async fn socks_http(
+    proxy: &str,
+    method: Method,
+    host: &str,
+    port: u16,
+    path: &str,
+    body: Vec<u8>,
+    size_limit: Option<usize>,
+) -> Result<Vec<u8>, String> {
+    let content_length = body.len();
+    let request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(hyper::header::HOST, host)
+        .header(hyper::header::CONTENT_LENGTH, content_length)
+        .body(Full::new(Bytes::from(body)))
+        .map_err(|e| format!("Failed to build request: {e}"))?;
+
+    let exchange = async {
+        let stream = Socks5Stream::connect(proxy, (host, port))
+            .await
+            .map_err(|e| format!("SOCKS connect to {host}:{port} via {proxy} failed: {e}"))?;
+        http_over_stream(stream, request, size_limit).await
+    };
+
+    tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
+        .await
+        .map_err(|_| format!("SOCKS request to {host}:{port} timed out"))?
+}
+
 /// Issue a single HTTP/1.1 request over a fresh Tor stream and return the body.
 ///
 /// Used by both `ArtiTransport::post` (daemon RPC) and the reqwest-replacement
@@ -138,39 +223,63 @@ pub async fn tor_http(
 /// failure as "degrade gracefully" (cached nodes, live-tick chart), never fatal.
 pub async fn tor_get(tor: &TorClient<PreferredRuntime>, url: &str) -> Result<Vec<u8>, String> {
     let (https, host, port, path) = parse_url(url)?;
-
-    let request = Request::builder()
-        .method(Method::GET)
-        .uri(&path)
-        .header(hyper::header::HOST, &host)
-        // No connection reuse — ask the server to close after the response.
-        .header(hyper::header::CONNECTION, "close")
-        .body(Full::new(Bytes::new()))
-        .map_err(|e| format!("Failed to build request: {e}"))?;
-
     let exchange = async {
         let stream = tor
             .connect((host.as_str(), port))
             .await
             .map_err(|e| format!("Tor connect to {host}:{port} failed: {e}"))?;
-        if https {
-            // SNI / cert validation uses the URL host. Invalid names (IPs,
-            // malformed) error out → the caller falls back gracefully.
-            let server_name = ServerName::try_from(host.clone())
-                .map_err(|_| format!("invalid TLS server name: {host}"))?;
-            let tls_stream = tls_connector()
-                .connect(server_name, stream)
-                .await
-                .map_err(|e| format!("TLS handshake with {host} failed: {e}"))?;
-            http_over_stream(tls_stream, request, None).await
-        } else {
-            http_over_stream(stream, request, None).await
-        }
+        http_get_over(stream, https, &host, &path).await
     };
-
     tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
         .await
         .map_err(|_| format!("Tor GET to {host} timed out"))?
+}
+
+/// GET a URL through an external SOCKS5 proxy (custom/Whonix mode). `.onion`
+/// targets are passed to the proxy for REMOTE resolution (SOCKS5h). Same
+/// graceful-degradation contract as `tor_get`.
+pub async fn socks_get(proxy: &str, url: &str) -> Result<Vec<u8>, String> {
+    let (https, host, port, path) = parse_url(url)?;
+    let exchange = async {
+        let stream = Socks5Stream::connect(proxy, (host.as_str(), port))
+            .await
+            .map_err(|e| format!("SOCKS connect to {host}:{port} via {proxy} failed: {e}"))?;
+        http_get_over(stream, https, &host, &path).await
+    };
+    tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
+        .await
+        .map_err(|_| format!("SOCKS GET to {host} timed out"))?
+}
+
+/// Issue a GET over an already-connected byte stream, wrapping in TLS first when
+/// the scheme is https. Shared by `tor_get` (arti DataStream) and `socks_get`
+/// (SOCKS5 stream) — only the stream source differs.
+async fn http_get_over<S>(stream: S, https: bool, host: &str, path: &str) -> Result<Vec<u8>, String>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(path)
+        .header(hyper::header::HOST, host)
+        // No connection reuse — ask the server to close after the response.
+        .header(hyper::header::CONNECTION, "close")
+        .body(Full::new(Bytes::new()))
+        .map_err(|e| format!("Failed to build request: {e}"))?;
+
+    if https {
+        // SNI / cert validation uses the URL host. Invalid names (IPs,
+        // malformed) error out → the caller falls back gracefully.
+        let server_name = ServerName::try_from(host.to_string())
+            .map_err(|_| format!("invalid TLS server name: {host}"))?;
+        let tls_stream = tls_connector()
+            .connect(server_name, stream)
+            .await
+            .map_err(|e| format!("TLS handshake with {host} failed: {e}"))?;
+        http_over_stream(tls_stream, request, None).await
+    } else {
+        http_over_stream(stream, request, None).await
+    }
 }
 
 /// Drive a single HTTP/1.1 request over any byte stream (plain Tor `DataStream`

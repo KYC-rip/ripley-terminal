@@ -77,6 +77,8 @@ pub fn run() {
             // Config
             commands::config::get_config,
             commands::config::save_config,
+            commands::config::save_config_only,
+            commands::config::save_config_and_reload,
             // Identity
             commands::identity::get_identities,
             commands::identity::save_identities,

@@ -308,21 +308,34 @@ export function SettingsView() {
           <h3 className="text-xs font-black text-xmr-green flex items-center gap-2 uppercase"><Server size={14} /> Uplink_Protocols</h3>
           <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
 
-            {/* Routing Mode Toggle (Tor vs Clearnet) */}
-            <div className="flex items-center justify-between p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm">
+            {/* Routing Mode Selector (Clearnet / Tor / Custom SOCKS proxy) */}
+            <div className="p-4 bg-xmr-green/5 border border-xmr-green/20 rounded-sm space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Zap size={14} className={localSettings.routingMode === 'tor' ? "text-xmr-green animate-pulse" : "text-xmr-dim"} />
-                  <span className="text-xs text-xmr-green font-black uppercase">Tor_Darknet_Routing</span>
+                  <Zap size={14} className={localSettings.routingMode !== 'clearnet' ? "text-xmr-green animate-pulse" : "text-xmr-dim"} />
+                  <span className="text-xs text-xmr-green font-black uppercase">Uplink_Routing</span>
                 </div>
-                <p className="text-xs text-xmr-dim uppercase font-black">Onion_Tunnel_Privacy_Active</p>
+                <p className="text-xs text-xmr-dim uppercase font-black">
+                  {localSettings.routingMode === 'tor' ? 'Onion_Tunnel_Privacy_Active (built-in Tor)'
+                    : localSettings.routingMode === 'custom' ? 'External_SOCKS_Proxy (Whonix / system Tor)'
+                    : 'Direct_Clearnet — your IP is visible to nodes'}
+                </p>
               </div>
-              <button
-                onClick={() => setLocalSettings({ ...localSettings, routingMode: localSettings.routingMode === 'tor' ? 'clearnet' : 'tor' })}
-                className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${localSettings.routingMode === 'tor' ? 'bg-xmr-green' : 'bg-xmr-base border border-xmr-border'}`}
-              >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${localSettings.routingMode === 'tor' ? 'right-1 bg-xmr-base' : 'left-1 bg-xmr-border'}`}></div>
-              </button>
+              <div className="grid grid-cols-3 gap-1">
+                {(['clearnet', 'tor', 'custom'] as const).map((modeOption) => (
+                  <button
+                    key={modeOption}
+                    onClick={() => setLocalSettings({ ...localSettings, routingMode: modeOption })}
+                    className={`py-2 rounded-sm border text-[10px] font-black uppercase tracking-wide transition-all cursor-pointer ${
+                      localSettings.routingMode === modeOption
+                        ? (modeOption === 'clearnet' ? 'border-xmr-accent/60 bg-xmr-accent/15 text-xmr-accent' : 'border-xmr-green/60 bg-xmr-green/15 text-xmr-green')
+                        : 'border-xmr-border/50 text-xmr-dim hover:border-xmr-green/30'
+                    }`}
+                  >
+                    {modeOption === 'clearnet' ? 'Clearnet' : modeOption === 'tor' ? 'Tor' : 'Custom'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Network Toggle (Mainnet vs Stagenet) */}
@@ -358,16 +371,21 @@ export function SettingsView() {
               </button>
             </div>
 
-            {!localSettings.useSystemProxy && (
+            {(localSettings.routingMode === 'custom' || !localSettings.useSystemProxy) && (
               <div className="space-y-2 mt-2">
-                <label className="text-[11px] font-black text-xmr-dim uppercase border-l-2 border-xmr-border pl-2">Manual_Proxy_Override (Optional)</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase border-l-2 border-xmr-border pl-2">
+                  {localSettings.routingMode === 'custom' ? 'SOCKS_Proxy_Address (Required)' : 'Manual_Proxy_Override (Optional)'}
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g., socks5://127.0.0.1:7890"
+                  placeholder="e.g., 127.0.0.1:9050 (Whonix: 10.152.152.10:9050)"
                   value={localSettings.systemProxyAddress}
                   onChange={(e) => setLocalSettings({ ...localSettings, systemProxyAddress: e.target.value })}
                   className="w-full bg-xmr-base border border-xmr-border focus:border-xmr-green/50 hover:border-xmr-green/30 p-3 text-xs text-xmr-green outline-none font-black transition-colors"
                 />
+                {localSettings.routingMode === 'custom' && (
+                  <p className="text-[10px] text-xmr-dim font-black">Daemon RPC + price are dialed through this SOCKS5 proxy. .onion nodes resolve at the proxy's Tor.</p>
+                )}
               </div>
             )}
 

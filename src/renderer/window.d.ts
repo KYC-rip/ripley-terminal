@@ -79,6 +79,7 @@ export interface IApi {
   // --- Event Listeners (Main -> Renderer) ---
   onEngineStatus: (callback: (status: EngineStatus) => void) => () => void;
   onCoreLog: (callback: (log: { source: string; level: 'info' | 'error'; message: string }) => void) => () => void;
+  onTorStatus: (callback: (status: { status: 'bootstrapping' | 'connected' | 'error'; percent: number; message: string }) => void) => () => void;
   onWalletEvent: (callback: (event: { type: 'SYNC_UPDATE' | 'BALANCE_CHANGED'; payload: any }) => void) => () => void;
   onVaultShutdown: (callback: () => void) => () => void;
   onDeepLink: (callback: (url: string) => void) => () => void;
