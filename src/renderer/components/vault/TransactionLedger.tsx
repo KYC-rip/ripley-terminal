@@ -5,6 +5,7 @@ import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
 import { SubaddressInfo, useVault } from '../../contexts/VaultContext';
 import { RpcClient } from '../../services/rpcClient';
+import { useStats } from '../../hooks/useStats';
 
 interface Transaction {
   id: string;
@@ -71,6 +72,22 @@ function groupByDate(txs: Transaction[]): { label: string; txs: Transaction[] }[
 
 export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerProps) {
   const { getTxKey, getTxProof, checkTxKey, checkTxProof, addLog } = useVault();
+  const { stats } = useStats();
+
+  // Street price (USD per XMR) for fiat estimates next to each amount.
+  const xmrPrice = parseFloat((stats?.price?.street || '0').replace(/[$,]/g, '')) || 0;
+  const formatFiat = (xmrAmount: string): string | null => {
+    if (!xmrPrice) return null;
+    const value = parseFloat(xmrAmount);
+    if (!isFinite(value)) return null;
+    return (value * xmrPrice).toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const [txKeys, setTxKeys] = useState<Record<string, string>>({});
   const [txProofs, setTxProofs] = useState<Record<string, string>>({});
@@ -372,7 +389,9 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                           <div className={`text-[13px] font-black ${isIncoming ? 'text-xmr-green' : 'text-xmr-accent'}`}>
                             {isIncoming ? '+' : '-'}{tx.amount}
                           </div>
-                          <div className="text-[9px] text-xmr-dim/40 font-bold">XMR</div>
+                          <div className="text-[9px] text-xmr-dim/40 font-bold">
+                            XMR{formatFiat(tx.amount) ? ` · ≈ ${formatFiat(tx.amount)}` : ''}
+                          </div>
                         </div>
 
                         {/* Time */}
