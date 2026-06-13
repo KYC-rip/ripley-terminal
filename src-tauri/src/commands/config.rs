@@ -11,13 +11,23 @@ fn config_path(app: &AppHandle) -> PathBuf {
 pub async fn get_config(app: AppHandle) -> Result<serde_json::Value, String> {
     let path = config_path(&app);
     match std::fs::read_to_string(&path) {
-        Ok(data) => serde_json::from_str(&data)
-            .map_err(|e| format!("Config parse error: {}", e)),
-        Err(_) => {
-            // Return defaults. Keep these in sync with the renderer's
-            // SettingsView controls so it never reads `undefined`.
-            Ok(default_config())
+        // Merge the stored config OVER the defaults so configs written before a
+        // new key existed (e.g. `shortcuts`) get backfilled — otherwise the
+        // Settings UI shows empty sections for keys the old file never had.
+        Ok(data) => {
+            let stored: serde_json::Value =
+                serde_json::from_str(&data).map_err(|e| format!("Config parse error: {}", e))?;
+            let mut merged = default_config();
+            if let (Some(m), Some(s)) = (merged.as_object_mut(), stored.as_object()) {
+                for (k, v) in s {
+                    m.insert(k.clone(), v.clone());
+                }
+            }
+            Ok(merged)
         }
+        // Return defaults. Keep these in sync with the renderer's SettingsView
+        // controls so it never reads `undefined`.
+        Err(_) => Ok(default_config()),
     }
 }
 
