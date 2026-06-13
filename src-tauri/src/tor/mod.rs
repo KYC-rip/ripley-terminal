@@ -4,6 +4,13 @@ use tokio::sync::RwLock;
 use arti_client::{TorClient, TorClientConfig};
 use tor_rtcompat::PreferredRuntime;
 
+mod transport;
+pub use transport::ArtiTransport;
+// tor_http is the shared hyper-over-arti helper; ArtiTransport uses it for
+// daemon RPC now, and Phase 2 will route the reqwest GETs through it too.
+#[allow(unused_imports)]
+pub use transport::tor_http;
+
 /// Tor state manager using arti-client (pure Rust Tor implementation).
 /// Replaces the bundled Tor binary entirely — no subprocess, no 61MB binary.
 pub struct TorState {

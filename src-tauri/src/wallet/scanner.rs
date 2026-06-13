@@ -3,37 +3,72 @@
 //! Connects to a Monero daemon, fetches blocks in batches, and scans each block
 //! for outputs belonging to the wallet's ViewPair using monero-wallet's Scanner.
 
+use std::future::Future;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::sleep;
 
+use arti_client::TorClient;
+use tor_rtcompat::PreferredRuntime;
+
 use monero_daemon_rpc::prelude::*;
+use monero_daemon_rpc::{HttpTransport, MoneroDaemon};
 use monero_simple_request_rpc::SimpleRequestTransport;
 
 use crate::emit_log;
+use crate::tor::{ArtiTransport, TorState};
 use super::state::WalletState;
 use super::types::SyncStatus;
 
 const GITHUB_NODES_URL: &str = "https://raw.githubusercontent.com/KYC-rip/ripley-terminal/main/resources/nodes.json";
 
-/// Parse clearnet nodes from a nodes.json value.
-fn parse_clearnet_nodes(parsed: &serde_json::Value) -> Vec<(String, String)> {
+/// Read the configured routing mode ("tor" | "clearnet") from config.json.
+/// Defaults to "clearnet" when the file is absent or unparseable.
+pub(crate) fn read_routing_mode(app: &AppHandle) -> String {
+    let path = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("config.json");
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok())
+        .and_then(|v| v.get("routingMode").and_then(|m| m.as_str()).map(String::from))
+        .unwrap_or_else(|| "clearnet".to_string())
+}
+
+/// Parse nodes for a given network + section ("clearnet" | "tor") from nodes.json.
+///
+/// Clearnet addresses are normalized to an `http://` URL and HTTPS is skipped
+/// (simple-request has TLS cert issues). Tor `.onion` addresses are stored
+/// verbatim as `host:port` — `ArtiTransport` parses them and arti dials them
+/// natively (no exit node).
+fn parse_nodes(parsed: &serde_json::Value, network: &str, section: &str) -> Vec<(String, String)> {
     let mut nodes = vec![];
-    if let Some(clearnet) = parsed.get("mainnet").and_then(|m| m.get("clearnet")).and_then(|c| c.as_object()) {
-        for (label, addresses) in clearnet {
+    if let Some(sec) = parsed
+        .get(network)
+        .and_then(|m| m.get(section))
+        .and_then(|c| c.as_object())
+    {
+        for (label, addresses) in sec {
             if let Some(addrs) = addresses.as_array() {
                 for addr in addrs {
                     if let Some(addr_str) = addr.as_str() {
-                        // Skip HTTPS nodes — simple-request has TLS cert issues
-                        if addr_str.starts_with("https://") {
-                            continue;
-                        }
-                        let url = if addr_str.starts_with("http://") {
-                            addr_str.to_string()
+                        if section == "clearnet" {
+                            // Skip HTTPS nodes — simple-request has TLS cert issues
+                            if addr_str.starts_with("https://") {
+                                continue;
+                            }
+                            let url = if addr_str.starts_with("http://") {
+                                addr_str.to_string()
+                            } else {
+                                format!("http://{}", addr_str)
+                            };
+                            nodes.push((label.clone(), url));
                         } else {
-                            format!("http://{}", addr_str)
-                        };
-                        nodes.push((label.clone(), url));
+                            // Tor / .onion: verbatim host:port (ArtiTransport parses it)
+                            nodes.push((label.clone(), addr_str.to_string()));
+                        }
                     }
                 }
             }
@@ -42,12 +77,63 @@ fn parse_clearnet_nodes(parsed: &serde_json::Value) -> Vec<(String, String)> {
     nodes
 }
 
+/// A pluggable way to build a `MoneroDaemon` for a node URL. The clearnet variant
+/// uses `SimpleRequestTransport`; the Tor variant uses `ArtiTransport` over arti.
+/// This keeps the scan logic generic over one concrete transport per run, while
+/// leaving the clearnet path (and its battle-tested behavior) entirely unchanged.
+pub trait DaemonConnector: Clone + Send + Sync + 'static {
+    type Transport: HttpTransport + Clone + Send + Sync + 'static;
+
+    /// nodes.json section this connector reads ("clearnet" | "tor").
+    fn section(&self) -> &'static str;
+
+    fn connect(
+        &self,
+        url: String,
+    ) -> impl Future<Output = Option<MoneroDaemon<Self::Transport>>> + Send;
+}
+
+#[derive(Clone)]
+struct ClearnetConnector;
+
+impl DaemonConnector for ClearnetConnector {
+    type Transport = SimpleRequestTransport;
+    fn section(&self) -> &'static str {
+        "clearnet"
+    }
+    async fn connect(&self, url: String) -> Option<MoneroDaemon<SimpleRequestTransport>> {
+        SimpleRequestTransport::new(url).await.ok()
+    }
+}
+
+#[derive(Clone)]
+struct TorConnector {
+    tor: TorClient<PreferredRuntime>,
+}
+
+impl DaemonConnector for TorConnector {
+    type Transport = ArtiTransport;
+    fn section(&self) -> &'static str {
+        "tor"
+    }
+    async fn connect(&self, url: String) -> Option<MoneroDaemon<ArtiTransport>> {
+        match ArtiTransport::connect(self.tor.clone(), url.clone()).await {
+            Ok(daemon) => Some(daemon),
+            Err(e) => {
+                log::warn!("Tor connect to {url} failed: {e:?}");
+                None
+            }
+        }
+    }
+}
+
 // Force a specific node for testing (set to None for normal racing)
 // Set to Some(("label", "url")) to force a specific node for testing
 const FORCE_NODE: Option<(&str, &str)> = None;
 
-/// Load nodes: try cached → fetch from GitHub → fall back to bundled.
-async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
+/// Load nodes for the given section ("clearnet" | "tor"): try fresh GitHub fetch
+/// → cached disk copy → bundled fallback.
+async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, String)> {
     if let Some((label, url)) = FORCE_NODE {
         return vec![(label.to_string(), url.to_string())];
     }
@@ -63,11 +149,11 @@ async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
     {
         if let Ok(text) = response.text().await {
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
-                let nodes = parse_clearnet_nodes(&parsed);
+                let nodes = parse_nodes(&parsed, "mainnet", section);
                 if !nodes.is_empty() {
                     // Cache to disk
                     let _ = std::fs::write(&cache_path, &text);
-                    log::info!("Fetched {} nodes from GitHub, cached locally", nodes.len());
+                    log::info!("Fetched {} {} nodes from GitHub, cached locally", nodes.len(), section);
                     return nodes;
                 }
             }
@@ -77,9 +163,9 @@ async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
     // 2. Try cached nodes from disk
     if let Ok(text) = std::fs::read_to_string(&cache_path) {
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
-            let nodes = parse_clearnet_nodes(&parsed);
+            let nodes = parse_nodes(&parsed, "mainnet", section);
             if !nodes.is_empty() {
-                log::info!("Using {} cached nodes from disk", nodes.len());
+                log::info!("Using {} cached {} nodes from disk", nodes.len(), section);
                 return nodes;
             }
         }
@@ -88,24 +174,30 @@ async fn load_nodes(app: &AppHandle) -> Vec<(String, String)> {
     // 3. Fall back to bundled nodes.json
     let bundled = include_str!("../../../resources/nodes.json");
     let parsed: serde_json::Value = serde_json::from_str(bundled).unwrap_or_default();
-    let nodes = parse_clearnet_nodes(&parsed);
-    log::info!("Using {} bundled fallback nodes", nodes.len());
+    let nodes = parse_nodes(&parsed, "mainnet", section);
+    log::info!("Using {} bundled fallback {} nodes", nodes.len(), section);
     nodes
 }
 
-/// Race ALL nodes — first to connect wins.
-async fn race_nodes(app: &AppHandle) -> Option<(String, String, monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>)> {
+/// Race ALL nodes — first to connect wins. Generic over the connector so the
+/// same racing logic serves both clearnet (SimpleRequestTransport) and Tor
+/// (ArtiTransport).
+async fn race_nodes<C: DaemonConnector>(
+    app: &AppHandle,
+    connector: &C,
+) -> Option<(String, String, MoneroDaemon<C::Transport>)> {
     use tokio::sync::mpsc;
 
-    let nodes = load_nodes(app).await;
+    let nodes = load_nodes(app, connector.section()).await;
     emit_log(app, "Network", "info", &format!("🏁 Racing {} nodes...", nodes.len()));
 
     let (tx, mut rx) = mpsc::channel(1);
 
     for (label, url) in nodes {
         let tx = tx.clone();
+        let connector = connector.clone();
         tokio::spawn(async move {
-            if let Ok(daemon) = SimpleRequestTransport::new(url.clone()).await {
+            if let Some(daemon) = connector.connect(url.clone()).await {
                 let _ = tx.send((label, url, daemon)).await;
             }
         });
@@ -136,44 +228,21 @@ impl BlockScanner {
 
         let app_clone = app.clone();
         tokio::spawn(async move {
-            loop {
-                // Check if we've been superseded by a newer scanner
-                let ws = app_clone.state::<WalletState>();
-                if ws.current_scanner_generation() != generation {
-                    emit_log(&app_clone, "Sync", "info", "🛑 Scanner stopped (superseded by newer scan)");
-                    return;
+            // Routing mode decides the transport. In Tor mode we bootstrap arti
+            // FIRST (so the very first node race already goes over Tor — no
+            // clearnet leak), then drive the same scan logic with ArtiTransport.
+            let mode = read_routing_mode(&app_clone);
+            if mode == "tor" {
+                emit_log(&app_clone, "Network", "info", "🧅 Routing mode: Tor (arti, pure Rust)");
+                match ensure_tor(&app_clone).await {
+                    Some(tor) => run_outer(app_clone, generation, TorConnector { tor }).await,
+                    // ensure_tor already logged the failure; do not start a
+                    // clearnet fallback — that would leak the IP the user asked
+                    // us to hide.
+                    None => {}
                 }
-
-                // Race all nodes
-                let (label, url, daemon) = match race_nodes(&app_clone).await {
-                    Some(result) => result,
-                    None => {
-                        emit_log(&app_clone, "Network", "error", "❌ All nodes failed. Retrying in 10s...");
-                        sleep(Duration::from_secs(10)).await;
-                        continue;
-                    }
-                };
-
-                emit_log(&app_clone, "Network", "success", &format!("✅ Fastest node: {} ({})", label, url));
-
-                // Store daemon URL so tx commands can connect
-                let wallet_state = app_clone.state::<WalletState>();
-                wallet_state.set_daemon_url(&url).await;
-
-                // Read current scan height from state (may have been updated by rescan)
-                let current_height = {
-                    let ws = app_clone.state::<WalletState>();
-                    ws.get_scan_height().await
-                };
-
-                // Run scan loop — if it fails, re-race
-                match scan_loop(app_clone.clone(), daemon, current_height, url.clone(), label.clone(), generation).await {
-                    Ok(()) => break,
-                    Err(e) => {
-                        emit_log(&app_clone, "Sync", "error", &format!("⚠️ {} disconnected: {}. Re-racing...", label, e));
-                        sleep(Duration::from_secs(2)).await;
-                    }
-                }
+            } else {
+                run_outer(app_clone, generation, ClearnetConnector).await;
             }
         });
 
@@ -181,23 +250,99 @@ impl BlockScanner {
     }
 }
 
+/// Ensure arti is bootstrapped and return the shared `TorClient`. Emits UI log
+/// events so the first-run consensus download (~30-120s) is visible.
+pub(crate) async fn ensure_tor(app: &AppHandle) -> Option<TorClient<PreferredRuntime>> {
+    let tor_state = app.state::<TorState>();
+    if let Some(client) = tor_state.get_client().await {
+        return Some(client);
+    }
+    emit_log(
+        app,
+        "Tor",
+        "info",
+        "🧅 Bootstrapping Tor (downloading consensus — up to ~30-120s on first run)...",
+    );
+    match tor_state.connect().await {
+        Ok(()) => {
+            emit_log(app, "Tor", "success", "🧅 Tor connected — daemon RPC routes through Tor");
+            tor_state.get_client().await
+        }
+        Err(e) => {
+            emit_log(
+                app,
+                "Tor",
+                "error",
+                &format!("❌ Tor bootstrap failed: {}. Sync paused — check your connection or switch to clearnet.", e),
+            );
+            None
+        }
+    }
+}
+
+/// The race → scan → re-race loop, generic over the transport connector.
+async fn run_outer<C: DaemonConnector>(app_clone: AppHandle, generation: u64, connector: C) {
+    loop {
+        // Check if we've been superseded by a newer scanner
+        let ws = app_clone.state::<WalletState>();
+        if ws.current_scanner_generation() != generation {
+            emit_log(&app_clone, "Sync", "info", "🛑 Scanner stopped (superseded by newer scan)");
+            return;
+        }
+
+        // Race all nodes
+        let (label, url, daemon) = match race_nodes(&app_clone, &connector).await {
+            Some(result) => result,
+            None => {
+                emit_log(&app_clone, "Network", "error", "❌ All nodes failed. Retrying in 10s...");
+                sleep(Duration::from_secs(10)).await;
+                continue;
+            }
+        };
+
+        emit_log(&app_clone, "Network", "success", &format!("✅ Fastest node: {} ({})", label, url));
+
+        // Store daemon URL so tx commands can connect
+        let wallet_state = app_clone.state::<WalletState>();
+        wallet_state.set_daemon_url(&url).await;
+
+        // Read current scan height from state (may have been updated by rescan)
+        let current_height = {
+            let ws = app_clone.state::<WalletState>();
+            ws.get_scan_height().await
+        };
+
+        // Run scan loop — if it fails, re-race
+        match scan_loop(app_clone.clone(), daemon, current_height, url.clone(), label.clone(), generation, &connector).await {
+            Ok(()) => break,
+            Err(e) => {
+                emit_log(&app_clone, "Sync", "error", &format!("⚠️ {} disconnected: {}. Re-racing...", label, e));
+                sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
 // RingCT fork height — blocks before this have no RingCT outputs.
 // monero-wallet only scans RingCT outputs, so scanning earlier blocks is pointless.
 const RINGCT_FORK_HEIGHT: u64 = 1_220_516;
 
-async fn scan_loop(
+async fn scan_loop<C: DaemonConnector>(
     app: AppHandle,
-    daemon: monero_daemon_rpc::MoneroDaemon<monero_simple_request_rpc::SimpleRequestTransport>,
+    daemon: MoneroDaemon<C::Transport>,
     mut scan_height: u64,
     node_url: String,
     node_label: String,
     generation: u64,
+    connector: &C,
 ) -> Result<(), String> {
     // Dynamic batch size based on gap — bigger gap = bigger batches for speed.
     // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
     let base_batch: u64 = 50;
-    // Concurrent block fetches per batch (pipelined RPC round-trips).
-    const FETCH_CONCURRENCY: usize = 12;
+    // Concurrent block fetches per batch (pipelined RPC round-trips). Tor
+    // circuits add latency and arti builds them lazily, so fewer parallel
+    // streams perform better over Tor; clearnet keeps wide parallelism.
+    let fetch_concurrency: usize = if connector.section() == "tor" { 4 } else { 12 };
 
     if scan_height == u64::MAX {
         emit_log(&app, "Sync", "info", "🔍 New wallet — will sync from daemon tip");
@@ -205,29 +350,32 @@ async fn scan_loop(
         emit_log(&app, "Sync", "info", &format!("🔍 Scan loop started from height {}", scan_height));
     }
 
-    // SimpleRequestTransport serializes every request through a single
-    // mutex-guarded, pool-less connection, so concurrent calls on ONE daemon
-    // run serially. Worse, public nodes cap connections per IP (one capped us
-    // at 3). So build the pool by spreading ONE connection across MANY
-    // distinct nodes — each node sees a single connection (no throttling) and
-    // we still get wide parallelism. Historical blocks are identical across
-    // nodes and every fetch is validated, so multi-node fetch is safe.
+    // Each transport serializes its own requests (SimpleRequestTransport via a
+    // mutex; ArtiTransport opens one stream per request), and public nodes cap
+    // connections per IP. So build the pool by spreading ONE connection across
+    // MANY distinct nodes — each node sees a single connection (no throttling)
+    // and we still get wide parallelism. Historical blocks are identical across
+    // nodes and every fetch is validated, so multi-node fetch is safe. In Tor
+    // mode all entries share one TorClient (arti reuses circuits internally).
     let mut pool = vec![daemon.clone()];
     {
         use futures::stream::StreamExt;
-        let others: Vec<(String, String)> = load_nodes(&app)
+        let others: Vec<(String, String)> = load_nodes(&app, connector.section())
             .await
             .into_iter()
             .filter(|(_, u)| u != &node_url)
             .collect();
         let connected: Vec<Option<_>> = futures::stream::iter(others)
-            .map(|(_, url)| async move { SimpleRequestTransport::new(url).await.ok() })
-            .buffer_unordered(FETCH_CONCURRENCY)
+            .map(|(_, url)| {
+                let connector = connector.clone();
+                async move { connector.connect(url).await }
+            })
+            .buffer_unordered(fetch_concurrency)
             .collect()
             .await;
         for d in connected.into_iter().flatten() {
             pool.push(d);
-            if pool.len() >= FETCH_CONCURRENCY {
+            if pool.len() >= fetch_concurrency {
                 break;
             }
         }
