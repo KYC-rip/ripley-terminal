@@ -169,6 +169,10 @@ pub struct SentTx {
     pub destinations: Vec<(String, u64)>,
     pub height: u64,
     pub timestamp: u64,
+    /// Transaction secret key (hex) for proof-of-payment export (get_tx_key).
+    /// Only the main key — correct for single standard-address sends + sweeps.
+    #[serde(default)]
+    pub tx_key: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]

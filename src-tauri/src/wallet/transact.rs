@@ -7,10 +7,10 @@ use zeroize::Zeroizing;
 use rand_core::OsRng;
 
 use monero_wallet::{OutputWithDecoys, WalletOutput, ViewPair};
-use monero_wallet::send::{Change, SignableTransaction};
+use monero_wallet::send::{Change, SignableTransaction, TransactionKeys};
 use monero_oxide::ringct::RctType;
 use monero_oxide::transaction::Transaction;
-use monero_oxide::ed25519::Scalar;
+use monero_oxide::ed25519::{Point, Scalar};
 use monero_address::MoneroAddress;
 use monero_daemon_rpc::prelude::*;
 
@@ -23,6 +23,28 @@ pub struct PreparedTransaction {
     /// Output ids (txid:index) consumed as real inputs — recorded as spent once
     /// the tx is successfully broadcast.
     pub spent_ids: Vec<String>,
+    /// The transaction's main secret key (hex), re-derived deterministically for
+    /// proof-of-payment export. Empty if it couldn't be derived.
+    pub tx_key_hex: String,
+}
+
+/// Re-derive a transaction's main secret key from the same inputs the signer
+/// uses. monero-oxide derives tx keys deterministically from the outgoing view
+/// key + the (key, commitment) of each real input, in the order provided to
+/// SignableTransaction::new (which preserves input order). This is the SAME
+/// generator the library uses internally — not novel crypto. Returns the main
+/// key only (correct for single standard-address sends and sweeps; multi-output
+/// / subaddress sends also use per-output additional keys, which we omit).
+fn derive_tx_key_hex(outgoing_view_key: &Zeroizing<[u8; 32]>, inputs: &[OutputWithDecoys]) -> String {
+    let iks: Vec<(Point, Point)> = inputs
+        .iter()
+        .map(|o| (o.key(), o.commitment().commit()))
+        .collect();
+    let mut keys = TransactionKeys::new(outgoing_view_key, iks);
+    match keys.next() {
+        Some(tx_key) => hex::encode(<[u8; 32]>::from(*tx_key)),
+        None => String::new(),
+    }
 }
 
 /// Construct a transaction (select decoys, compute fee), but don't sign yet.
@@ -69,6 +91,10 @@ pub async fn prepare_transaction(
     let spend_compressed = view_pair.spend().compress();
     let outgoing_view_key = Zeroizing::new(spend_compressed.to_bytes());
 
+    // Derive the tx secret key now (same generator the signer uses), for
+    // proof-of-payment export via get_tx_key.
+    let tx_key_hex = derive_tx_key_hex(&outgoing_view_key, &inputs_with_decoys);
+
     // Set change to go back to our primary address
     let change = Change::new(view_pair.clone(), None);
 
@@ -98,6 +124,7 @@ pub async fn prepare_transaction(
         amount: total_amount,
         destinations,
         spent_ids,
+        tx_key_hex,
     })
 }
 
@@ -158,6 +185,7 @@ pub async fn prepare_sweep(
         ));
     }
     let amount = total - fee;
+    let tx_key_hex = derive_tx_key_hex(&outgoing_view_key, &owds);
     let signable = build(amount, owds)
         .map_err(|e| format!("Sweep construction failed: {:?}", e))?;
 
@@ -167,6 +195,7 @@ pub async fn prepare_sweep(
         amount,
         destinations: vec![(destination.to_string(), amount)],
         spent_ids,
+        tx_key_hex,
     })
 }
 

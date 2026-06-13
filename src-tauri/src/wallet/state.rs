@@ -451,6 +451,17 @@ impl WalletState {
         self.inner.read().await.sent.clone()
     }
 
+    /// The stored tx secret key (hex) for a broadcast tx, if we have it.
+    pub async fn get_tx_key(&self, txid: &str) -> Option<String> {
+        self.inner
+            .read()
+            .await
+            .sent
+            .iter()
+            .find(|s| s.tx_hash == txid && !s.tx_key.is_empty())
+            .map(|s| s.tx_key.clone())
+    }
+
     /// Daemon tip height (best-known), for confirmations / unlock checks.
     pub async fn tip_height(&self) -> u64 {
         self.inner.read().await.sync_status.daemon_height

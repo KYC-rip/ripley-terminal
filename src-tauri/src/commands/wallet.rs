@@ -230,6 +230,7 @@ pub async fn prepare_transfer(
         destinations: prepared.destinations.clone(),
         height: 0,
         timestamp: 0,
+        tx_key: prepared.tx_key_hex.clone(),
     };
     state.stage_pending_spend(meta_key, prepared.spent_ids.clone(), staged_sent).await;
 
@@ -271,6 +272,7 @@ pub async fn relay_transfer(
         amount: 0,
         destinations: vec![],
         spent_ids: vec![],
+        tx_key_hex: String::new(),
     };
     let signed_tx = transact::sign_transaction(prepared, &spend_key)?;
 
@@ -325,7 +327,7 @@ async fn sweep_via_daemon<D>(
     dest: MoneroAddress,
     fee_priority: FeePriority,
     spend_key: &zeroize::Zeroizing<monero_oxide::ed25519::Scalar>,
-) -> Result<(String, u64, u64, Vec<String>, Vec<(String, u64)>), String>
+) -> Result<(String, u64, u64, Vec<String>, Vec<(String, u64)>, String), String>
 where
     D: ProvidesDecoys + ProvidesBlockchainMeta + ProvidesFeeRates + PublishTransaction + Sync,
 {
@@ -334,9 +336,10 @@ where
     let amount = prepared.amount;
     let spent_ids = prepared.spent_ids.clone();
     let destinations = prepared.destinations.clone();
+    let tx_key = prepared.tx_key_hex.clone();
     let signed = transact::sign_transaction(prepared, spend_key)?;
     transact::broadcast_transaction(daemon, &signed).await?;
-    Ok((hex::encode(signed.hash()), fee, amount, spent_ids, destinations))
+    Ok((hex::encode(signed.hash()), fee, amount, spent_ids, destinations, tx_key))
 }
 
 /// Sweep ALL spendable outputs to a single address (no change). One command:
@@ -372,7 +375,7 @@ pub async fn sweep_all(
 
     emit_log(&app, "Tx", "info", &format!("🧹 Sweeping {} outputs to {}...", inputs.len(), address));
 
-    let (tx_hash, fee, amount, spent_ids, destinations) =
+    let (tx_hash, fee, amount, spent_ids, destinations, tx_key) =
         match crate::wallet::scanner::read_routing_mode(&app).as_str() {
             "tor" => {
                 let tor = crate::wallet::scanner::ensure_tor(&app).await
@@ -407,6 +410,7 @@ pub async fn sweep_all(
         destinations,
         height: tip,
         timestamp: now,
+        tx_key,
     }).await;
 
     emit_log(&app, "Tx", "success", &format!("✅ Sweep broadcast! Hash: {}", tx_hash));
@@ -519,13 +523,20 @@ pub async fn get_outputs(
 
 // ── Proof Operations ──
 
+/// Return the transaction secret key (hex) for a tx this wallet broadcast, for
+/// proof-of-payment. Only available for txs sent since this feature shipped
+/// (the key is captured at send time). Note: this is the MAIN tx key — correct
+/// for single standard-address sends and sweeps; see the deferred get_tx_proof
+/// for full recipient-bound OutProofV2 signatures.
 #[tauri::command]
 pub async fn get_tx_key(
-    _state: State<'_, WalletState>,
-    _txid: String,
+    state: State<'_, WalletState>,
+    txid: String,
 ) -> Result<String, String> {
-    // TODO: Return tx key from wallet state
-    Err("Not yet implemented".into())
+    state
+        .get_tx_key(&txid)
+        .await
+        .ok_or_else(|| "No tx key on record — only available for transactions sent after this feature was enabled".to_string())
 }
 
 #[tauri::command]
