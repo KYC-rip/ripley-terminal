@@ -262,6 +262,8 @@ where
         .method(Method::GET)
         .uri(path)
         .header(hyper::header::HOST, host)
+        // GitHub's API 403s without a User-Agent; harmless for other GETs.
+        .header(hyper::header::USER_AGENT, concat!("ripley-terminal/", env!("CARGO_PKG_VERSION")))
         // No connection reuse — ask the server to close after the response.
         .header(hyper::header::CONNECTION, "close")
         .body(Full::new(Bytes::new()))

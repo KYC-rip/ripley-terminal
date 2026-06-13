@@ -87,3 +87,5 @@ tiny-keccak = { version = "2", features = ["keccak"] }
 # Hex encoding
 hex = "0.4"
 tokio-socks = "0.5.3"
+# Base64 for the skin-background data URL (match the version already in-tree)
+base64 = "0.21"

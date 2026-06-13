@@ -82,6 +82,14 @@ pub fn run() {
             commands::config::save_config_and_reload,
             commands::config::get_app_info,
             commands::config::reveal_path,
+            // Client-side metadata stores + system
+            commands::kvstore::save_ghost_trade,
+            commands::kvstore::get_ghost_trades,
+            commands::kvstore::save_xmr402_payment,
+            commands::kvstore::get_xmr402_payment,
+            commands::kvstore::get_all_xmr402_payments,
+            commands::system::select_background_image,
+            commands::system::check_for_updates,
             // Identity
             commands::identity::get_identities,
             commands::identity::save_identities,

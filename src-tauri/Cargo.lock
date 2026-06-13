@@ -5285,6 +5285,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "arti-client",
+ "base64 0.21.7",
  "bytes",
  "chacha20poly1305",
  "chrono",

@@ -291,15 +291,35 @@ function createTauriApi() {
       import('@tauri-apps/plugin-shell').then(({ open }) => open(url)).catch(() => window.open(url, '_blank'));
       return Promise.resolve({ success: true });
     },
-    checkForUpdates: (_include_prereleases: boolean) => Promise.resolve({ success: false }),
-    selectBackgroundImage: () => Promise.resolve({ success: false }),
-    saveGhostTrade: (_txHash: string, _tradeId: string) => Promise.resolve({ success: true }),
-    getGhostTrades: () => Promise.resolve([]),
+    checkForUpdates: (include_prereleases: boolean) =>
+      invoke('check_for_updates', { includePrereleases: include_prereleases })
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    selectBackgroundImage: () =>
+      invoke('select_background_image')
+        .then((data: any) => ({ success: !!data, data: data || undefined }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    saveGhostTrade: (txHash: string, tradeId: string) =>
+      invoke('save_ghost_trade', { txHash, tradeId })
+        .then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    getGhostTrades: () =>
+      invoke('get_ghost_trades')
+        .then((trades: any) => ({ success: true, trades: trades || {} }))
+        .catch(() => ({ success: false, trades: {} })),
 
-    // ── XMR402 (stub for now) ──
-    saveXmr402Payment: (..._args: any[]) => Promise.resolve({ success: true }),
-    getXmr402Payment: (_nonce: string) => Promise.resolve({ success: false }),
-    getAllXmr402Payments: () => Promise.resolve([]),
+    // ── XMR402 payment receipts (KV) ──
+    saveXmr402Payment: (nonce: string, txid: string, proof: string, amount: string, returnUrl?: string) =>
+      invoke('save_xmr402_payment', { nonce, txid, proof, amount, returnUrl })
+        .then(() => ({ success: true }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    getXmr402Payment: (nonce: string) =>
+      invoke('get_xmr402_payment', { nonce })
+        .then((payment: any) => (payment ? { success: true, payment } : { success: false }))
+        .catch((e: any) => ({ success: false, error: String(e) })),
+    getAllXmr402Payments: () =>
+      invoke('get_all_xmr402_payments')
+        .then((payments: any) => ({ success: true, payments: payments || {} }))
+        .catch(() => ({ success: false, payments: {} })),
     updateAgentConfig: (_config: any) => Promise.resolve(),
     onAgentActivity: (_callback: any) => () => {},
     onAgentPay402: (_callback: any) => () => {},
