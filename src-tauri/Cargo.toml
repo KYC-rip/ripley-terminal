@@ -22,6 +22,7 @@ tauri-plugin-deep-link = "2"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
+futures = "0.3"
 
 # Monero wallet - pure Rust, no C++ FFI
 monero-wallet = { git = "https://github.com/monero-oxide/monero-oxide" }

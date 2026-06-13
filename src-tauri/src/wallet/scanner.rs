@@ -196,6 +196,8 @@ async fn scan_loop(
     // Dynamic batch size based on gap — bigger gap = bigger batches for speed.
     // Monero daemon limits response to ~100MB, so we cap at 1000 blocks.
     let base_batch: u64 = 50;
+    // Concurrent block fetches per batch (pipelined RPC round-trips).
+    const FETCH_CONCURRENCY: usize = 10;
 
     if scan_height == u64::MAX {
         emit_log(&app, "Sync", "info", "🔍 New wallet — will sync from daemon tip");
@@ -264,7 +266,24 @@ async fn scan_loop(
         emit_log(&app, "Sync", "info", &format!("📥 Fetching blocks {}-{} / {}", scan_height, batch_end, daemon_height));
 
         let fetch_start = std::time::Instant::now();
-        match ProvidesScannableBlocks::contiguous_scannable_blocks(&daemon, range).await {
+        // Fetch the batch CONCURRENTLY. The trait's contiguous_scannable_blocks
+        // is a serial per-block loop (~0.8s/block over clearnet → multi-hour
+        // syncs). buffered(N) pipelines N block fetches at once while
+        // preserving height order, cutting wall-clock by ~Nx.
+        let parallel_result = {
+            use futures::stream::StreamExt;
+            futures::stream::iter(range)
+                .map(|n| {
+                    let daemon = &daemon;
+                    async move { ProvidesScannableBlocks::scannable_block_by_number(daemon, n).await }
+                })
+                .buffered(FETCH_CONCURRENCY)
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+        };
+        match parallel_result {
             Ok(blocks) => {
                 let fetch_ms = fetch_start.elapsed().as_millis();
                 emit_log(&app, "Sync", "info", &format!("✅ Got {} blocks in {}ms", blocks.len(), fetch_ms));
