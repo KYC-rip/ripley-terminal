@@ -540,14 +540,37 @@ pub async fn get_tx_key(
 }
 
 #[tauri::command]
+/// Generate an OutProofV2 proof-of-payment for a tx we sent. UNVALIDATED crypto
+/// — must pass `monero-wallet-cli check_tx_proof` against official Monero before
+/// being relied on (see wallet/tx_proof.rs). Standard (non-subaddress) recipient
+/// only; uses the tx secret key captured at send time.
 pub async fn get_tx_proof(
-    _state: State<'_, WalletState>,
-    _txid: String,
-    _address: String,
-    _message: Option<String>,
+    state: State<'_, WalletState>,
+    txid: String,
+    address: String,
+    message: Option<String>,
 ) -> Result<String, String> {
-    // TODO: Generate tx proof using monero-wallet
-    Err("Not yet implemented".into())
+    let r_hex = state
+        .get_tx_key(&txid)
+        .await
+        .ok_or("No tx key on record — proofs are only available for transactions sent after this feature was enabled")?;
+    let r_bytes: [u8; 32] = hex::decode(&r_hex)
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .ok_or("Stored tx key is malformed")?;
+    let r = Option::from(curve25519_dalek::Scalar::from_canonical_bytes(r_bytes))
+        .ok_or("Stored tx key is not a canonical scalar")?;
+
+    let txid_bytes: [u8; 32] = hex::decode(&txid)
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .ok_or("Invalid txid")?;
+
+    let network = state.get_network().await;
+    let addr = MoneroAddress::from_str(network, &address)
+        .map_err(|e| format!("Invalid address: {:?}", e))?;
+
+    crate::wallet::tx_proof::generate_out_proof_v2(txid_bytes, message.as_deref().unwrap_or(""), r, &addr)
 }
 
 #[tauri::command]
