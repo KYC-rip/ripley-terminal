@@ -348,11 +348,32 @@ mod tests {
         let tor = TorClient::create_bootstrapped(TorClientConfig::default())
             .await
             .expect("tor bootstrap");
-        // monero.fail-listed onion (replace if it rotates).
-        let url = "monerujod4lhmwkdt3xqdq2akm4spvksp22hpgxsabe6lcsfh67abqd.onion:18081".to_string();
-        let daemon = ArtiTransport::connect(tor, url).await.expect("connect");
-        let height = daemon.latest_block_number().await.expect("height");
-        println!("onion node height = {height}");
-        assert!(height > 3_000_000);
+        // Real mainnet.tor nodes from resources/nodes.json. Individual hidden
+        // services go up and down, so try several and pass if ANY one answers —
+        // this validates the full stack (onion dial → HTTP → parse), not a
+        // specific node's uptime.
+        let nodes = [
+            "cakexmrl7bonq7ovjka5kuwuyd3f7qnkz6z6s6dmsy3uckwra7bvggyd.onion:18081",
+            "sfprpc2fws6ltnq4hyr7lvpul3nank5layd7q7tyc5h4gy4h77gtabad.onion:18089",
+            "plowsof3t5hogddwabaeiyrno25efmzfxyro2vligremt7sxpsclfaid.onion:18089",
+            "xqnnz2xmlmtpy2p4cm4cphg2elkwu5oob7b7so5v4wwgt44p6vbx5ryd.onion:18089",
+            "zu3oyzi45x3ul24sncs4245nlpz76jzizm36tvrkfvq2r33azzjv5syd.onion:18089",
+        ];
+        let mut last_err = String::new();
+        for url in nodes {
+            match ArtiTransport::connect(tor.clone(), url.to_string()).await {
+                Ok(daemon) => match daemon.latest_block_number().await {
+                    Ok(height) => {
+                        println!("✅ {url} height = {height}");
+                        assert!(height > 3_000_000);
+                        return;
+                    }
+                    Err(e) => last_err = format!("{url}: height err {e:?}"),
+                },
+                Err(e) => last_err = format!("{url}: connect err {e:?}"),
+            }
+            println!("…{url} unreachable, trying next");
+        }
+        panic!("no onion node reachable; last error: {last_err}");
     }
 }
