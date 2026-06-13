@@ -86,6 +86,22 @@ pub async fn switch_identity(app: AppHandle, id: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to set active identity: {}", e))
 }
 
+/// Return the persisted active identity id. Falls back to the first identity if
+/// the file is absent or points at an identity that no longer exists (e.g. it
+/// was purged). Without this, switching wallets never sticks across reload.
+#[tauri::command]
+pub async fn get_active_identity(app: AppHandle) -> Result<String, String> {
+    let ids = load_identities(&app);
+    let stored = std::fs::read_to_string(active_identity_path(&app)).ok();
+    let stored = stored.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+
+    let active = stored
+        .filter(|id| ids.iter().any(|i| &i.id == id))
+        .or_else(|| ids.first().map(|i| i.id.clone()))
+        .unwrap_or_default();
+    Ok(active)
+}
+
 #[tauri::command]
 pub async fn rename_identity(app: AppHandle, id: String, name: String) -> Result<(), String> {
     let mut ids = load_identities(&app);

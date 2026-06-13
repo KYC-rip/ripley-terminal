@@ -35,9 +35,10 @@ function createTauriApi() {
     },
     getActiveIdentity: async () => {
       try {
-        // Try to read the active identity, fall back to first in list
-        const ids: any[] = await invoke('get_identities') as any[];
-        return ids?.[0]?.id || '';
+        // Reads the persisted active_identity file (backend falls back to the
+        // first identity if it's missing/stale). Must NOT just return ids[0],
+        // or switching wallets would never stick across reload.
+        return (await invoke('get_active_identity')) as string;
       } catch {
         return '';
       }

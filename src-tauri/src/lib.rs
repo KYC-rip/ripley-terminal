@@ -85,6 +85,7 @@ pub fn run() {
             commands::identity::create_identity,
             commands::identity::delete_identity,
             commands::identity::switch_identity,
+            commands::identity::get_active_identity,
             commands::identity::rename_identity,
             // Tor
             commands::tor::get_tor_status,
