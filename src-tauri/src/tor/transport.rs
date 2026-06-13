@@ -19,6 +19,8 @@
 //! reuse internally, so the per-request cost is a stream open, not a circuit build.
 
 use std::future::Future;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use arti_client::TorClient;
 use tor_rtcompat::PreferredRuntime;
@@ -27,6 +29,14 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::{Method, Request};
 use hyper_util::rt::TokioIo;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+use tokio_rustls::TlsConnector;
+
+/// Hard ceiling on a single Tor request — circuits can be slow, but we must not
+/// hang a background fetch forever. Applies to connect + TLS + HTTP round-trip.
+const TOR_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 use monero_daemon_rpc::prelude::InterfaceError;
 use monero_daemon_rpc::{HttpTransport, MoneroDaemon};
@@ -98,13 +108,83 @@ pub async fn tor_http(
     body: Vec<u8>,
     size_limit: Option<usize>,
 ) -> Result<Vec<u8>, String> {
-    // Open a stream through Tor. arti dials .onion natively; for clearnet hosts
-    // it exits through the Tor network (still no IP leak to the node).
-    let stream = tor
-        .connect((host, port))
-        .await
-        .map_err(|e| format!("Tor connect to {host}:{port} failed: {e}"))?;
+    let content_length = body.len();
+    let request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(hyper::header::HOST, host)
+        .header(hyper::header::CONTENT_LENGTH, content_length)
+        .body(Full::new(Bytes::from(body)))
+        .map_err(|e| format!("Failed to build request: {e}"))?;
 
+    let exchange = async {
+        // Open a stream through Tor. arti dials .onion natively; for clearnet
+        // hosts it exits through the Tor network (still no IP leak to the node).
+        let stream = tor
+            .connect((host, port))
+            .await
+            .map_err(|e| format!("Tor connect to {host}:{port} failed: {e}"))?;
+        http_over_stream(stream, request, size_limit).await
+    };
+
+    tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
+        .await
+        .map_err(|_| format!("Tor request to {host}:{port} timed out"))?
+}
+
+/// GET a URL over Tor, with TLS when the scheme is `https`. Returns the response
+/// body. Used by Phase 2 to route the nodes.json and price-history fetches off
+/// clearnet. Note: some CDNs/APIs block Tor exit nodes — callers MUST treat a
+/// failure as "degrade gracefully" (cached nodes, live-tick chart), never fatal.
+pub async fn tor_get(tor: &TorClient<PreferredRuntime>, url: &str) -> Result<Vec<u8>, String> {
+    let (https, host, port, path) = parse_url(url)?;
+
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(&path)
+        .header(hyper::header::HOST, &host)
+        // No connection reuse — ask the server to close after the response.
+        .header(hyper::header::CONNECTION, "close")
+        .body(Full::new(Bytes::new()))
+        .map_err(|e| format!("Failed to build request: {e}"))?;
+
+    let exchange = async {
+        let stream = tor
+            .connect((host.as_str(), port))
+            .await
+            .map_err(|e| format!("Tor connect to {host}:{port} failed: {e}"))?;
+        if https {
+            // SNI / cert validation uses the URL host. Invalid names (IPs,
+            // malformed) error out → the caller falls back gracefully.
+            let server_name = ServerName::try_from(host.clone())
+                .map_err(|_| format!("invalid TLS server name: {host}"))?;
+            let tls_stream = tls_connector()
+                .connect(server_name, stream)
+                .await
+                .map_err(|e| format!("TLS handshake with {host} failed: {e}"))?;
+            http_over_stream(tls_stream, request, None).await
+        } else {
+            http_over_stream(stream, request, None).await
+        }
+    };
+
+    tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
+        .await
+        .map_err(|_| format!("Tor GET to {host} timed out"))?
+}
+
+/// Drive a single HTTP/1.1 request over any byte stream (plain Tor `DataStream`
+/// or a `TlsStream` over one) and return the collected body. The transport-layer
+/// stream is the only thing that differs between http/https and clearnet/Tor, so
+/// the hyper handshake + request + body collection live here once.
+async fn http_over_stream<S>(
+    stream: S,
+    request: Request<Full<Bytes>>,
+    size_limit: Option<usize>,
+) -> Result<Vec<u8>, String>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     let io = TokioIo::new(stream);
     let (mut sender, conn) = hyper::client::conn::http1::handshake(io)
         .await
@@ -116,19 +196,18 @@ pub async fn tor_http(
         let _ = conn.await;
     });
 
-    let content_length = body.len();
-    let request = Request::builder()
-        .method(method)
-        .uri(path)
-        .header(hyper::header::HOST, host)
-        .header(hyper::header::CONTENT_LENGTH, content_length)
-        .body(Full::new(Bytes::from(body)))
-        .map_err(|e| format!("Failed to build request: {e}"))?;
-
     let response = sender
         .send_request(request)
         .await
         .map_err(|e| format!("Request failed: {e}"))?;
+
+    // monerod returns 200 for RPC (errors ride in the body); for plain GETs a
+    // non-2xx (e.g. a CDN 4xx/redirect) means the body is not what we asked for.
+    let status = response.status();
+    if !status.is_success() {
+        conn_task.abort();
+        return Err(format!("HTTP {status}"));
+    }
 
     let incoming = response.into_body();
     let result = match size_limit {
@@ -146,6 +225,61 @@ pub async fn tor_http(
     // (an early `?` would otherwise leak the spawned task until the stream dies).
     conn_task.abort();
     Ok(result?.to_bytes().to_vec())
+}
+
+/// Process-wide rustls connector, built once from the OS trust store. ring is the
+/// crypto provider (enabled by tokio-rustls' default features); we pass it
+/// explicitly rather than relying on a globally-installed default provider.
+fn tls_connector() -> TlsConnector {
+    static CONNECTOR: OnceLock<TlsConnector> = OnceLock::new();
+    CONNECTOR
+        .get_or_init(|| {
+            let mut roots = RootCertStore::empty();
+            let loaded = rustls_native_certs::load_native_certs();
+            for cert in loaded.certs {
+                let _ = roots.add(cert);
+            }
+            if roots.is_empty() {
+                log::warn!("rustls: no native root certificates loaded; HTTPS-over-Tor will fail");
+            }
+            let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+            let config = ClientConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .expect("rustls default protocol versions")
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            TlsConnector::from(Arc::new(config))
+        })
+        .clone()
+}
+
+/// Parse an http(s) URL into (is_https, host, port, path-with-query). Defaults
+/// port to 443 (https) / 80 (http). Path defaults to "/".
+fn parse_url(url: &str) -> Result<(bool, String, u16, String), String> {
+    let (https, rest) = if let Some(r) = url.strip_prefix("https://") {
+        (true, r)
+    } else if let Some(r) = url.strip_prefix("http://") {
+        (false, r)
+    } else {
+        return Err(format!("unsupported URL scheme: {url}"));
+    };
+    let (authority, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
+    };
+    if authority.is_empty() {
+        return Err(format!("invalid URL (no host): {url}"));
+    }
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((h, p)) => {
+            let port: u16 = p
+                .parse()
+                .map_err(|_| format!("invalid port in URL: {url}"))?;
+            (h.to_string(), port)
+        }
+        None => (authority.to_string(), if https { 443 } else { 80 }),
+    };
+    Ok((https, host, port, path.to_string()))
 }
 
 /// Parse a node URL into (host, port). Accepts `scheme://host:port`, `host:port`,
@@ -179,6 +313,28 @@ mod tests {
         assert_eq!(parse_host_port("xmrtoaddr.onion").unwrap(), ("xmrtoaddr.onion".into(), 18081));
         assert_eq!(parse_host_port("https://abc.onion:443/foo").unwrap(), ("abc.onion".into(), 443));
         assert!(parse_host_port("http://").is_err());
+    }
+
+    #[test]
+    fn parses_urls() {
+        assert_eq!(
+            parse_url("https://raw.githubusercontent.com/a/b/nodes.json").unwrap(),
+            (true, "raw.githubusercontent.com".into(), 443, "/a/b/nodes.json".into())
+        );
+        assert_eq!(
+            parse_url("https://api.kraken.com/0/public/OHLC?pair=XMRUSD&interval=1").unwrap(),
+            (true, "api.kraken.com".into(), 443, "/0/public/OHLC?pair=XMRUSD&interval=1".into())
+        );
+        assert_eq!(
+            parse_url("http://example.com").unwrap(),
+            (false, "example.com".into(), 80, "/".into())
+        );
+        assert_eq!(
+            parse_url("https://host.tld:8443/x").unwrap(),
+            (true, "host.tld".into(), 8443, "/x".into())
+        );
+        assert!(parse_url("ftp://x").is_err());
+        assert!(parse_url("https://").is_err());
     }
 
     /// Live smoke test against a known monero .onion node. Ignored by default

@@ -141,21 +141,39 @@ async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, String)> {
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join("latest_nodes.json");
 
-    // 1. Try fetching fresh nodes from GitHub
-    if let Ok(response) = reqwest::Client::new()
-        .get(GITHUB_NODES_URL)
-        .timeout(Duration::from_secs(8))
-        .send().await
-    {
-        if let Ok(text) = response.text().await {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
-                let nodes = parse_nodes(&parsed, "mainnet", section);
-                if !nodes.is_empty() {
-                    // Cache to disk
-                    let _ = std::fs::write(&cache_path, &text);
-                    log::info!("Fetched {} {} nodes from GitHub, cached locally", nodes.len(), section);
-                    return nodes;
+    // 1. Try fetching fresh nodes from GitHub. In Tor mode this goes over Tor
+    //    (tor_get); on any failure (e.g. exit-node blocked by GitHub) we fall
+    //    through to the cached/bundled copy — never a hard failure.
+    let fetched: Option<String> = if read_routing_mode(app) == "tor" {
+        match app.state::<TorState>().get_client().await {
+            Some(tor) => match crate::tor::tor_get(&tor, GITHUB_NODES_URL).await {
+                Ok(bytes) => String::from_utf8(bytes).ok(),
+                Err(e) => {
+                    log::warn!("Tor nodes.json fetch failed ({e}); using cache/bundled");
+                    None
                 }
+            },
+            None => None,
+        }
+    } else {
+        match reqwest::Client::new()
+            .get(GITHUB_NODES_URL)
+            .timeout(Duration::from_secs(8))
+            .send()
+            .await
+        {
+            Ok(response) => response.text().await.ok(),
+            Err(_) => None,
+        }
+    };
+    if let Some(text) = fetched {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+            let nodes = parse_nodes(&parsed, "mainnet", section);
+            if !nodes.is_empty() {
+                // Cache to disk
+                let _ = std::fs::write(&cache_path, &text);
+                log::info!("Fetched {} {} nodes, cached locally", nodes.len(), section);
+                return nodes;
             }
         }
     }

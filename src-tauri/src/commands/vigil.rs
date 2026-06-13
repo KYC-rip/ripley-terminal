@@ -181,18 +181,35 @@ fn valid_pair(pair: &str) -> bool {
 /// Tor-routing the app's outbound HTTP is a separate follow-up. The renderer
 /// degrades gracefully (live-tick accumulation) when this fails.
 #[tauri::command]
-pub async fn fetch_price_history(pair: String) -> Result<Value, String> {
+pub async fn fetch_price_history(app: AppHandle, pair: String) -> Result<Value, String> {
     if !valid_pair(&pair) {
         return Ok(json!({ "success": false, "error": "Invalid pair" }));
     }
     let rest_pair = pair.replace('/', "");
     let url = format!("https://api.kraken.com/0/public/OHLC?pair={}&interval=1", rest_pair);
 
-    let resp = match reqwest::Client::new().get(&url).send().await {
-        Ok(r) => r,
-        Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
+    // In Tor mode, fetch over Tor (with TLS) so the price probe doesn't leak the
+    // user IP. Both paths degrade gracefully — a failure just returns
+    // { success:false } and the renderer falls back to live-tick accumulation.
+    let raw: Vec<u8> = if crate::wallet::scanner::read_routing_mode(&app) == "tor" {
+        match app.state::<crate::tor::TorState>().get_client().await {
+            Some(tor) => match crate::tor::tor_get(&tor, &url).await {
+                Ok(bytes) => bytes,
+                Err(e) => return Ok(json!({ "success": false, "error": format!("Tor: {}", e) })),
+            },
+            None => return Ok(json!({ "success": false, "error": "Tor not available" })),
+        }
+    } else {
+        let resp = match reqwest::Client::new().get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
+        };
+        match resp.bytes().await {
+            Ok(b) => b.to_vec(),
+            Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
+        }
     };
-    let data: Value = match resp.json().await {
+    let data: Value = match serde_json::from_slice(&raw) {
         Ok(v) => v,
         Err(e) => return Ok(json!({ "success": false, "error": format!("{}", e) })),
     };

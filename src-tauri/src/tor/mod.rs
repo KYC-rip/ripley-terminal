@@ -6,10 +6,10 @@ use tor_rtcompat::PreferredRuntime;
 
 mod transport;
 pub use transport::ArtiTransport;
-// tor_http is the shared hyper-over-arti helper; ArtiTransport uses it for
-// daemon RPC now, and Phase 2 will route the reqwest GETs through it too.
+// tor_get routes HTTPS GETs (nodes.json, price) over Tor with TLS; tor_http is
+// the shared hyper-over-arti helper that ArtiTransport's daemon RPC uses.
 #[allow(unused_imports)]
-pub use transport::tor_http;
+pub use transport::{tor_get, tor_http};
 
 /// Tor state manager using arti-client (pure Rust Tor implementation).
 /// Replaces the bundled Tor binary entirely — no subprocess, no 61MB binary.

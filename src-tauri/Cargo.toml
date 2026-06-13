@@ -37,7 +37,9 @@ curve25519-dalek = { version = "4", default-features = false, features = ["alloc
 zeroize = { version = "1.5", features = ["zeroize_derive"] }
 
 # Tor as library (no bundled binary)
-arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls"] }
+# onion-service-client is REQUIRED to dial .onion nodes (all our mainnet.tor
+# nodes are .onion); without it arti rejects onion addresses at runtime.
+arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls", "onion-service-client"] }
 tor-rtcompat = { version = "0.40", features = ["tokio"] }
 
 # Time
@@ -53,6 +55,10 @@ hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 bytes = "1"
+# TLS over the arti stream for HTTPS GETs (nodes.json, price). Pure-Rust rustls
+# (ring provider, enabled by tokio-rustls default features); native cert store.
+tokio-rustls = "0.26"
+rustls-native-certs = "0.8"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
