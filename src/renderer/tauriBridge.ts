@@ -306,6 +306,10 @@ function createTauriApi() {
       }
     },
 
+    // Verify a vault password without unlocking/restarting the scanner.
+    verifyPassword: (identityId: string, password: string) =>
+      invoke('verify_password', { identityId, password }).catch(() => false) as Promise<boolean>,
+
     // ── Vigil (limit-order) persistence + price history ──
     vigilSaveStrikeKey: (identityId: string, blob: any) =>
       invoke('vigil_save_strike_key', { identityId, blob }).then(() => ({ success: true }))

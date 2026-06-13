@@ -72,6 +72,7 @@ pub fn run() {
             commands::wallet::get_sync_status,
             commands::wallet::refresh,
             commands::wallet::set_vigil_hot,
+            commands::wallet::verify_password,
             commands::wallet::rescan,
             // Config
             commands::config::get_config,

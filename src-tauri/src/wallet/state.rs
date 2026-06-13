@@ -101,6 +101,14 @@ impl WalletState {
         self.inner.read().await.is_locked
     }
 
+    /// Verify a vault password WITHOUT unlocking or touching the scanner —
+    /// just attempt to decrypt the wallet file. Used by the vigil strike-wallet
+    /// password gate so it doesn't restart the running sync (open_wallet would).
+    pub async fn verify_password(&self, identity_id: &str, password: &str) -> Result<(), String> {
+        let data_dir = self.inner.read().await.data_dir.clone();
+        storage::load_wallet(&data_dir, identity_id, password).map(|_| ())
+    }
+
     /// Create a new wallet from scratch or restore from mnemonic.
     pub async fn create_wallet(
         &self,

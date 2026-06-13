@@ -90,6 +90,8 @@ export interface IApi {
   proxyRequest: (payload: { method: string; params: any }) => Promise<{ success: boolean; result?: any; error?: string }>;
   fetchPriceHistory: (pair: string) => Promise<{ success: boolean; points?: { time: number; value: number }[]; error?: string }>;
 
+  verifyPassword: (identityId: string, password: string) => Promise<boolean>;
+
   // --- Vigil strike wallet + session persistence ---
   vigilSaveStrikeKey: (identityId: string, blob: { v: number; salt: string; iv: string; ct: string }) => Promise<{ success: boolean; error?: string }>;
   vigilGetStrikeKey: (identityId: string) => Promise<{ v: number; salt: string; iv: string; ct: string } | null>;

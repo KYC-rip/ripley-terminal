@@ -631,10 +631,11 @@ export function useVigilEngine() {
       throw new Error('Vigil needs a named identity — create one in Settings before using the strike wallet');
     }
 
-    // Verify the password against the real vault before trusting it for
-    // key encryption (same pattern as the dispatch password gate).
-    const res = await window.api.walletAction('open', { name: identityId, pwd: vaultPassword });
-    if (!res.success) throw new Error(res.error || 'Invalid password');
+    // Verify the password against the vault before trusting it for key
+    // encryption. Tauri: use verifyPassword (decrypt-only) NOT walletAction
+    // ('open') — the latter restarts the block scanner and resets sync.
+    const ok = await window.api.verifyPassword(identityId, vaultPassword);
+    if (!ok) throw new Error('Invalid password');
 
     const { wallet, address, created } = await StrikeWallet.createOrLoad(identityId, vaultPassword, network, logger);
     strikeRef.current = wallet;
@@ -678,8 +679,8 @@ export function useVigilEngine() {
       throw new Error('Burner still holds funds — sweep leftovers before rotating');
     }
 
-    const res = await window.api.walletAction('open', { name: identityId, pwd: vaultPassword });
-    if (!res.success) throw new Error(res.error || 'Invalid password');
+    const ok = await window.api.verifyPassword(identityId, vaultPassword);
+    if (!ok) throw new Error('Invalid password');
 
     const archived = await window.api.vigilArchiveStrikeKey(identityId);
     if (!archived.success) throw new Error(archived.error || 'Failed to archive the old key');

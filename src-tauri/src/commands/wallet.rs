@@ -339,6 +339,13 @@ pub async fn refresh(_state: State<'_, WalletState>) -> Result<(), String> {
 /// Mirror of the renderer's vigilHotWallet flag: while an EJECT vigil is armed,
 /// a UI lock retains the Monero spend key so the order can dispatch unattended
 /// (see WalletState::lock). Advisory flag — fire-and-forget from the renderer.
+/// Verify a vault password without unlocking (no scanner restart). Returns
+/// true if the password decrypts the wallet file, false otherwise.
+#[tauri::command]
+pub async fn verify_password(state: State<'_, WalletState>, identity_id: String, password: String) -> Result<bool, String> {
+    Ok(state.verify_password(&identity_id, &password).await.is_ok())
+}
+
 #[tauri::command]
 pub async fn set_vigil_hot(state: State<'_, WalletState>, hot: bool) -> Result<(), String> {
     state.vigil_hot.store(hot, std::sync::atomic::Ordering::SeqCst);
