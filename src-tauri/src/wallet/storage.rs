@@ -153,12 +153,38 @@ pub struct CachedOutput {
     pub tx_index: u64,
     /// Subaddress index (None = primary)
     pub subaddress: Option<u32>,
+    /// Block height the output was received at. Defaults to 0 for v1 caches
+    /// written before height tracking — affects only display/confirmations.
+    #[serde(default)]
+    pub height: u64,
+}
+
+/// A transaction we broadcast (for "out"/"pending" history — received "in"
+/// history is reconstructed from owned outputs).
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct SentTx {
+    pub tx_hash: String,
+    pub amount: u64,
+    pub fee: u64,
+    pub destinations: Vec<(String, u64)>,
+    pub height: u64,
+    pub timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct OutputCache {
     pub scan_height: u64,
     pub outputs: Vec<CachedOutput>,
+    /// Spent output ids ("hextxid:index_in_transaction"). Excluded from balance,
+    /// coin control, and input selection until a rescan reconfirms.
+    #[serde(default)]
+    pub spent: Vec<String>,
+    /// Frozen output ids (coin control). Persisted across sessions.
+    #[serde(default)]
+    pub frozen: Vec<String>,
+    /// Broadcast transactions, for outgoing history.
+    #[serde(default)]
+    pub sent: Vec<SentTx>,
 }
 
 fn output_cache_path(data_dir: &Path, identity_id: &str) -> PathBuf {

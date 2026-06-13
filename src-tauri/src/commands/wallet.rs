@@ -5,6 +5,7 @@ use crate::wallet::transact;
 use monero_simple_request_rpc::SimpleRequestTransport;
 use monero_daemon_rpc::prelude::*;
 use monero_address::MoneroAddress;
+use monero_oxide::transaction::Timelock;
 
 // ── Wallet Lifecycle ──
 
@@ -219,6 +220,19 @@ pub async fn prepare_transfer(
     // Serialize the SignableTransaction for the relay step
     let tx_metadata = prepared.signable.serialize();
 
+    // Stage the spend keyed by the tx metadata; relay commits it on a successful
+    // broadcast so spent inputs leave the balance/coin-control immediately.
+    let meta_key = crate::wallet::state::tx_meta_key(&tx_metadata);
+    let staged_sent = crate::wallet::storage::SentTx {
+        tx_hash: String::new(),
+        amount: prepared.amount,
+        fee: prepared.fee,
+        destinations: prepared.destinations.clone(),
+        height: 0,
+        timestamp: 0,
+    };
+    state.stage_pending_spend(meta_key, prepared.spent_ids.clone(), staged_sent).await;
+
     Ok(PreparedTx {
         fee: fee_formatted,
         amount: amount_formatted,
@@ -256,6 +270,7 @@ pub async fn relay_transfer(
         fee: 0,
         amount: 0,
         destinations: vec![],
+        spent_ids: vec![],
     };
     let signed_tx = transact::sign_transaction(prepared, &spend_key)?;
 
@@ -288,30 +303,218 @@ pub async fn relay_transfer(
     }
 
     let tx_hash = hex::encode(signed_tx.hash());
+
+    // Broadcast succeeded — commit the staged spend so the consumed outputs
+    // leave the balance / coin-control immediately (a rescan reconciles later).
+    let meta_key = crate::wallet::state::tx_meta_key(&tx_metadata);
+    let tip = state.tip_height().await;
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+    state.commit_spend(&meta_key, tx_hash.clone(), tip, now).await;
+
     emit_log(&app, "Tx", "success", &format!("✅ Transaction broadcast! Hash: {}", tx_hash));
 
     Ok(tx_hash)
 }
 
-#[tauri::command]
-pub async fn get_transactions(
-    _state: State<'_, WalletState>,
-    _account_index: u32,
-) -> Result<Vec<Transaction>, String> {
-    // TODO: Return from scanned transaction history
-    Ok(vec![])
+/// Prepare → sign → broadcast a sweep over one concrete daemon transport.
+/// Returns (tx_hash, fee, amount, spent_output_ids, destinations) on success.
+async fn sweep_via_daemon<D>(
+    daemon: &D,
+    view_pair: &monero_wallet::ViewPair,
+    inputs: Vec<monero_wallet::WalletOutput>,
+    dest: MoneroAddress,
+    fee_priority: FeePriority,
+    spend_key: &zeroize::Zeroizing<monero_oxide::ed25519::Scalar>,
+) -> Result<(String, u64, u64, Vec<String>, Vec<(String, u64)>), String>
+where
+    D: ProvidesDecoys + ProvidesBlockchainMeta + ProvidesFeeRates + PublishTransaction + Sync,
+{
+    let prepared = transact::prepare_sweep(daemon, view_pair, inputs, dest, fee_priority).await?;
+    let fee = prepared.fee;
+    let amount = prepared.amount;
+    let spent_ids = prepared.spent_ids.clone();
+    let destinations = prepared.destinations.clone();
+    let signed = transact::sign_transaction(prepared, spend_key)?;
+    transact::broadcast_transaction(daemon, &signed).await?;
+    Ok((hex::encode(signed.hash()), fee, amount, spent_ids, destinations))
 }
 
+/// Sweep ALL spendable outputs to a single address (no change). One command:
+/// builds, signs, and broadcasts over the configured routing mode.
+#[tauri::command]
+pub async fn sweep_all(
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    address: String,
+    _account_index: u32,
+    priority: Option<u8>,
+) -> Result<String, String> {
+    let spend_key = state.get_spend_key().await.ok_or("Wallet is locked")?;
+    let view_pair = state.get_view_pair().await.ok_or("Wallet is locked")?;
+    let network = state.get_network().await;
+    let daemon_url = state.get_daemon_url().await.ok_or("No daemon connected")?;
+
+    let dest = MoneroAddress::from_str(network, &address)
+        .map_err(|e| format!("Invalid address {}: {:?}", address, e))?;
+
+    let inputs = state.get_spendable_outputs().await;
+    if inputs.is_empty() {
+        return Err("No spendable outputs to sweep".into());
+    }
+
+    let fee_priority = match priority.unwrap_or(0) {
+        1 => FeePriority::Unimportant,
+        3 => FeePriority::Elevated,
+        4 => FeePriority::Priority,
+        p if p > 4 => FeePriority::Custom { priority: p as u32 },
+        _ => FeePriority::Normal,
+    };
+
+    emit_log(&app, "Tx", "info", &format!("🧹 Sweeping {} outputs to {}...", inputs.len(), address));
+
+    let (tx_hash, fee, amount, spent_ids, destinations) =
+        match crate::wallet::scanner::read_routing_mode(&app).as_str() {
+            "tor" => {
+                let tor = crate::wallet::scanner::ensure_tor(&app).await
+                    .ok_or("Tor is not available — refusing to sweep over clearnet")?;
+                let daemon = crate::tor::ArtiTransport::connect(tor, daemon_url).await
+                    .map_err(|e| format!("Failed to connect to daemon over Tor: {:?}", e))?;
+                sweep_via_daemon(&daemon, &view_pair, inputs, dest, fee_priority, &spend_key).await?
+            }
+            "custom" => {
+                let proxy = crate::wallet::scanner::read_proxy_address(&app);
+                if proxy.trim().is_empty() {
+                    return Err("Custom routing selected but no proxy address is set".into());
+                }
+                let daemon = crate::tor::SocksTransport::connect(proxy, daemon_url).await
+                    .map_err(|e| format!("Failed to connect to daemon via proxy: {:?}", e))?;
+                sweep_via_daemon(&daemon, &view_pair, inputs, dest, fee_priority, &spend_key).await?
+            }
+            _ => {
+                let daemon = SimpleRequestTransport::new(daemon_url).await
+                    .map_err(|e| format!("Failed to connect to daemon: {:?}", e))?;
+                sweep_via_daemon(&daemon, &view_pair, inputs, dest, fee_priority, &spend_key).await?
+            }
+        };
+
+    // Mark every swept output spent + log the broadcast.
+    let tip = state.tip_height().await;
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+    state.mark_spent(spent_ids, crate::wallet::storage::SentTx {
+        tx_hash: tx_hash.clone(),
+        amount,
+        fee,
+        destinations,
+        height: tip,
+        timestamp: now,
+    }).await;
+
+    emit_log(&app, "Tx", "success", &format!("✅ Sweep broadcast! Hash: {}", tx_hash));
+    Ok(tx_hash)
+}
+
+/// Returns transaction history in the Monero-RPC `get_transfers` shape the
+/// renderer's walletService expects: `{ in, out, pending }`, amounts ATOMIC,
+/// timestamps in SECONDS. Incoming txs are reconstructed from owned outputs
+/// (grouped by txid); outgoing from the broadcast log.
+#[tauri::command]
+pub async fn get_transactions(
+    state: State<'_, WalletState>,
+    _account_index: u32,
+) -> Result<serde_json::Value, String> {
+    use std::collections::HashMap;
+    use serde_json::json;
+    let tip = state.tip_height().await;
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+
+    // Incoming: group owned outputs (incl. spent) by txid.
+    let mut incoming: HashMap<String, (u64, u64, u32)> = HashMap::new(); // txid -> (amount, min_height, account)
+    for (owned, _spent, _frozen) in state.list_owned().await {
+        let txid = hex::encode(owned.output.transaction());
+        let amt = owned.output.commitment().amount;
+        let acct = owned.output.subaddress().map(|s| s.account()).unwrap_or(0);
+        let entry = incoming.entry(txid).or_insert((0, owned.height, acct));
+        entry.0 += amt;
+        if owned.height < entry.1 {
+            entry.1 = owned.height;
+        }
+    }
+    let in_txs: Vec<serde_json::Value> = incoming.into_iter().map(|(txid, (amount, height, account))| {
+        let confirmations = if tip >= height { tip - height + 1 } else { 0 };
+        // Approximate timestamp from height (Monero ~2 min blocks); used only for
+        // date grouping, never amounts.
+        let timestamp = now.saturating_sub(tip.saturating_sub(height).saturating_mul(120));
+        json!({
+            "txid": txid,
+            "amount": amount,
+            "timestamp": timestamp,
+            "height": height,
+            "confirmations": confirmations,
+            "subaddr_index": { "major": account, "minor": 0 },
+            "payment_id": "0000000000000000",
+        })
+    }).collect();
+
+    // Outgoing: from the broadcast log.
+    let mut out_txs = Vec::new();
+    let mut pending_txs = Vec::new();
+    for sent in state.get_sent().await {
+        let pending = sent.height == 0 || tip < sent.height;
+        let confirmations = if sent.height > 0 && tip >= sent.height { tip - sent.height } else { 0 };
+        let entry = json!({
+            "txid": sent.tx_hash,
+            "amount": sent.amount,
+            "timestamp": sent.timestamp,
+            "height": sent.height,
+            "confirmations": confirmations,
+            "fee": sent.fee,
+            "address": sent.destinations.first().map(|(a, _)| a.clone()).unwrap_or_default(),
+            "subaddr_index": { "major": 0, "minor": 0 },
+            "destinations": sent.destinations.iter().map(|(a, amt)| json!({ "address": a, "amount": amt })).collect::<Vec<_>>(),
+        });
+        if pending { pending_txs.push(entry); } else { out_txs.push(entry); }
+    }
+
+    Ok(json!({ "in": in_txs, "out": out_txs, "pending": pending_txs }))
+}
+
+/// Returns unspent outputs in the Monero-RPC `incoming_transfers` shape:
+/// `{ transfers: [...] }`, amounts ATOMIC. `key_image` is a stable synthetic id
+/// (a real key image needs unavailable output private-key derivation).
 #[tauri::command]
 pub async fn get_outputs(
-    _state: State<'_, WalletState>,
+    state: State<'_, WalletState>,
     _account_index: u32,
-) -> Result<Vec<WalletOutput>, String> {
-    // TODO(mvp): map scanned monero_wallet::WalletOutput -> types::WalletOutput.
-    // Needs real key-image derivation (spend key), unlock-height, and frozen
-    // tracking before this can feed coin control safely — returning a
-    // half-correct list would mislead spend selection. Tracked in Tauri MVP.
-    Ok(vec![])
+) -> Result<serde_json::Value, String> {
+    use serde_json::json;
+    let tip = state.tip_height().await;
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+
+    let mut transfers = Vec::new();
+    for (owned, spent, frozen) in state.list_owned().await {
+        if spent {
+            continue; // coin control lists unspent outputs only
+        }
+        let o = &owned.output;
+        // Mature after the standard 10-block lock, and any explicit timelock met.
+        let mature = tip >= owned.height.saturating_add(10);
+        let timelock_ok = match o.additional_timelock() {
+            Timelock::None => true,
+            Timelock::Block(b) => (tip as usize) >= b,
+            Timelock::Time(t) => now >= t,
+        };
+        let timestamp = now.saturating_sub(tip.saturating_sub(owned.height).saturating_mul(120));
+        transfers.push(json!({
+            "amount": o.commitment().amount,
+            "key_image": crate::wallet::state::output_id(o),
+            "unlocked": mature && timelock_ok,
+            "frozen": frozen,
+            "subaddr_index": { "major": o.subaddress().map(|s| s.account()).unwrap_or(0), "minor": o.subaddress().map(|s| s.address()).unwrap_or(0) },
+            "timestamp": timestamp,
+            "txid": hex::encode(o.transaction()),
+        }));
+    }
+    Ok(json!({ "transfers": transfers }))
 }
 
 // ── Proof Operations ──

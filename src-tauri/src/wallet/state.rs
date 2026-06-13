@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -16,6 +17,34 @@ use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
 use super::keys;
 use super::storage::{self, WalletFileData, AccountLabel};
 use super::types::*;
+
+/// A scanned output we own, tagged with the block height it was received at
+/// (monero-wallet's WalletOutput doesn't carry block height).
+#[derive(Clone)]
+pub struct OwnedOutput {
+    pub output: WalletOutput,
+    pub height: u64,
+}
+
+/// Stable per-output identifier: "hextxid:index_in_transaction". Unique because
+/// (txid, output index) is unique on-chain. Used for spent/frozen sets and as
+/// the synthetic key image surfaced to the UI (a real key image needs output
+/// private-key derivation, which monero-oxide doesn't expose).
+pub fn output_id(o: &WalletOutput) -> String {
+    format!("{}:{}", hex::encode(o.transaction()), o.index_in_transaction())
+}
+
+/// Stable key linking a prepared tx to its relay step. The tx metadata bytes are
+/// identical at prepare (serialized) and relay (passed back), so their keccak256
+/// is a reliable join key for the staged spend.
+pub fn tx_meta_key(meta: &[u8]) -> String {
+    use tiny_keccak::{Hasher, Keccak};
+    let mut k = Keccak::v256();
+    let mut out = [0u8; 32];
+    k.update(meta);
+    k.finalize(&mut out);
+    hex::encode(out)
+}
 
 /// Core wallet state — holds keys, scanned outputs, accounts, sync progress.
 pub struct WalletState {
@@ -51,7 +80,18 @@ struct WalletInner {
     subaddress_labels: Vec<(u32, String)>, // (index, label)
 
     // Tracked state from scanning
-    scanned_outputs: Vec<WalletOutput>,
+    scanned_outputs: Vec<OwnedOutput>,
+    /// Output ids spent by a broadcast tx (excluded from balance/coin-control/
+    /// input-selection until a rescan reconfirms). Fixes the balance over-count
+    /// where spent outputs lingered in scanned_outputs.
+    spent: HashSet<String>,
+    /// Frozen output ids (coin control), persisted.
+    frozen: HashSet<String>,
+    /// Broadcast transactions, for outgoing history.
+    sent: Vec<storage::SentTx>,
+    /// Spend staged at prepare time (spent ids + partial sent-log entry), keyed
+    /// by a hash of the tx metadata; committed only after the broadcast succeeds.
+    pending_spends: HashMap<String, (Vec<String>, storage::SentTx)>,
     scan_height: u64,
 
     // Active daemon URL (set by scanner after connecting)
@@ -90,6 +130,10 @@ impl WalletState {
                 next_subaddress_index: 1,
                 subaddress_labels: vec![],
                 scanned_outputs: vec![],
+                spent: HashSet::new(),
+                frozen: HashSet::new(),
+                sent: vec![],
+                pending_spends: HashMap::new(),
                 scan_height: 0,
                 daemon_url: None,
                 data_dir,
@@ -221,15 +265,19 @@ impl WalletState {
         // otherwise re-unlock (or an identity switch) would append on top and
         // double-count the balance.
         inner.scanned_outputs.clear();
+        inner.spent.clear();
+        inner.frozen.clear();
+        inner.sent.clear();
+        inner.pending_spends.clear();
 
         // Load cached outputs (avoids full rescan on relaunch)
         let cache = storage::load_output_cache(&inner.data_dir, identity_id);
         if !cache.outputs.is_empty() {
             log::info!("Loaded {} cached outputs from disk", cache.outputs.len());
-            // Restore WalletOutputs from serialized cache
+            // Restore WalletOutputs (+ their block height) from serialized cache
             for cached in &cache.outputs {
                 if let Ok(output) = monero_wallet::WalletOutput::read(&mut cached.data.as_slice()) {
-                    inner.scanned_outputs.push(output);
+                    inner.scanned_outputs.push(OwnedOutput { output, height: cached.height });
                 }
             }
             // Use cached scan height if it's ahead of what's in the wallet file
@@ -237,6 +285,9 @@ impl WalletState {
                 inner.scan_height = cache.scan_height;
             }
         }
+        inner.spent = cache.spent.into_iter().collect();
+        inner.frozen = cache.frozen.into_iter().collect();
+        inner.sent = cache.sent;
 
         log::info!("Wallet unlocked for identity: {} (resume from height {}, {} subaddresses, {} cached outputs)",
             identity_id, inner.scan_height, num_subaddresses, inner.scanned_outputs.len());
@@ -340,12 +391,14 @@ impl WalletState {
     /// scanned_outputs) has taken over, a stale scanner's outputs are dropped
     /// rather than re-appended on top of the fresh state (which would
     /// double-count the balance).
-    pub async fn add_outputs(&self, outputs: Vec<WalletOutput>, generation: u64) {
+    pub async fn add_outputs(&self, outputs: Vec<WalletOutput>, height: u64, generation: u64) {
         let mut inner = self.inner.write().await;
         if self.scanner_generation.load(Ordering::SeqCst) != generation {
             return;
         }
-        inner.scanned_outputs.extend(outputs);
+        inner
+            .scanned_outputs
+            .extend(outputs.into_iter().map(|output| OwnedOutput { output, height }));
     }
 
     pub async fn get_spend_key(&self) -> Option<Zeroizing<Scalar>> {
@@ -364,9 +417,82 @@ impl WalletState {
         self.inner.read().await.daemon_url.clone()
     }
 
-    /// Get all scanned outputs (for input selection during tx construction).
+    /// Outputs available to spend: unspent and not frozen. (Locked-by-timelock
+    /// outputs are left in; tx construction will reject any that aren't mature.)
     pub async fn get_spendable_outputs(&self) -> Vec<WalletOutput> {
-        self.inner.read().await.scanned_outputs.clone()
+        let inner = self.inner.read().await;
+        inner
+            .scanned_outputs
+            .iter()
+            .filter(|o| {
+                let id = output_id(&o.output);
+                !inner.spent.contains(&id) && !inner.frozen.contains(&id)
+            })
+            .map(|o| o.output.clone())
+            .collect()
+    }
+
+    /// All owned outputs with their height and spent/frozen flags — for the
+    /// coin-control list and for reconstructing incoming history.
+    pub async fn list_owned(&self) -> Vec<(OwnedOutput, bool, bool)> {
+        let inner = self.inner.read().await;
+        inner
+            .scanned_outputs
+            .iter()
+            .map(|o| {
+                let id = output_id(&o.output);
+                (o.clone(), inner.spent.contains(&id), inner.frozen.contains(&id))
+            })
+            .collect()
+    }
+
+    /// Broadcast-transaction log, for outgoing history.
+    pub async fn get_sent(&self) -> Vec<storage::SentTx> {
+        self.inner.read().await.sent.clone()
+    }
+
+    /// Daemon tip height (best-known), for confirmations / unlock checks.
+    pub async fn tip_height(&self) -> u64 {
+        self.inner.read().await.sync_status.daemon_height
+    }
+
+    /// Stage the spend a prepared tx will perform, keyed by a hash of its tx
+    /// metadata. `sent` carries amount/fee/destinations; tx_hash/height/timestamp
+    /// are filled at commit. Applied to the spent set only once broadcast succeeds.
+    pub async fn stage_pending_spend(&self, meta_key: String, ids: Vec<String>, sent: storage::SentTx) {
+        self.inner.write().await.pending_spends.insert(meta_key, (ids, sent));
+    }
+
+    /// Commit a staged spend after a successful broadcast: mark its inputs spent,
+    /// finalize the sent-log entry (tx_hash/height/timestamp), and persist. If no
+    /// staged spend is found (e.g. app restarted mid-flow), a rescan reconciles.
+    pub async fn commit_spend(&self, meta_key: &str, tx_hash: String, height: u64, timestamp: u64) {
+        {
+            let mut inner = self.inner.write().await;
+            if let Some((ids, mut sent)) = inner.pending_spends.remove(meta_key) {
+                for id in ids {
+                    inner.spent.insert(id);
+                }
+                sent.tx_hash = tx_hash;
+                sent.height = height;
+                sent.timestamp = timestamp;
+                inner.sent.push(sent);
+            }
+        }
+        self.save_output_cache().await;
+    }
+
+    /// Mark a set of output ids spent directly (used by sweep_all, which knows
+    /// its inputs up-front). Records the sent entry and persists.
+    pub async fn mark_spent(&self, ids: Vec<String>, sent: storage::SentTx) {
+        {
+            let mut inner = self.inner.write().await;
+            for id in ids {
+                inner.spent.insert(id);
+            }
+            inner.sent.push(sent);
+        }
+        self.save_output_cache().await;
     }
 
     pub async fn get_network(&self) -> Network {
@@ -387,6 +513,10 @@ impl WalletState {
         let mut inner = self.inner.write().await;
         inner.scan_height = from_height;
         inner.scanned_outputs.clear();
+        // Spent/pending are rebuilt by the rescan; frozen + sent are user/history
+        // state and survive. This also clears any stale spent over-count.
+        inner.spent.clear();
+        inner.pending_spends.clear();
         inner.sync_status.status = "SYNCING".to_string();
         inner.sync_status.height = from_height;
         inner.sync_status.sync_percent = 0.0;
@@ -479,17 +609,21 @@ impl WalletState {
         if let Some(identity_id) = &inner.active_identity {
             let cached_outputs: Vec<storage::CachedOutput> = inner.scanned_outputs.iter().map(|o| {
                 storage::CachedOutput {
-                    data: o.serialize(),
-                    amount: o.commitment().amount,
-                    tx_hash: hex::encode(o.transaction()),
-                    tx_index: o.index_in_transaction(),
-                    subaddress: o.subaddress().map(|s| s.address()),
+                    data: o.output.serialize(),
+                    amount: o.output.commitment().amount,
+                    tx_hash: hex::encode(o.output.transaction()),
+                    tx_index: o.output.index_in_transaction(),
+                    subaddress: o.output.subaddress().map(|s| s.address()),
+                    height: o.height,
                 }
             }).collect();
 
             let cache = storage::OutputCache {
                 scan_height: inner.scan_height,
                 outputs: cached_outputs,
+                spent: inner.spent.iter().cloned().collect(),
+                frozen: inner.frozen.iter().cloned().collect(),
+                sent: inner.sent.clone(),
             };
 
             if let Err(e) = storage::save_output_cache(&inner.data_dir, identity_id, &cache) {
@@ -513,7 +647,8 @@ impl WalletState {
     pub async fn compute_balance(&self) -> u64 {
         let inner = self.inner.read().await;
         inner.scanned_outputs.iter()
-            .map(|o| o.commitment().amount)
+            .filter(|o| !inner.spent.contains(&output_id(&o.output)))
+            .map(|o| o.output.commitment().amount)
             .sum()
     }
 

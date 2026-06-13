@@ -210,12 +210,12 @@ function createTauriApi() {
             result = { tx_hash: await invoke('relay_transfer', { txMetadata: p.hex }) };
             break;
           case 'get_transfers':
-            const txs = await invoke('get_transactions', { accountIndex: p.account_index || 0 });
-            result = { in: [], out: [], pending: [] };
-            // TODO: Split txs into in/out/pending when real tx data flows
+            // Rust returns the { in, out, pending } RPC shape directly.
+            result = await invoke('get_transactions', { accountIndex: p.account_index || 0 });
             break;
           case 'incoming_transfers':
-            result = { transfers: await invoke('get_outputs', { accountIndex: p.account_index || 0 }) };
+            // Rust returns the { transfers: [...] } RPC shape directly.
+            result = await invoke('get_outputs', { accountIndex: p.account_index || 0 });
             break;
           case 'get_tx_key':
             result = { tx_key: await invoke('get_tx_key', { txid: p.txid }) };
@@ -251,10 +251,15 @@ function createTauriApi() {
             await invoke('rescan', { height: p.height || 0 });
             result = {};
             break;
-          case 'sweep_all':
-            // TODO: Implement sweep via prepare_transfer with all outputs
-            result = { tx_hash_list: [] };
+          case 'sweep_all': {
+            const sweepHash = await invoke('sweep_all', {
+              address: p.address,
+              accountIndex: p.account_index || 0,
+              priority: p.priority || 0,
+            });
+            result = { tx_hash_list: [sweepHash], tx_hash: sweepHash };
             break;
+          }
           default:
             return { success: false, error: `Unmapped RPC method: ${payload.method}` };
         }

@@ -20,6 +20,9 @@ pub struct PreparedTransaction {
     pub fee: u64,
     pub amount: u64,
     pub destinations: Vec<(String, u64)>,
+    /// Output ids (txid:index) consumed as real inputs — recorded as spent once
+    /// the tx is successfully broadcast.
+    pub spent_ids: Vec<String>,
 }
 
 /// Construct a transaction (select decoys, compute fee), but don't sign yet.
@@ -32,6 +35,10 @@ pub async fn prepare_transaction(
     priority: FeePriority,
 ) -> Result<PreparedTransaction, String> {
     let mut rng = OsRng;
+
+    // Record which owned outputs are being spent (every provided input is a real
+    // spend; decoys are ring members, not inputs) before they're consumed.
+    let spent_ids: Vec<String> = inputs.iter().map(crate::wallet::state::output_id).collect();
 
     // Get current block number for decoy selection
     let block_number = daemon.latest_block_number().await
@@ -90,7 +97,82 @@ pub async fn prepare_transaction(
         fee,
         amount: total_amount,
         destinations,
+        spent_ids,
     })
+}
+
+/// Prepare a sweep: send ALL provided outputs to one address with no change
+/// output (residual goes to fee via `Change::fingerprintable(None)`). The amount
+/// is `total - necessary_fee`; we probe once to learn the fee for the
+/// (N inputs, 1 output) structure, then rebuild at the exact amount.
+pub async fn prepare_sweep(
+    daemon: &(impl ProvidesDecoys + ProvidesBlockchainMeta + ProvidesFeeRates + Sync),
+    view_pair: &ViewPair,
+    inputs: Vec<WalletOutput>,
+    destination: MoneroAddress,
+    priority: FeePriority,
+) -> Result<PreparedTransaction, String> {
+    let mut rng = OsRng;
+    if inputs.is_empty() {
+        return Err("No spendable outputs to sweep".into());
+    }
+    let spent_ids: Vec<String> = inputs.iter().map(crate::wallet::state::output_id).collect();
+    let total: u64 = inputs.iter().map(|o| o.commitment().amount).sum();
+
+    let block_number = daemon.latest_block_number().await
+        .map_err(|e| format!("Failed to get block number: {:?}", e))?;
+    let ring_len = 16u8;
+    let mut owds = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        owds.push(
+            OutputWithDecoys::new(&mut rng, daemon, ring_len, block_number, input)
+                .await
+                .map_err(|e| format!("Decoy selection failed: {:?}", e))?,
+        );
+    }
+    let fee_rate = daemon.fee_rate(priority, 500_000).await
+        .map_err(|e| format!("Failed to get fee rate: {:?}", e))?;
+    let outgoing_view_key = Zeroizing::new(view_pair.spend().compress().to_bytes());
+
+    let build = |amount: u64, owds: Vec<OutputWithDecoys>| {
+        SignableTransaction::new(
+            RctType::ClsagBulletproofPlus,
+            outgoing_view_key.clone(),
+            owds,
+            vec![(destination, amount)],
+            Change::fingerprintable(None), // no change output — sweep everything
+            vec![],
+            fee_rate,
+        )
+    };
+
+    // Probe with a safe sub-total amount to read the necessary fee for this
+    // (N inputs, 1 output, no change) shape, then rebuild at total - fee.
+    let probe = build(total / 2, owds.clone())
+        .map_err(|e| format!("Sweep probe failed: {:?}", e))?;
+    let fee = probe.necessary_fee();
+    if total <= fee {
+        return Err(format!(
+            "Balance ({}) is too small to cover the sweep fee ({})",
+            format_atomic(total), format_atomic(fee)
+        ));
+    }
+    let amount = total - fee;
+    let signable = build(amount, owds)
+        .map_err(|e| format!("Sweep construction failed: {:?}", e))?;
+
+    Ok(PreparedTransaction {
+        signable,
+        fee,
+        amount,
+        destinations: vec![(destination.to_string(), amount)],
+        spent_ids,
+    })
+}
+
+/// Format atomic units to an XMR string (local helper to avoid a state dep).
+fn format_atomic(atomic: u64) -> String {
+    format!("{}.{:012}", atomic / 1_000_000_000_000, atomic % 1_000_000_000_000)
 }
 
 /// Sign a prepared transaction with the spend key.

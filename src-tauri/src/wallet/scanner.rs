@@ -573,7 +573,10 @@ async fn scan_loop<C: DaemonConnector>(
                     let mut new_output_count = 0u64;
                     let mut new_amount = 0u64;
 
-                    for block in &blocks {
+                    for (i, block) in blocks.iter().enumerate() {
+                        // Blocks are fetched in range order starting at scan_height,
+                        // so the i-th block is at height scan_height + i.
+                        let block_height = scan_height + i as u64;
                         match scanner.scan(block.clone()) {
                             Ok(timelocked) => {
                                 let outputs = timelocked.ignore_additional_timelock();
@@ -582,7 +585,7 @@ async fn scan_loop<C: DaemonConnector>(
                                         new_amount += output.commitment().amount;
                                     }
                                     new_output_count += outputs.len() as u64;
-                                    wallet_state.add_outputs(outputs, generation).await;
+                                    wallet_state.add_outputs(outputs, block_height, generation).await;
                                 }
                             }
                             Err(e) => {
