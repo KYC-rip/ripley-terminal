@@ -282,11 +282,17 @@ function createTauriApi() {
     // ── Send (legacy IPC) ──
     sendXmr: async (address: string, amountAtomic: string, accountIndex?: number) => {
       try {
-        const txHash = await invoke('prepare_transfer', {
+        // prepare_transfer only builds the unsigned tx (fee + metadata); it
+        // does NOT broadcast. Chain relay_transfer to actually send, matching
+        // wallet-rpc's one-call 'transfer' semantics the renderer expects.
+        // Returns the real broadcast tx hash (was previously returning the
+        // PreparedTx object as txid and never relaying — funds never moved).
+        const prepared: any = await invoke('prepare_transfer', {
           destinations: [{ address, amount: amountAtomic }],
           accountIndex: accountIndex || 0,
         });
-        return { success: true, txid: txHash };
+        const txid = await invoke('relay_transfer', { txMetadata: prepared.txMetadata });
+        return { success: true, txid };
       } catch (e: any) {
         return { success: false, error: e.toString() };
       }
