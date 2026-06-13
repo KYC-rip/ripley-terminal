@@ -23,6 +23,18 @@ pub async fn get_config(app: AppHandle) -> Result<serde_json::Value, String> {
                     m.insert(k.clone(), v.clone());
                 }
             }
+            // A config saved before `shortcuts` existed may have persisted it as
+            // an empty object — treat that as missing and restore the defaults so
+            // the Settings keybinding rows aren't blank.
+            let shortcuts_empty = merged
+                .get("shortcuts")
+                .and_then(|s| s.as_object())
+                .map_or(true, |o| o.is_empty());
+            if shortcuts_empty {
+                if let Some(m) = merged.as_object_mut() {
+                    m.insert("shortcuts".to_string(), default_config()["shortcuts"].clone());
+                }
+            }
             Ok(merged)
         }
         // Return defaults. Keep these in sync with the renderer's SettingsView

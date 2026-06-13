@@ -177,6 +177,21 @@ async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, String)> {
     if let Some((label, url)) = FORCE_NODE {
         return vec![(label.to_string(), url.to_string())];
     }
+    // Manual override: if the user set a custom node address in Settings, use
+    // ONLY that node (no racing). Works in any routing mode — the active
+    // connector (clearnet/Tor/SOCKS) dials it. Clearnet needs an http:// scheme;
+    // Tor/SOCKS connectors parse host:port and ignore the scheme.
+    let custom = read_config_str(app, "customNodeAddress").unwrap_or_default();
+    let custom = custom.trim();
+    if !custom.is_empty() {
+        let url = if custom.starts_with("http://") || custom.starts_with("https://") {
+            custom.to_string()
+        } else {
+            format!("http://{}", custom)
+        };
+        log::info!("Using manual node override: {url}");
+        return vec![("custom".to_string(), url)];
+    }
     let cache_path = app.path().app_data_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join("latest_nodes.json");
