@@ -39,6 +39,7 @@
     "allow-open-wallet",
     "allow-close-wallet",
     "allow-get-mnemonic",
+    "allow-get-wallet-keys",
     "allow-verify-password",
     "allow-change-wallet-password",
     "allow-get-accounts",

@@ -439,6 +439,7 @@ pub fn run() {
             commands::wallet::open_wallet,
             commands::wallet::close_wallet,
             commands::wallet::get_mnemonic,
+            commands::wallet::get_wallet_keys,
             commands::wallet::sign_message,
             // Account operations
             commands::wallet::get_accounts,

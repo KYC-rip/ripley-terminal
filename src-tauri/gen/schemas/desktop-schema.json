@@ -2475,6 +2475,12 @@
           "markdownDescription": "Enables the get_ui_mode command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_wallet_keys command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-wallet-keys",
+          "markdownDescription": "Enables the get_wallet_keys command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_xmr402_payment command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-xmr402-payment",
@@ -3199,6 +3205,12 @@
           "type": "string",
           "const": "deny-get-ui-mode",
           "markdownDescription": "Denies the get_ui_mode command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_wallet_keys command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-wallet-keys",
+          "markdownDescription": "Denies the get_wallet_keys command without any pre-configured scope."
         },
         {
           "description": "Denies the get_xmr402_payment command without any pre-configured scope.",

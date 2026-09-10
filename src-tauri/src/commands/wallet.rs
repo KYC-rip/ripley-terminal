@@ -176,24 +176,48 @@ pub async fn close_wallet(state: State<'_, WalletState>) -> Result<(), String> {
     Ok(())
 }
 
+/// FUND SAFETY: the seed phrase / private spend key is the whole wallet. Revealing
+/// either requires an OS-level confirmation the renderer JS can't fake — so no app can
+/// exfiltrate the recovery material silently, even via a direct invoke.
+fn confirm_secret_reveal(app: &AppHandle, title: &str, message: &str) -> Result<(), String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+    let ok = app
+        .dialog()
+        .message(message)
+        .title(title)
+        .buttons(MessageDialogButtons::OkCancelCustom("Reveal".into(), "Cancel".into()))
+        .blocking_show();
+    if ok {
+        Ok(())
+    } else {
+        Err(format!("{title} cancelled"))
+    }
+}
+
 #[tauri::command]
 pub async fn get_mnemonic(app: AppHandle, state: State<'_, WalletState>) -> Result<String, String> {
-    // FUND SAFETY: the seed phrase is the whole wallet. Revealing it requires an
-    // OS-level confirmation the renderer JS can't fake — so no app can exfiltrate the
-    // recovery phrase silently, even via a direct invoke. (Tauri injects app + state.)
-    {
-        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-        let ok = app
-            .dialog()
-            .message("Reveal your secret recovery phrase?\n\nAnyone who sees it can steal ALL funds. Only continue if you personally requested this.")
-            .title("Reveal seed phrase")
-            .buttons(MessageDialogButtons::OkCancelCustom("Reveal".into(), "Cancel".into()))
-            .blocking_show();
-        if !ok {
-            return Err("Seed reveal cancelled".into());
-        }
-    }
+    // (Tauri injects app + state.)
+    confirm_secret_reveal(
+        &app,
+        "Reveal seed phrase",
+        "Reveal your secret recovery phrase?\n\nAnyone who sees it can steal ALL funds. Only continue if you personally requested this.",
+    )?;
     state.get_mnemonic().await
+}
+
+/// Native key reveal: public/private view key, public/private spend key, seed and
+/// primary address. Same OS-level gate as `get_mnemonic` — the reveal INCLUDES the seed
+/// (for a full vault), so the dialog says so. Watch-only vaults reveal view keys only.
+#[tauri::command]
+pub async fn get_wallet_keys(app: AppHandle, state: State<'_, WalletState>) -> Result<crate::wallet::state::WalletKeys, String> {
+    let watch_only = state.is_view_only().await;
+    let message = if watch_only {
+        "Reveal this watch-only wallet's keys?\n\nThe private view key lets anyone see every incoming payment to this wallet. Only continue if you personally requested this."
+    } else {
+        "Reveal this wallet's secret keys?\n\nThis shows the seed phrase and private spend key — anyone who sees them can steal ALL funds. Only continue if you personally requested this."
+    };
+    confirm_secret_reveal(&app, "Reveal wallet keys", message)?;
+    state.get_keys().await
 }
 
 // ── Account Operations ──

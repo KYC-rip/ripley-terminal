@@ -15,6 +15,7 @@ const APP_COMMANDS: &[&str] = &[
     "open_wallet",
     "close_wallet",
     "get_mnemonic",
+    "get_wallet_keys",
     // Account operations
     "get_accounts",
     "create_account",

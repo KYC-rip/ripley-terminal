@@ -45,9 +45,24 @@ export interface VaultIdentity {
   created: number;
 }
 
+/** Native key material of the open wallet (hex, 64 chars each). `privateSpendKey`
+ *  and `mnemonic` are null for watch-only vaults. `address` is the PRIMARY address. */
+export interface WalletKeys {
+  address: string;
+  network: string;
+  viewOnly: boolean;
+  restoreHeight: number;
+  publicSpendKey: string;
+  publicViewKey: string;
+  privateViewKey: string;
+  privateSpendKey: string | null;
+  mnemonic: string | null;
+}
+
 export interface WalletActionResponse {
   success: boolean;
   seed?: string;
+  keys?: WalletKeys;
   address?: string;
   error?: string;
   isSoft?: boolean;
@@ -98,7 +113,7 @@ export interface IApi {
   deleteIdentityFiles: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   // --- Core Wallet Operations (Delegated to RPC) ---
-  walletAction: (action: 'create' | 'open' | 'close' | 'hard-close' | 'label_account' | 'mnemonic', payload?: { name?: string; pwd?: string, seed?: string, height?: number, language?: string, account_index?: number, label?: string }) => Promise<WalletActionResponse>;
+  walletAction: (action: 'create' | 'open' | 'close' | 'hard-close' | 'label_account' | 'mnemonic' | 'keys', payload?: { name?: string; pwd?: string, seed?: string, height?: number, language?: string, account_index?: number, label?: string }) => Promise<WalletActionResponse>;
 
   // --- Engine Telemetry ---
   getUplinkStatus: () => Promise<EngineStatus>;

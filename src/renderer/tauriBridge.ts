@@ -123,6 +123,11 @@ function createTauriApi() {
             const seed = await invoke('get_mnemonic');
             return { success: true, seed };
           }
+          case 'keys': {
+            // Seed + native view/spend keys in one OS-confirmed reveal.
+            const keys = await invoke('get_wallet_keys');
+            return { success: true, keys };
+          }
           default:
             return { success: false, error: `Unknown action: ${action}` };
         }

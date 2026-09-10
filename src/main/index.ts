@@ -658,6 +658,9 @@ app.whenReady().then(async () => {
         case 'mnemonic':
           const seed = await WalletManager.getMnemonic();
           return { success: true, seed };
+
+        case 'keys':
+          return { success: true, keys: await WalletManager.getKeys() };
         default:
           return { success: false, error: 'Unknown action' };
       }

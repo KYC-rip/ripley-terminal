@@ -26,6 +26,7 @@
     "allow-open-wallet",
     "allow-close-wallet",
     "allow-get-mnemonic",
+    "allow-get-wallet-keys",
     "allow-get-accounts",
     "allow-create-account",
     "allow-rename-account",

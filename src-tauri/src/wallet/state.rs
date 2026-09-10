@@ -158,6 +158,65 @@ pub struct WalletState {
     pub transfer_grants: tokio::sync::Mutex<super::transfer_ledger::GrantLedger>,
 }
 
+/// Native key material of an unlocked wallet, hex-encoded (32 bytes → 64 chars).
+/// `private_spend_key` and `mnemonic` are None for watch-only vaults.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletKeys {
+    /// Primary (legacy) address — the one whose base58 body IS the two public keys.
+    pub address: String,
+    pub network: String,
+    pub view_only: bool,
+    pub restore_height: u64,
+    pub public_spend_key: String,
+    pub public_view_key: String,
+    pub private_view_key: String,
+    pub private_spend_key: Option<String>,
+    pub mnemonic: Option<String>,
+}
+
+/// English 25-word phrase for a spend key (legacy Monero seeds: entropy IS the spend key).
+pub fn mnemonic_from_spend_key(spend_key: &Zeroizing<Scalar>) -> Result<String, String> {
+    let entropy: [u8; 32] = <[u8; 32]>::from(**spend_key);
+    let seed = monero_seed::Seed::from_entropy(
+        monero_seed::Language::English,
+        Zeroizing::new(entropy),
+    )
+    .ok_or("Failed to convert key to mnemonic")?;
+    Ok((*seed.to_string()).clone())
+}
+
+/// Pure assembly of `WalletKeys` from the resident key parts (testable without a
+/// `WalletState`). `spend_key` must be Some for a full vault and None for watch-only.
+pub fn keys_from_parts(
+    view_pair: &ViewPair,
+    view_key: &Zeroizing<Scalar>,
+    spend_key: Option<&Zeroizing<Scalar>>,
+    view_only: bool,
+    network: Network,
+    restore_height: u64,
+) -> Result<WalletKeys, String> {
+    let (private_spend_key, mnemonic) = match spend_key {
+        Some(sk) if !view_only => (
+            Some(hex::encode(<[u8; 32]>::from(**sk))),
+            Some(mnemonic_from_spend_key(sk)?),
+        ),
+        _ => (None, None),
+    };
+    Ok(WalletKeys {
+        address: view_pair.legacy_address(network).to_string(),
+        network: format!("{:?}", network).to_lowercase(),
+        view_only,
+        // u64::MAX means "scan from the tip" (fresh wallet, no restore height yet).
+        restore_height: if restore_height == u64::MAX { 0 } else { restore_height },
+        public_spend_key: hex::encode(view_pair.spend().compress().to_bytes()),
+        public_view_key: hex::encode(view_pair.view().compress().to_bytes()),
+        private_view_key: hex::encode(<[u8; 32]>::from(**view_key)),
+        private_spend_key,
+        mnemonic,
+    })
+}
+
 struct WalletInner {
     is_locked: bool,
     active_identity: Option<String>,
@@ -263,6 +322,11 @@ impl WalletState {
                 data_dir,
             })),
         }
+    }
+
+    /// True if the resident wallet is a watch-only vault (no spend key exists).
+    pub async fn is_view_only(&self) -> bool {
+        self.inner.read().await.view_only
     }
 
     pub async fn is_locked(&self) -> bool {
@@ -505,16 +569,31 @@ impl WalletState {
     pub async fn get_mnemonic(&self) -> Result<String, String> {
         let inner = self.inner.read().await;
         let spend_key = inner.spend_key.as_ref().ok_or("Wallet is locked")?;
+        mnemonic_from_spend_key(spend_key)
+    }
 
-        // Convert spend key back to mnemonic via entropy
-        let entropy: [u8; 32] = <[u8; 32]>::from(**spend_key);
-        let seed = monero_seed::Seed::from_entropy(
-            monero_seed::Language::English,
-            Zeroizing::new(entropy),
+    /// The wallet's native key material (seed reveal superset). Requires the wallet to
+    /// be unlocked: a view pair for every vault, plus the resident spend key for a full
+    /// vault (soft-lock zeroes it, so a soft-locked wallet can't reveal — same rule as
+    /// `get_mnemonic`). Watch-only vaults reveal their view keys + public spend point
+    /// only; `private_spend_key`/`mnemonic` are None (there is no seed to show).
+    pub async fn get_keys(&self) -> Result<WalletKeys, String> {
+        let inner = self.inner.read().await;
+        let view_pair = inner.view_pair.as_ref().ok_or("Wallet is locked")?;
+        let view_key = inner.view_key.as_ref().ok_or("Wallet is locked")?;
+        let spend_key = if inner.view_only {
+            None
+        } else {
+            Some(inner.spend_key.as_ref().ok_or("Wallet is locked")?)
+        };
+        keys_from_parts(
+            view_pair,
+            view_key,
+            spend_key,
+            inner.view_only,
+            inner.network,
+            inner.scan_height,
         )
-        .ok_or("Failed to convert key to mnemonic")?;
-
-        Ok((*seed.to_string()).clone())
     }
 
     /// True if `identity_id` is the wallet currently resident in this state
@@ -1719,5 +1798,79 @@ impl WalletState {
     /// Get the number of scanned outputs.
     pub async fn output_count(&self) -> usize {
         self.inner.read().await.scanned_outputs.len()
+    }
+}
+
+#[cfg(test)]
+mod key_reveal_tests {
+    use super::*;
+
+    fn full_vault() -> (String, Zeroizing<Scalar>, Zeroizing<Scalar>, ViewPair) {
+        let seed = monero_seed::Seed::new(&mut rand::thread_rng(), monero_seed::Language::English);
+        let phrase = (*seed.to_string()).clone();
+        let (spend_key, view_key) = keys::keys_from_entropy(&seed.entropy()).unwrap();
+        let dalek: curve25519_dalek::Scalar = (*spend_key).into();
+        let spend_point = Point::from(&dalek * ED25519_BASEPOINT_POINT);
+        let view_pair = ViewPair::new(spend_point, view_key.clone()).unwrap();
+        (phrase, spend_key, view_key, view_pair)
+    }
+
+    // The refactor must not drift the reveal: the shared helper yields exactly the
+    // phrase the old inline `get_mnemonic` body produced, which is the source seed.
+    #[test]
+    fn mnemonic_helper_matches_legacy_inline_derivation_and_source_seed() {
+        let (phrase, spend_key, _, _) = full_vault();
+        let legacy = {
+            let entropy: [u8; 32] = <[u8; 32]>::from(*spend_key);
+            let seed = monero_seed::Seed::from_entropy(
+                monero_seed::Language::English,
+                Zeroizing::new(entropy),
+            )
+            .unwrap();
+            (*seed.to_string()).clone()
+        };
+        let helper = mnemonic_from_spend_key(&spend_key).unwrap();
+        assert_eq!(helper, legacy);
+        assert_eq!(helper, phrase);
+    }
+
+    #[test]
+    fn full_vault_keys_are_consistent_with_each_other() {
+        let (phrase, spend_key, view_key, view_pair) = full_vault();
+        let k = keys_from_parts(&view_pair, &view_key, Some(&spend_key), false, Network::Mainnet, 3_000_000).unwrap();
+        assert_eq!(k.mnemonic.as_deref(), Some(phrase.as_str()));
+        assert!(!k.view_only);
+        assert_eq!(k.network, "mainnet");
+        assert_eq!(k.restore_height, 3_000_000);
+        for h in [&k.public_spend_key, &k.public_view_key, &k.private_view_key] {
+            assert_eq!(h.len(), 64, "{h}");
+        }
+        let sk_hex = k.private_spend_key.clone().unwrap();
+        assert_eq!(sk_hex.len(), 64);
+        // Private keys re-derive to the published public points.
+        let sk: [u8; 32] = hex::decode(&sk_hex).unwrap().try_into().unwrap();
+        let (sk2, vk2) = keys::keys_from_entropy(&sk).unwrap();
+        assert_eq!(hex::encode(<[u8; 32]>::from(*vk2)), k.private_view_key, "view = H(spend) must hold");
+        let sk_dalek: curve25519_dalek::Scalar = (*sk2).into();
+        let vk_dalek: curve25519_dalek::Scalar = (*vk2).into();
+        assert_eq!(hex::encode((&sk_dalek * ED25519_BASEPOINT_POINT).compress().to_bytes()), k.public_spend_key);
+        assert_eq!(hex::encode((&vk_dalek * ED25519_BASEPOINT_POINT).compress().to_bytes()), k.public_view_key);
+        // The primary address is the one that carries exactly these two public keys.
+        assert_eq!(k.address, view_pair.legacy_address(Network::Mainnet).to_string());
+        assert!(k.address.starts_with('4'));
+    }
+
+    #[test]
+    fn watch_only_vault_reveals_view_keys_but_no_seed_or_spend_key() {
+        let (_, spend_key, view_key, view_pair) = full_vault();
+        let k = keys_from_parts(&view_pair, &view_key, None, true, Network::Mainnet, u64::MAX).unwrap();
+        assert!(k.view_only);
+        assert!(k.private_spend_key.is_none());
+        assert!(k.mnemonic.is_none());
+        assert_eq!(k.restore_height, 0, "u64::MAX sentinel is not a user-facing height");
+        assert_eq!(k.private_view_key, hex::encode(<[u8; 32]>::from(*view_key)));
+        // Even if a spend key were somehow resident, view_only wins and nothing leaks.
+        let k2 = keys_from_parts(&view_pair, &view_key, Some(&spend_key), true, Network::Mainnet, 0).unwrap();
+        assert!(k2.private_spend_key.is_none() && k2.mnemonic.is_none());
     }
 }

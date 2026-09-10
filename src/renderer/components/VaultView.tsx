@@ -8,6 +8,7 @@ import { VaultModals } from './vault/VaultModals';
 import { DispatchModal } from './vault/DispatchModal';
 import { ReceiveModal } from './vault/ReceiveModal';
 import { type VaultContextType } from '../contexts/VaultContext';
+import type { WalletKeys } from '../window';
 import { WalletService } from '../services/walletService';
 import { useFiatValue } from '../hooks/useFiatValue';
 import { useStats } from '../hooks/useStats';
@@ -54,6 +55,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     return () => clearTimeout(t);
   }, [nodeStale]);
   const [mnemonic, setMnemonic] = useState('');
+  const [walletKeys, setWalletKeys] = useState<WalletKeys | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [dispatchAddr, setDispatchAddr] = useState('');
   const [selectedSubaddress, setSelectedSubaddress] = useState<any>(null);
@@ -143,21 +145,24 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
     // fall through and reveal the seed BEFORE the user confirms.
     const { ask } = await import('@tauri-apps/plugin-dialog');
     const ok = await ask(
-      "Reveal Master Seed?\nEnsure no cameras or screen recording software is active.",
+      "Reveal Master Seed and native keys?\nEnsure no cameras or screen recording software is active.",
       { title: "⚠️ SECURITY WARNING ⚠️", kind: "warning" }
     );
     if (!ok) return;
 
     try {
-      const res = await window.api.walletAction('mnemonic');
-      if (res.success && res.seed) {
-        setMnemonic(res.seed);
+      // One reveal returns the seed AND the view/spend keys (the shell pops its own
+      // OS-level confirm on top). Watch-only vaults have no seed — keys only.
+      const res = await window.api.walletAction('keys');
+      if (res.success && res.keys) {
+        setMnemonic(res.keys.mnemonic || '');
+        setWalletKeys(res.keys);
         setModals(prev => ({ ...prev, seed: true }));
       } else {
         alert(`SEED_RETRIEVAL_FAILED: ${res.error || 'Wallet may still be syncing. Try again in a moment.'}`);
       }
     } catch (e: any) {
-      alert(`RPC_ERROR: ${e.message || 'Could not retrieve mnemonic. Wallet may be busy syncing.'}`);
+      alert(`RPC_ERROR: ${e.message || 'Could not retrieve wallet keys. Wallet may be busy syncing.'}`);
     }
   };
 
@@ -313,7 +318,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                           onClick={() => { revealSeed(); setShowCardMenu(false); }}
                           className="w-full px-4 py-2.5 text-left text-[11px] font-black uppercase tracking-widest text-xmr-dim hover:text-xmr-accent hover:bg-xmr-accent/10 transition-all flex items-center gap-2 cursor-pointer"
                         >
-                          <Key size={10} /> Backup Seed
+                          <Key size={10} /> Backup Seed & Keys
                         </button>
                       </div>
                     )}
@@ -530,8 +535,9 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
       {/* 5. MODALS */}
       <VaultModals
         showSeed={modals.seed}
-        onCloseSeed={() => { setModals(prev => ({ ...prev, seed: false })); setMnemonic(''); }}
+        onCloseSeed={() => { setModals(prev => ({ ...prev, seed: false })); setMnemonic(''); setWalletKeys(null); }}
         mnemonic={mnemonic}
+        walletKeys={walletKeys}
         showReceive={modals.receive}
         onCloseReceive={() => { setModals(prev => ({ ...prev, receive: false })); setSelectedSubaddress(null); }}
         onCreateSub={createSubaddress}
