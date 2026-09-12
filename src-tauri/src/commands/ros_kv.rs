@@ -12,11 +12,27 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 const DIR_NAME: &str = "ros-kv";
 const MAX_VALUE_BYTES: usize = 32 * 1024 * 1024;
 const KEY_PREFIX: &str = "ripleyos:";
+const TMP_SUFFIX: &str = ".tmp";
+
+/// Tauri runs `async` commands concurrently, and ROS fires `ros_kv_set` for the
+/// same key back-to-back (the JS facade is synchronous and never awaits the
+/// disk write). One GLOBAL lock — deliberately coarser than per-key — around
+/// every mutation makes "last call wins" hold on disk the way it holds in the
+/// JS cache; a hold is a few ms of synchronous fs work, never an await.
+static KV_LOCK: Mutex<()> = Mutex::new(());
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+
+fn lock_kv() -> std::sync::MutexGuard<'static, ()> {
+    // A panic while holding the lock must not brick every later write.
+    KV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 fn kv_dir_from(app_data: &Path) -> PathBuf {
     app_data.join(DIR_NAME)
@@ -95,12 +111,20 @@ pub fn put(dir: &Path, key: &str, value: &str) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("mkdir: {e}"))?;
     let stem = encode_key(key)?;
     let path = dir.join(&stem);
-    let tmp = dir.join(format!("{stem}.tmp"));
+    // A tmp name unique to this call: two writers of one key sharing `<stem>.tmp`
+    // used to rename each other's half-written file. The old `remove_file(path)`
+    // before the rename is gone too — it let a concurrent writer delete the
+    // freshly renamed file and then fail its own rename, leaving NO file at all
+    // (that is how mail:accounts vanished). `rename` replaces atomically on
+    // Unix and on Windows (MOVEFILE_REPLACE_EXISTING).
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = dir.join(format!("{stem}.{}-{seq}{TMP_SUFFIX}", std::process::id()));
+    let _guard = lock_kv();
     fs::write(&tmp, value.as_bytes()).map_err(|e| format!("write: {e}"))?;
-    if path.exists() {
-        let _ = fs::remove_file(&path);
+    if let Err(e) = fs::rename(&tmp, &path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("rename: {e}"));
     }
-    fs::rename(&tmp, &path).map_err(|e| format!("rename: {e}"))?;
     Ok(())
 }
 
@@ -114,7 +138,7 @@ pub fn load(dir: &Path) -> Result<HashMap<String, String>, String> {
         let entry = entry.map_err(|e| format!("read_dir: {e}"))?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.ends_with(".tmp") {
+        if name.ends_with(TMP_SUFFIX) {
             continue;
         }
         let Ok(key) = decode_key(&name) else { continue };
@@ -130,6 +154,7 @@ pub fn remove_key(dir: &Path, key: &str) -> Result<(), String> {
     assert_kv_dir(dir)?;
     let stem = encode_key(key)?;
     let path = dir.join(stem);
+    let _guard = lock_kv();
     if path.exists() {
         fs::remove_file(&path).map_err(|e| format!("remove: {e}"))?;
     }
@@ -143,11 +168,12 @@ pub fn clear(dir: &Path) -> Result<(), String> {
     if !dir.is_dir() {
         return Ok(());
     }
+    let _guard = lock_kv();
     for entry in fs::read_dir(dir).map_err(|e| format!("read_dir: {e}"))? {
         let entry = entry.map_err(|e| format!("read_dir: {e}"))?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.ends_with(".tmp") {
+        if name.ends_with(TMP_SUFFIX) {
             let _ = fs::remove_file(entry.path());
             continue;
         }
@@ -194,6 +220,44 @@ mod tests {
             .join("ros-kv");
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn concurrent_puts_to_one_key_never_lose_the_file() {
+        let dir = scratch();
+        let key = "ripleyos:race";
+        let mut hs = Vec::new();
+        for t in 0..4 {
+            let d = dir.clone();
+            hs.push(std::thread::spawn(move || {
+                let mut errs = 0usize;
+                for i in 0..2000 {
+                    if put(&d, key, &format!("t{t}-{i}")).is_err() { errs += 1; }
+                }
+                errs
+            }));
+        }
+        let errs: usize = hs.into_iter().map(|h| h.join().unwrap()).sum();
+        let got = load(&dir).unwrap();
+        assert_eq!(errs, 0, "{errs} concurrent puts failed (a failed put used to leave NO file behind)");
+        assert!(got.contains_key(key), "file for {key} vanished after concurrent puts");
+        // Complete value from one writer, never a torn/partial tmp.
+        assert!(got[key].starts_with('t') && got[key].contains('-'), "torn value: {:?}", got[key]);
+        // No stray per-call tmp files survive a clean run.
+        let strays = fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().ends_with(".tmp")).count();
+        assert_eq!(strays, 0);
+    }
+
+    #[test]
+    fn put_replaces_existing_file_and_remove_then_put_recreates() {
+        let dir = scratch();
+        put(&dir, "ripleyos:k", "one").unwrap();
+        put(&dir, "ripleyos:k", "two").unwrap();
+        assert_eq!(load(&dir).unwrap()["ripleyos:k"], "two");
+        remove_key(&dir, "ripleyos:k").unwrap();
+        assert!(!load(&dir).unwrap().contains_key("ripleyos:k"));
+        put(&dir, "ripleyos:k", "three").unwrap();
+        assert_eq!(load(&dir).unwrap()["ripleyos:k"], "three");
     }
 
     #[test]
