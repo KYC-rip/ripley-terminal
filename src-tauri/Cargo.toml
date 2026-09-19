@@ -58,6 +58,9 @@ tauri-plugin-deep-link = "2"
 # Used from RUST only (commands::system::clipboard_write_image), so it needs no JS capability:
 # WKWebView exposes a text-only clipboard, so the webview cannot write an image itself.
 tauri-plugin-clipboard-manager = "2"
+# Local OS notifications for the ROS renderer (XMR received, alerts). No push,
+# no server: the webview calls plugin:notification|notify directly.
+tauri-plugin-notification = "2"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

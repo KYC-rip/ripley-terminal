@@ -88,6 +88,7 @@
     "allow-check-ros-update",
     "allow-ros-channel-status",
     "allow-capture-window-png",
-    "allow-clipboard-write-image"
+    "allow-clipboard-write-image",
+    "notification:default"
   ]
 }
