@@ -3,6 +3,28 @@ import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, 
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
 
+
+/** mnr verified uplink helpers (optional clearnet preset — never the default). */
+const MNR_RPC_PREFIX = 'https://rpc.mnr.network/v1/';
+
+function normalizeMnrTokenInput(raw: string): string {
+  let s = (raw || '').trim();
+  s = s.replace(/\/json_rpc\/?$/i, '');
+  s = s.replace(/^https?:\/\/rpc\.mnr\.network\/v1\//i, '');
+  s = s.split(/[/?#]/)[0].trim();
+  return s;
+}
+
+function mnrUrlFromToken(token: string): string {
+  return `${MNR_RPC_PREFIX}${token}`;
+}
+
+function parseMnrTokenFromAddress(addr: string): string | null {
+  const s = (addr || '').trim().replace(/\/json_rpc\/?$/i, '');
+  const m = /^https?:\/\/rpc\.mnr\.network\/v1\/([^/\s?#]+)/i.exec(s);
+  return m ? m[1] : null;
+}
+
 export function SettingsView() {
   const { rescan, currentHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
 
@@ -29,6 +51,8 @@ export function SettingsView() {
     fast_sync: false
   });
 
+  const [mnrToken, setMnrToken] = useState('');
+  const [mnrActive, setMnrActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [targetHeight, setTargetHeight] = useState<string>('');
   const [restoreDate, setRestoreDate] = useState<string>('');
@@ -73,10 +97,11 @@ export function SettingsView() {
     const loadInitialConfig = async () => {
       const fullConfig = await window.api.getConfig();
       setConfig(fullConfig);
+      const addr = fullConfig.customNodeAddress || '';
       setLocalSettings({
         routingMode: fullConfig.routingMode || 'tor',
         network: fullConfig.network || 'mainnet',
-        customNodeAddress: fullConfig.customNodeAddress || '',
+        customNodeAddress: addr,
         show_scanlines: fullConfig.show_scanlines !== false,
         auto_lock_minutes: fullConfig.auto_lock_minutes || 10,
         identityName: currentIdentity?.name || '',
@@ -91,6 +116,9 @@ export function SettingsView() {
         sync_all_wallets: fullConfig.sync_all_wallets || false,
         fast_sync: fullConfig.fast_sync || false
       });
+      const mnrTok = parseMnrTokenFromAddress(addr);
+      if (mnrTok) { setMnrToken(mnrTok); setMnrActive(true); }
+      else { setMnrActive(false); }
 
       const info = await window.api.getAppInfo();
       setAppInfo(info as any);
@@ -404,9 +432,80 @@ export function SettingsView() {
                 type="text"
                 placeholder="Leave empty for automatic node selection"
                 value={localSettings.customNodeAddress}
-                onChange={(e) => setLocalSettings({ ...localSettings, customNodeAddress: e.target.value })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setLocalSettings({ ...localSettings, customNodeAddress: v });
+                  const tok = parseMnrTokenFromAddress(v);
+                  if (tok) { setMnrToken(tok); setMnrActive(true); }
+                  else { setMnrActive(false); }
+                }}
                 className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none font-black"
               />
+            </div>
+
+            {/* mnr verified uplink — optional clearnet preset (not default) */}
+            <div className="space-y-2 pt-2 border-t border-xmr-border/20">
+              <label className="text-[11px] font-black text-xmr-dim uppercase">
+                mnr_Verified_Uplink (Optional){mnrActive ? ' · ACTIVE' : ''}
+              </label>
+              <p className="text-[10px] text-xmr-dim uppercase font-black leading-relaxed">
+                Free is fine for light use; a cold sync may need Pro. Tor + mnr is not wired yet.{' '}
+                <button
+                  type="button"
+                  className="text-xmr-green underline underline-offset-2"
+                  onClick={() => window.api.openExternal?.('https://mnr.network')}
+                >
+                  mnr.network
+                </button>
+              </p>
+              <input
+                type="text"
+                placeholder="mnr token (or paste https://rpc.mnr.network/v1/… )"
+                value={mnrToken}
+                onChange={(e) => setMnrToken(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                autoComplete="off"
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none font-black"
+              />
+              <div className="flex gap-2">
+                {mnrActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalSettings({ ...localSettings, customNodeAddress: '' });
+                      setMnrToken('');
+                      setMnrActive(false);
+                    }}
+                    className="px-4 py-2 border border-xmr-border text-[10px] uppercase font-black hover:border-xmr-green hover:text-xmr-green transition-all cursor-pointer"
+                  >
+                    Clear_mnr
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={!normalizeMnrTokenInput(mnrToken)}
+                  onClick={() => {
+                    const token = normalizeMnrTokenInput(mnrToken);
+                    if (!token) return;
+                    const url = mnrUrlFromToken(token);
+                    setLocalSettings({
+                      ...localSettings,
+                      routingMode: 'clearnet',
+                      customNodeAddress: url,
+                    });
+                    setMnrToken(token);
+                    setMnrActive(true);
+                  }}
+                  className="px-4 py-2 bg-xmr-green text-xmr-base text-[10px] uppercase font-black hover:opacity-90 transition-all cursor-pointer disabled:opacity-40"
+                >
+                  Apply_mnr
+                </button>
+              </div>
+              <p className="text-[10px] text-xmr-dim/70 uppercase font-black">
+                Apply writes clearnet + mnr URL into the form — hit Commit_Changes to save.
+              </p>
             </div>
 
             {/* Sync all wallets */}
