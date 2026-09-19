@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy, AlertTriangle, Info, ExternalLink } from 'lucide-react';
+import { Wallet, DollarSign, Send, Loader2, CheckCircle2, ChevronDown, ChevronUp, Coins, Copy } from 'lucide-react';
 import { useVault } from '../../contexts/VaultContext';
 import { useStats } from '../../hooks/useStats';
 import { WalletService } from '../../services/walletService';

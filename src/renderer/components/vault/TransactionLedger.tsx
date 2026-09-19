@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp, Copy, ExternalLink, Info, Loader2, Key, ShieldCheck, Fingerprint, CheckCircle, ShieldAlert, Zap, Ghost } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Copy, ExternalLink, Info, Loader2, Key, ShieldCheck, Fingerprint, CheckCircle, ShieldAlert, Zap } from 'lucide-react';
 import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
@@ -232,7 +232,7 @@ export function TransactionLedger({ txs, subaddresses = [] }: TransactionLedgerP
                 </h3>
                 <button
                   onClick={() => { setIsVerifyOpen(false); setVerifyResult(null); }}
-                  className="text-xmr-dim hover:text-white uppercase text-[10px] font-black tracking-widest cursor-pointer"
+                  className="text-xmr-dim hover:text-xmr-green uppercase text-[10px] font-black tracking-widest cursor-pointer"
                 >
                   [Close]
                 </button>

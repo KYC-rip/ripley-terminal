@@ -92,7 +92,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
           <button
             onClick={handleSubmit}
             disabled={isProcessing || unlockedBalance <= 0}
-            className="w-full py-4 bg-xmr-accent text-white font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-4 bg-xmr-accent text-xmr-base font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isProcessing ? (
               <><Loader2 size={18} className="animate-spin" /> Splintering...</>

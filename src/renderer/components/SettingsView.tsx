@@ -141,13 +141,10 @@ export function SettingsView() {
 
       if (needsPhysicalReload) {
         // 🚀 Trigger physical reload: Reboot Tor / RPC processes
-        console.log("⚙️ Physical parameters changed. Re-igniting Uplink...", "warning");
         const res = await window.api.saveConfigAndReload(newConfig);
         if (!res.success) throw new Error(res.error);
       } else {
-        // 💾 Save config only: no interruption to current connection
-        console.log("💾 UI preferences synchronized.", "success");
-        // note: if backend lacks saveConfigOnly, reloadEngine can skip reboot based on logic checks
+        // Save config only: no interruption to current connection
         await window.api.saveConfigOnly?.(newConfig) || await window.api.saveConfigAndReload(newConfig);
       }
 
@@ -593,7 +590,7 @@ export function SettingsView() {
           <h3 className="text-xs font-black text-xmr-error flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
           <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-xmr-error/5 border-xmr-error/30 flex items-center justify-between">
             <div className="space-y-1"><span className="text-xs font-black text-xmr-error uppercase">Nuclear_Burn_ID</span><p className="text-xs text-xmr-error/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
-            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
+            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-xmr-base transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>
         </section>
       </div>
