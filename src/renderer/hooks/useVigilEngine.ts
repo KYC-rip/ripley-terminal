@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createTrade, type ComplianceState, type ComplianceLevel, type ExchangeRoute } from '../services/swap';
+import { createTrade, type ComplianceState, type ExchangeRoute } from '../services/swap';
 import { getApiBase } from '../services/client';
 import { useFiatValue } from './useFiatValue';
 import { useVault } from './useVault';

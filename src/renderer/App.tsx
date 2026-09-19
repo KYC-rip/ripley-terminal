@@ -234,7 +234,6 @@ function MainApp() {
   // --- 🔗 DEEP LINK LISTENER ---
   useEffect(() => {
     const cleanup = window.api.onDeepLink((url: string) => {
-      console.log('[App] Received deep link:', url);
       try {
         const protocolRegex = /^(monero|ghost|ripley):([^?]+)(\?.*)?$/i;
         const match = url.match(protocolRegex);
@@ -411,7 +410,7 @@ function MainApp() {
         <div className="px-4 py-3 border-t border-xmr-border/20 bg-xmr-green/[0.02] space-y-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
           {/* Lock + Console row */}
           <div className="flex gap-1.5">
-            <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-red-950/20 border border-red-900/50 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
+            <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-xmr-error/10 border border-xmr-error/30 text-xmr-error hover:bg-xmr-error hover:text-xmr-base transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
               <Lock size={12} className="group-hover:scale-110 transition-transform" /> LOCK
             </button>
             <button onClick={() => setShowConsole(!showConsole)} className={`px-2.5 py-2 border transition-all cursor-pointer rounded-sm ${showConsole ? 'border-xmr-green text-xmr-green bg-xmr-green/10' : 'border-xmr-border text-xmr-dim hover:border-xmr-green'}`}>
@@ -451,7 +450,7 @@ function MainApp() {
           <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
-            <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-orange-500" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
+            <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-xmr-warning" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
           </div>
         </header>
 
@@ -530,11 +529,11 @@ function MainApp() {
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-3 group">
                     <span className="text-xmr-dim opacity-85 shrink-0 hidden">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                    <span className={`break-all ${log.type === 'error' ? 'text-red-500 font-bold' :
+                    <span className={`break-all ${log.type === 'error' ? 'text-xmr-error font-bold' :
                       log.type === 'success' ? 'text-xmr-green font-bold' :
                         log.type === 'process' ? 'text-xmr-accent' :
-                          log.type === 'warning' ? 'text-orange-500' :
-                            log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-red-500' :
+                          log.type === 'warning' ? 'text-xmr-warning' :
+                            log.msg.includes('❌') || log.msg.includes('ERROR') ? 'text-xmr-error' :
                               log.msg.includes('✅') || log.msg.includes('SUCCESS') ? 'text-xmr-green' :
                                 'text-xmr-green/70'
                       }`}>{'>'} {log.msg}</span>

@@ -39,8 +39,14 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
   // ─── Mode ───
   const [mode, setMode] = useState<ExchangeMode>('swap');
   const isGhost = mode === 'ghost';
-  const themeColor = isGhost ? 'xmr-ghost' : 'xmr-accent';
   const ThemeIcon = isGhost ? Ghost : Zap;
+  const tc = {
+    text: isGhost ? 'text-xmr-ghost' : 'text-xmr-accent',
+    bg: isGhost ? 'bg-xmr-ghost' : 'bg-xmr-accent',
+    bgSoft: isGhost ? 'bg-xmr-ghost/15' : 'bg-xmr-accent/15',
+    border: isGhost ? 'border-xmr-ghost/30' : 'border-xmr-accent/30',
+    bgBar: isGhost ? 'bg-xmr-ghost' : 'bg-xmr-accent',
+  };
 
   // ─── Form state ───
   const [fromCoin, setFromCoin] = useState<Currency>(CurrencySelector.Monero);
@@ -389,8 +395,8 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
       <div className={`fixed top-0 right-0 h-full w-80 bg-xmr-surface border-l border-xmr-border/40 z-50 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl ${routeDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-xmr-border/20 bg-xmr-base/50">
           <div className="flex items-center gap-2">
-            <ThemeIcon size={12} className={`text-${themeColor}`} />
-            <span className={`text-[10px] font-black text-${themeColor} uppercase tracking-widest`}>{isGhost ? 'Ghost Routes' : 'Routes'}</span>
+            <ThemeIcon size={12} className={tc.text} />
+            <span className={`text-[10px] font-black ${tc.text} uppercase tracking-widest`}>{isGhost ? 'Ghost Routes' : 'Routes'}</span>
             {sortedRoutes.length > 0 && <span className="text-[9px] text-xmr-dim font-bold">{sortedRoutes.length}</span>}
           </div>
           <button onClick={() => setRouteDrawerOpen(false)} className="text-xmr-dim hover:text-xmr-green transition-colors cursor-pointer p-1">
@@ -406,7 +412,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
               onClick={() => setSortBy(m)}
               className={`px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded-sm transition-all cursor-pointer ${
                 sortBy === m
-                  ? `bg-${themeColor}/15 text-${themeColor} border border-${themeColor}/30`
+                  ? `${tc.bgSoft} ${tc.text} border ${tc.border}`
                   : 'text-xmr-dim hover:text-xmr-green border border-transparent'
               }`}
             >
@@ -441,13 +447,13 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
                 }`}
                 onClick={() => { setSelectedRoute(route); setRouteDrawerOpen(false); }}
               >
-                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-${themeColor} rounded-l-sm`} />}
+                {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${tc.bgBar} rounded-l-sm`} />}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     {route.providerLogo && (
                       <img src={route.providerLogo} className="w-4 h-4 rounded-full object-contain bg-white/10" alt="" onError={(e: any) => e.currentTarget.style.display = 'none'} />
                     )}
-                    <span className={`text-[10px] font-black uppercase text-${themeColor}`}>
+                    <span className={`text-[10px] font-black uppercase ${tc.text}`}>
                       {isGhost ? (route.bridgeLabel?.replace(/_/g, ' ') || route.provider) : route.provider}
                     </span>
                   </div>
@@ -525,8 +531,8 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-xmr-border/20 bg-xmr-surface/30">
         <div className="flex items-center gap-2">
           <span className="relative flex h-1.5 w-1.5">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-${themeColor} opacity-75`} />
-            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 bg-${themeColor}`} />
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${tc.bgBar} opacity-75`} />
+            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${tc.bgBar}`} />
           </span>
           <span className="text-[9px] font-mono text-xmr-dim uppercase tracking-widest">{label}</span>
         </div>
@@ -831,9 +837,9 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           className={`w-full flex items-center justify-between px-3 py-2 bg-xmr-base border border-xmr-border/30 rounded-sm transition-colors cursor-pointer group ${isGhost ? 'hover:border-xmr-ghost/40' : 'hover:border-xmr-accent/40'}`}
         >
           <div className="flex items-center gap-2">
-            <Radio size={11} className={`text-${themeColor}`} />
+            <Radio size={11} className={tc.text} />
             {selectedRoute ? (
-              <span className={`text-[10px] font-black uppercase text-${themeColor}`}>
+              <span className={`text-[10px] font-black uppercase ${tc.text}`}>
                 {isGhost ? ((selectedRoute as BridgeRoute).bridgeLabel?.replace(/_/g, ' ') || selectedRoute.provider) : selectedRoute.provider}
                 <span className="text-xmr-dim font-bold ml-2">{selectedRoute.amount_to?.toFixed(6)} {toCoin?.ticker}</span>
                 {!isGhost && !(selectedRoute as ExchangeRoute).fixed && <span className="text-xmr-dim/60 ml-1.5 text-[8px]">FLOAT</span>}
@@ -844,7 +850,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
               </span>
             )}
           </div>
-          <ChevronRight size={14} className={`text-xmr-dim group-hover:text-${themeColor} transition-colors`} />
+          <ChevronRight size={14} className={`text-xmr-dim transition-colors ${isGhost ? 'group-hover:text-xmr-ghost' : 'group-hover:text-xmr-accent'}`} />
         </button>
 
         <div className="border-t border-xmr-border/15" />
@@ -894,7 +900,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
           onClick={handleExecute}
           className={`w-full py-3 font-black uppercase tracking-[0.2em] text-sm rounded-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] shadow-lg ${
             isGhost
-              ? 'bg-xmr-ghost text-white hover:brightness-110 shadow-xmr-ghost/10'
+              ? 'bg-xmr-ghost text-xmr-base hover:brightness-110 shadow-xmr-ghost/10'
               : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base shadow-xmr-accent/10'
           }`}
         >

@@ -213,7 +213,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [isLocked, isInitializing, refresh, status]);
 
   useEffect(() => {
-    console.log("🔌 Initializing Core Log Listener...");
     if (window.api.onCoreLog) {
       const cleanup = window.api.onCoreLog((data) => {
         // Backend data usually looks like { source: 'TOR', level: 'info', message: '...' }
@@ -282,12 +281,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   // 🛡️ XMR402 Challenge Listeners
   useEffect(() => {
     const cleanupAgent = window.api.onAgentPay402?.((data: any) => {
-      console.log('[VaultContext] Received Agent XMR402 challenge:', data);
       setMonero402Challenge({ ...data, type: 'agent' });
     });
 
     const cleanupDeep = window.api.onXmr402Challenge?.((url: string) => {
-      console.log('[VaultContext] Received DeepLink XMR402 challenge:', url);
       try {
         const u = new URL(url.replace('xmr402://', 'http://402/'));
         const address = u.pathname.replace('/', '');

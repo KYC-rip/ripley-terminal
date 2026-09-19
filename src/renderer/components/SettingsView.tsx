@@ -32,7 +32,7 @@ export function SettingsView() {
   const [isRescanning, setIsRescanning] = useState(false);
 
   // 📦 App Info & Updates state
-  const [appInfo, setAppInfo] = useState<{ version: string; appDataPath: string; walletsPath: string; platform: string } | null>(null);
+  const [appInfo, setAppInfo] = useState<Awaited<ReturnType<typeof window.api.getAppInfo>> | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateResult, setUpdateResult] = useState<{
     checked: boolean;
@@ -69,7 +69,7 @@ export function SettingsView() {
       });
 
       const info = await window.api.getAppInfo();
-      setAppInfo(info as any);
+      setAppInfo(info);
     };
     loadInitialConfig();
   }, [currentIdentity]);
@@ -141,13 +141,10 @@ export function SettingsView() {
 
       if (needsPhysicalReload) {
         // 🚀 Trigger physical reload: Reboot Tor / RPC processes
-        console.log("⚙️ Physical parameters changed. Re-igniting Uplink...", "warning");
         const res = await window.api.saveConfigAndReload(newConfig);
         if (!res.success) throw new Error(res.error);
       } else {
-        // 💾 Save config only: no interruption to current connection
-        console.log("💾 UI preferences synchronized.", "success");
-        // note: if backend lacks saveConfigOnly, reloadEngine can skip reboot based on logic checks
+        // Save config only: no interruption to current connection
         await window.api.saveConfigOnly?.(newConfig) || await window.api.saveConfigAndReload(newConfig);
       }
 
@@ -253,7 +250,7 @@ export function SettingsView() {
                       <div className="flex items-center gap-2 font-black uppercase text-xs">
                         <Zap size={14} className="animate-pulse" /> Update Available: v{updateResult.latestVersion}
                       </div>
-                      <button onClick={() => updateResult.releaseUrl && window.open(updateResult.releaseUrl)} className="flex items-center gap-1.5 px-3 py-1.5 bg-xmr-accent text-xmr-base hover:bg-white transition-colors cursor-pointer font-black uppercase">
+                      <button onClick={() => updateResult.releaseUrl && window.api.openExternal(updateResult.releaseUrl)} className="flex items-center gap-1.5 px-3 py-1.5 bg-xmr-accent text-xmr-base hover:bg-white transition-colors cursor-pointer font-black uppercase">
                         <Download size={10} /> Download Release
                       </button>
                     </div>
@@ -527,7 +524,7 @@ export function SettingsView() {
                       <label className="text-[10px] text-xmr-dim uppercase font-black block">Skin_Position</label>
                       <select
                         value={localSettings.skin_style}
-                        onChange={(e) => setLocalSettings({ ...localSettings, skin_style: e.target.value as any })}
+                        onChange={(e) => setLocalSettings({ ...localSettings, skin_style: e.target.value as 'cover' | 'contain' | 'tile' | 'top-left' })}
                         className="w-full bg-xmr-surface border border-xmr-border/50 p-2 text-xs text-xmr-green uppercase outline-none focus:border-xmr-accent"
                       >
                         <option value="cover">Cover (Center)</option>
@@ -593,7 +590,7 @@ export function SettingsView() {
           <h3 className="text-xs font-black text-xmr-error flex items-center gap-2 uppercase"><ShieldAlert size={14} /> Dangerous_Sector</h3>
           <Card noPadding={false} topGradientAccentColor='xmr-error' className="p-6 bg-xmr-error/5 border-xmr-error/30 flex items-center justify-between">
             <div className="space-y-1"><span className="text-xs font-black text-xmr-error uppercase">Nuclear_Burn_ID</span><p className="text-xs text-xmr-error/60 uppercase font-black">Erase local seed and vault keys forever.</p></div>
-            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-white transition-all uppercase cursor-pointer">Burn_Everything</button>
+            <button onClick={() => purgeIdentity(activeId)} className="px-4 py-2 border border-xmr-error text-xmr-error text-xs font-black hover:bg-xmr-error hover:text-xmr-base transition-all uppercase cursor-pointer">Burn_Everything</button>
           </Card>
         </section>
       </div>
