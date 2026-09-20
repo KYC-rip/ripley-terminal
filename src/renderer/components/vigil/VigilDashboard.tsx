@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
 import { Radio, XCircle, Shield, ArrowDown, Copy, Check } from 'lucide-react';
-// Lightweight toast-like notification (avoids react-hot-toast dependency)
-const notify = (msg: string) => console.log(`[Vigil] ${msg}`);
 
 // ─── Types ───
 
@@ -64,7 +62,6 @@ export function VigilDashboard({
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(label);
-    notify(`${label} copied`);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
