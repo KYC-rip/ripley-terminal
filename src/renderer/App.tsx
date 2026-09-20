@@ -15,18 +15,22 @@ import { VigilView } from './components/VigilView';
 import { XMR402Modal } from './components/common/XMR402Modal';
 import { VaultProvider } from './contexts/VaultContext';
 
+export function skinBackgroundStyle(bg: string, opacity: number | undefined, style: string): React.CSSProperties {
+  return {
+    backgroundImage: `url(${bg})`,
+    opacity: opacity !== undefined ? opacity : 0.2,
+    backgroundSize: style === 'cover' || style === 'contain' ? style : style === 'tile' ? 'auto' : 'cover',
+    backgroundPosition: style === 'top-left' ? 'top left' : 'center',
+    backgroundRepeat: style === 'tile' ? 'repeat' : 'no-repeat',
+  };
+}
+
 const SkinOverlay = ({ config }: { config: any }) => {
   if (!config?.skin_background) return null;
   return (
     <div
       className="absolute inset-0 pointer-events-none z-0"
-      style={{
-        backgroundImage: `url(${config.skin_background})`,
-        opacity: config.skin_opacity !== undefined ? config.skin_opacity : 0.2,
-        backgroundSize: config.skin_style === 'cover' || config.skin_style === 'contain' ? config.skin_style : config.skin_style === 'tile' ? 'auto' : 'cover',
-        backgroundPosition: config.skin_style === 'top-left' ? 'top left' : 'center',
-        backgroundRepeat: config.skin_style === 'tile' ? 'repeat' : 'no-repeat'
-      }}
+      style={skinBackgroundStyle(config.skin_background, config.skin_opacity, config.skin_style)}
     />
   );
 };
@@ -305,7 +309,7 @@ function MainApp() {
       className={`w-full flex items-center justify-between px-5 py-3 border-l-2 transition-all cursor-pointer group ${view === id ? 'bg-xmr-green/5 border-xmr-green text-xmr-green' : 'border-transparent text-xmr-dim hover:text-xmr-green hover:bg-xmr-green/5'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon size={16} className={view === id ? 'drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]' : 'opacity-50 group-hover:opacity-100'} />
+        <Icon size={16} className={view === id ? 'drop-shadow-[0_0_8px_var(--brand-glow)]' : 'opacity-50 group-hover:opacity-100'} />
         <span className="text-[11px] font-black uppercase tracking-[0.15em]">{label}</span>
       </div>
       {badge && (
@@ -336,14 +340,14 @@ function MainApp() {
   return (
     <div className="flex h-screen bg-xmr-base text-xmr-green font-mono relative overflow-hidden select-none transition-colors duration-300">
       <SkinOverlay config={appConfig} />
-      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
+      <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, var(--scanline-color, transparent) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
       <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* ─── Header ─── */}
         <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
-            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 drop-shadow-[0_0_12px_rgba(0,255,65,0.4)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 drop-shadow-[0_0_12px_var(--brand-glow)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]">
               <defs>
                 <mask id="cutMask">
                   <rect width="100" height="100" fill="white" />

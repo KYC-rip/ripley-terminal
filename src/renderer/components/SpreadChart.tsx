@@ -55,8 +55,8 @@ export default function SpreadChart() {
     areaTop: chartAreaTop || 'rgba(0, 255, 65, 0.15)',
     paperLine: textDim || '#64748b',
     liqLine: textAccent || '#ea580c',
-    nodeLine: '#0891b2',
-    volColor: theme === 'light' ? 'rgba(4, 120, 87, 0.3)' : 'rgba(0, 50, 0, 0.5)',
+    nodeLine: root.getPropertyValue('--chart-node-line').trim() || '#0891b2',
+    volColor: root.getPropertyValue('--chart-vol-color').trim() || (theme === 'light' ? 'rgba(4, 120, 87, 0.3)' : 'rgba(0, 50, 0, 0.5)'),
   };
 
   const toggleSeries = (key: keyof typeof visibleSeries) => {

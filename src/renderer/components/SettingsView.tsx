@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
+import { skinBackgroundStyle } from '../App';
 
 export function SettingsView() {
   const { rescan, currentHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
@@ -541,13 +542,7 @@ export function SettingsView() {
                   <div className="border border-xmr-border/30 rounded-sm overflow-hidden relative bg-black/50 h-24 flex items-center justify-center">
                     <div
                       className="absolute inset-0 z-0 pointer-events-none"
-                      style={{
-                        backgroundImage: `url(${localSettings.skin_background})`,
-                        opacity: localSettings.skin_opacity,
-                        backgroundSize: localSettings.skin_style === 'cover' || localSettings.skin_style === 'contain' ? localSettings.skin_style : localSettings.skin_style === 'tile' ? 'auto' : 'cover',
-                        backgroundPosition: localSettings.skin_style === 'top-left' ? 'top left' : 'center',
-                        backgroundRepeat: localSettings.skin_style === 'tile' ? 'repeat' : 'no-repeat'
-                      }}
+                      style={skinBackgroundStyle(localSettings.skin_background, localSettings.skin_opacity, localSettings.skin_style)}
                     />
                     <span className="text-[10px] text-white/50 z-10 font-bold mix-blend-difference drop-shadow-md">Preview</span>
                   </div>

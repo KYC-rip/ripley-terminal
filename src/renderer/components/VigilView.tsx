@@ -9,8 +9,6 @@ import { CurrencySelector } from './CurrencySelector';
 import { useVigilEngine } from '../hooks/useVigilEngine';
 import { useVault } from '../hooks/useVault';
 import { getOrCreateSubaddress } from '../services/subaddressService';
-// Lightweight notification (avoids react-hot-toast dependency)
-const notify = (msg: string) => console.log(`[Vigil] ${msg}`);
 
 // ─── Types ───
 
@@ -111,7 +109,6 @@ export function VigilView({ localXmrAddress }: VigilViewProps) {
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopyFeedback(true);
-    notify('Copied to clipboard');
     setTimeout(() => setCopyFeedback(false), 2000);
   };
 
