@@ -4,7 +4,7 @@ import { Card } from '../Card';
 import { TableHeader } from './TableHeader';
 import { AddressDisplay } from '../common/AddressDisplay';
 import { SubaddressInfo, useVault } from '../../contexts/VaultContext';
-import { RpcClient } from '../../services/rpcClient';
+
 import { useStats } from '../../hooks/useStats';
 
 interface Transaction {

@@ -145,7 +145,7 @@ export function AgentTab() {
             </h3>
             <Card className="p-6 bg-xmr-surface border-xmr-border/40 space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-xmr-dim uppercase tracking-widest">Daily_Agent_Limit (XMR)</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase tracking-widest">Daily_Agent_Limit (XMR)</label>
                 <input
                   type="text"
                   value={dailyLimit}
@@ -154,7 +154,7 @@ export function AgentTab() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-xmr-dim uppercase tracking-widest">Global_Session_Limit (XMR)</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase tracking-widest">Global_Session_Limit (XMR)</label>
                 <input
                   type="text"
                   value={totalLimit}
@@ -163,7 +163,7 @@ export function AgentTab() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-xmr-dim uppercase tracking-widest">Access_Liquidity_Account</label>
+                <label className="text-[11px] font-black text-xmr-dim uppercase tracking-widest">Access_Liquidity_Account</label>
                 <select
                   value={selectedAccountIndex}
                   onChange={(e) => setSelectedAccountIndex(parseInt(e.target.value))}
@@ -297,7 +297,7 @@ export function AgentTab() {
               </div>
               <span className="text-[9px] opacity-50">PROCESSED_VIA_LOCAL_UPLINK</span>
             </h3>
-            <Card withGlow={false} noPadding className="h-[300px] flex flex-col bg-black/40 border-xmr-border/30 overflow-hidden relative">
+            <Card withGlow={false} noPadding className="h-[300px] flex flex-col bg-xmr-base/40 border-xmr-border/30 overflow-hidden relative">
               <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {activities.map(act => (
                   <div key={act.id} className="group border-l-2 border-xmr-border/20 pl-4 py-1 hover:border-xmr-green/40 transition-all">
@@ -336,7 +336,7 @@ export function AgentTab() {
             <div className="pt-4 flex justify-end">
               <button
                 onClick={() => syncConfig()}
-                className="px-8 py-3 bg-xmr-green text-xmr-base font-black uppercase text-[10px] tracking-[0.2em] hover:bg-white transition-all cursor-pointer flex items-center gap-2"
+                className="px-8 py-3 bg-xmr-green text-xmr-base font-black uppercase text-[10px] tracking-[0.2em] hover:brightness-110 transition-all cursor-pointer flex items-center gap-2"
               >
                 <Shield size={12} /> Commit_Gateway_Settings
               </button>

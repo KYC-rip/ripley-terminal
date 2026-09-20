@@ -118,3 +118,9 @@ declare global {
     api: IApi;
   }
 }
+
+declare module 'react' {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag';
+  }
+}

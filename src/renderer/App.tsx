@@ -15,6 +15,9 @@ import { VigilView } from './components/VigilView';
 import { XMR402Modal } from './components/common/XMR402Modal';
 import { VaultProvider } from './contexts/VaultContext';
 
+const dragStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
+const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
+
 const SkinOverlay = ({ config }: { config: any }) => {
   if (!config?.skin_background) return null;
   return (
@@ -338,9 +341,9 @@ function MainApp() {
       <style>{` .scanline-overlay { background: linear-gradient(to bottom, transparent 50%, rgba(0, 77, 19, var(--scanline-opacity, 0)) 50%); background-size: 100% 4px; pointer-events: none; z-index: 100; display: block; } `}</style>
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-[100]"></div>
 
-      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={{ WebkitAppRegion: 'drag' } as any}>
+      <aside className="w-56 shrink-0 flex flex-col border-r border-xmr-border/40 bg-xmr-surface backdrop-blur-xl z-50" style={dragStyle}>
         {/* ─── Header ─── */}
-        <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <div className="px-5 pt-6 pb-5 mt-3 flex flex-col items-center gap-2.5" style={noDragStyle}>
           <div className="relative group cursor-pointer" onClick={() => setView('home')}>
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 drop-shadow-[0_0_12px_rgba(0,255,65,0.4)] overflow-visible transition-transform duration-500 ease-in-out group-hover:scale-[1.15]">
               <defs>
@@ -369,7 +372,7 @@ function MainApp() {
         {vault.accounts.length > 0 && (
           <div
             className="mx-3 mt-1 p-3 bg-gradient-to-br from-xmr-green/10 to-transparent border border-xmr-border/30 rounded-sm cursor-pointer hover:border-xmr-green/30 transition-all"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
+            style={noDragStyle}
             onClick={() => setView('vault')}
           >
             <div className="text-[8px] font-bold uppercase tracking-[0.25em] text-xmr-dim mb-1">Total Portfolio</div>
@@ -384,7 +387,7 @@ function MainApp() {
         )}
 
         {/* ─── Grouped Navigation ─── */}
-        <nav className="flex-grow overflow-y-auto custom-scrollbar space-y-1 pb-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <nav className="flex-grow overflow-y-auto custom-scrollbar space-y-1 pb-2" style={noDragStyle}>
           <NavButton id="home" label="Dashboard" icon={Ghost} />
           <NavButton id="vault" label="Vault" icon={Shield} badge={isSyncing ? `${syncPercent.toFixed(1)}%` : null} />
 
@@ -407,7 +410,7 @@ function MainApp() {
         </nav>
 
         {/* ─── Compact Bottom Panel ─── */}
-        <div className="px-4 py-3 border-t border-xmr-border/20 bg-xmr-green/[0.02] space-y-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <div className="px-4 py-3 border-t border-xmr-border/20 bg-xmr-green/[0.02] space-y-2" style={noDragStyle}>
           {/* Lock + Console row */}
           <div className="flex gap-1.5">
             <button onClick={lock} className="flex-grow flex items-center justify-center gap-1.5 py-2 bg-xmr-error/10 border border-xmr-error/30 text-xmr-error hover:bg-xmr-error hover:text-xmr-base transition-all cursor-pointer group uppercase text-[10px] font-black rounded-sm">
@@ -446,8 +449,8 @@ function MainApp() {
       </aside>
 
       <div className="flex-grow flex flex-col min-w-0 bg-transparent relative z-10">
-        <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface/80 backdrop-blur-md shrink-0" style={{ WebkitAppRegion: 'drag' } as any}>
-          <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em]" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <header className="h-14 flex items-center justify-end px-8 border-b border-xmr-border/20 bg-xmr-surface/80 backdrop-blur-md shrink-0" style={dragStyle}>
+          <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em]" style={noDragStyle}>
             <span className="flex items-center gap-2 text-xmr-dim">SESSION: <span className="text-xmr-green opacity-80 font-black">{uptime}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">XMR: <span className="text-xmr-accent font-black">${stats?.price.street || '---.--'}</span></span>
             <span className="flex items-center gap-2 text-xmr-dim">POOL: <span className={(stats?.network.mempool || 0) > 50 ? "text-xmr-warning" : "text-xmr-green"}>{stats?.network.mempool ?? '--'} TXs</span></span>
@@ -489,7 +492,7 @@ function MainApp() {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => window.api.openExternal(updateBanner.url)}
-                        className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[11px] uppercase hover:bg-white transition-all cursor-pointer flex items-center gap-2"
+                        className="px-4 py-2 bg-xmr-accent text-xmr-base font-black text-[11px] uppercase rounded-sm hover:brightness-110 transition-all cursor-pointer flex items-center gap-2"
                       >
                         <Download size={12} /> Init_Download
                       </button>
@@ -563,7 +566,7 @@ function MainApp() {
         </footer>
         {showFeedbackModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="w-[500px] bg-xmr-base border border-xmr-accent/30 p-8 shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <div className="w-[500px] bg-xmr-base border border-xmr-accent/30 rounded-sm p-8 shadow-2xl relative animate-in zoom-in-95 duration-300">
               <button onClick={() => setShowFeedbackModal(false)} className="absolute top-4 right-4 text-xmr-dim hover:text-xmr-accent transition-colors">
                 <X size={20} />
               </button>
@@ -592,7 +595,7 @@ function MainApp() {
                     setShowFeedbackModal(false);
                   }}
                   disabled={!feedbackText.trim()}
-                  className="flex-grow py-4 bg-xmr-accent text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-grow py-4 bg-xmr-accent text-xmr-base font-black uppercase text-xs tracking-[0.2em] hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw size={16} /> Submit_To_Uplink
                 </button>

@@ -858,7 +858,7 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
         {/* Address */}
         <div className="space-y-1">
           <div className="flex justify-between">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Destination</label>
+            <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Destination</label>
             {toCoin?.ticker?.toLowerCase() === 'xmr' && localXmrAddress && (
               <span className="text-[8px] text-xmr-green font-black uppercase tracking-widest">LOCAL_VAULT</span>
             )}
@@ -868,26 +868,26 @@ export function ExchangeView({ localXmrAddress }: ExchangeViewProps) {
             value={destAddress}
             onChange={e => setDestAddress(e.target.value)}
             placeholder="Destination address..."
-            className={`w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none transition-colors ${isGhost ? 'focus:border-xmr-ghost/50' : 'focus:border-xmr-accent/50'}`}
+            className={`w-full bg-xmr-base border border-xmr-border/30 p-3 rounded-sm text-xs text-xmr-green font-bold focus:outline-none transition-colors ${isGhost ? 'focus:border-xmr-ghost/50' : 'focus:border-xmr-accent/50'}`}
           />
         </div>
 
         {/* Memo (swap only) */}
         {needsMemo && (
           <div className="space-y-1">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Memo / Tag</label>
+            <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Memo / Tag</label>
             <input type="text" value={memo} onChange={e => setMemo(e.target.value)} placeholder="Required for this coin..."
-              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-accent/50 transition-colors" />
+              className="w-full bg-xmr-base border border-xmr-border/30 p-3 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-accent/50 transition-colors" />
           </div>
         )}
 
         {/* Refund address (ghost only, when required) */}
         {isGhost && (selectedRoute as BridgeRoute)?.requiresRefund && (
           <div className="space-y-1">
-            <label className="text-[9px] font-black text-xmr-dim uppercase ml-1">Refund_Address</label>
+            <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Refund_Address</label>
             <input type="text" value={refundAddress} onChange={e => setRefundAddress(e.target.value)}
               placeholder={`${fromCoin?.ticker.toUpperCase() || ''} refund address...`}
-              className="w-full bg-xmr-base border border-xmr-border/30 p-2.5 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-ghost/50 transition-colors" />
+              className="w-full bg-xmr-base border border-xmr-border/30 p-3 rounded-sm text-xs text-xmr-green font-bold focus:outline-none focus:border-xmr-ghost/50 transition-colors" />
           </div>
         )}
 

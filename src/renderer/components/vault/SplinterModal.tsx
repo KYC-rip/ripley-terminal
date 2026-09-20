@@ -72,7 +72,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
             </div>
           </div>
 
-          <div className="bg-black/5 p-4 border border-xmr-border">
+          <div className="bg-xmr-base/5 p-4 border border-xmr-border">
             <label className="block text-xs uppercase tracking-widest text-xmr-dim/60 mb-2">Number of Fragments (2-10)</label>
             <input
               type="number"

@@ -278,7 +278,7 @@ export function DirectSendTab({
 
         {directTxHash && (
           <div className="space-y-3 flex flex-col items-center">
-            <div className="bg-black/20 p-3 border border-xmr-border/30 flex items-center gap-3">
+            <div className="bg-xmr-base/20 p-3 border border-xmr-border/30 flex items-center gap-3">
               <div className="text-[11px] font-mono text-xmr-green break-all max-w-[280px]">
                 {directTxHash}
               </div>
@@ -360,7 +360,7 @@ export function DirectSendTab({
                       <img
                         src={bioProfile.avatar}
                         alt="Avatar"
-                        className="w-10 h-10 rounded-sm bg-black object-cover border border-xmr-green/30"
+                        className="w-10 h-10 rounded-sm bg-xmr-base object-cover border border-xmr-green/30"
                       />
                     )}
                     <div>
@@ -595,7 +595,7 @@ export function DirectSendTab({
             : parsed.destinations.length === 0 || parsed.errors.length > 0)
         }
         onClick={handleExecute}
-        className={`w-full py-4 font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer ${
+        className={`w-full py-4 font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 mt-2 cursor-pointer ${
           isBanned && sendMode === 'single'
             ? 'bg-xmr-error/10 text-xmr-error cursor-not-allowed'
             : 'bg-xmr-accent text-xmr-base hover:bg-xmr-green hover:text-xmr-base disabled:opacity-50 disabled:cursor-not-allowed'
