@@ -145,7 +145,7 @@ export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalP
                   type="text" value={label}
                   onChange={(e) => handleLabelChange(e.target.value)}
                   placeholder="Payment_Request"
-                  className="w-full bg-xmr-base border border-xmr-border p-2.5 text-xs text-xmr-green focus:border-xmr-green outline-none transition-colors"
+                  className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none transition-colors"
                 />
               </div>
 
@@ -174,7 +174,7 @@ export function ReceiveModal({ onClose, existingAddress, inline }: ReceiveModalP
                       type="number" value={ccAmount}
                       onChange={(e) => setCcAmount(e.target.value)}
                       placeholder="Amount in XMR"
-                      className="w-full bg-xmr-base border border-xmr-border p-2.5 text-xs focus:border-xmr-green outline-none text-xmr-green"
+                      className="w-full bg-xmr-base border border-xmr-border p-3 text-xs focus:border-xmr-green outline-none text-xmr-green"
                     />
                   </div>
                   <AddressBlock

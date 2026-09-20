@@ -331,13 +331,13 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded-sm border border-xmr-border/30">
+          <div className="flex items-center gap-2 bg-xmr-base/40 px-2 py-1 rounded-sm border border-xmr-border/30">
             <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-xmr-green opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-xmr-green" />
             </span>
             <span className="text-[10px] font-mono text-xmr-dim">
-              MARKET: <span className="text-white font-bold tracking-wide">${currentPrice.toFixed(2)}</span>
+              MARKET: <span className="text-xmr-green font-bold tracking-wide">${currentPrice.toFixed(2)}</span>
             </span>
           </div>
         </div>
@@ -504,7 +504,7 @@ export function VigilConfig({ mode, setMode, data, setData, onArm, currentPrice 
             onChange={(val) => setData({ ...data, compliance: val })}
             variant="vigil"
             defaultExpanded={false}
-            className="border-none bg-black/20"
+            className="border-none bg-xmr-base/20"
           />
         </div>
       </div>

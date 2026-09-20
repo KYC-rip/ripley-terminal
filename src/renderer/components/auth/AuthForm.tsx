@@ -44,7 +44,7 @@ export function AuthForm({
             <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Identity_Label</label>
             <input autoFocus type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. PRIMARY_VAULT" className="w-full bg-xmr-base border border-xmr-border p-3 text-lg font-black text-xmr-green outline-none focus:border-xmr-green transition-all" />
          </div>
-         <button type="button" onClick={() => { if(newName) setStep('MODE'); }} disabled={!newName} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all disabled:opacity-50 cursor-pointer">Next_Step</button>
+         <button type="button" onClick={() => { if(newName) setStep('MODE'); }} disabled={!newName} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer">Next_Step</button>
       </form>
     );
   }
@@ -106,7 +106,7 @@ export function AuthForm({
       <div className="space-y-1">
         <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">{step === 'AUTH' ? 'Vault_Secret' : 'Set_Master_Password'}</label>
         <div className="relative">
-          <input autoFocus type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-2 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
+          <input autoFocus type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-3 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
           <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-xmr-dim opacity-30" size={20} />
         </div>
       </div>
@@ -114,7 +114,7 @@ export function AuthForm({
       {step !== 'AUTH' && (
         <div className="space-y-1">
           <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Confirm_Password</label>
-          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-2 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
+          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full bg-xmr-base border border-xmr-border p-3 text-xl font-black text-xmr-green focus:border-xmr-green outline-none transition-all placeholder:opacity-20" />
         </div>
       )}
 
@@ -131,7 +131,7 @@ export function AuthForm({
       )}
 
       <div className="flex flex-col gap-3">
-        <button disabled={isProcessing || !password || (step !== 'AUTH' && !confirmPassword)} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.3em] hover:bg-white hover:text-black transition-all flex items-center justify-center gap-3 group disabled:opacity-50 cursor-pointer">
+        <button disabled={isProcessing || !password || (step !== 'AUTH' && !confirmPassword)} className="w-full py-4 bg-xmr-green text-xmr-base font-black uppercase tracking-[0.2em] hover:brightness-110 transition-all flex items-center justify-center gap-3 group disabled:opacity-50 cursor-pointer">
           {isProcessing ? <><RefreshCw size={18} className="animate-spin" /> Authorizing...</> : <><Key size={18} className="group-hover:scale-110 transition-transform" /> {step === 'RESTORE' ? 'Restore Wallet' : step === 'NEW_PASSWORD' ? 'Create Wallet' : 'Unlock'}</>}
         </button>
 

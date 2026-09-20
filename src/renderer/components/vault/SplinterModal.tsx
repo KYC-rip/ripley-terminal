@@ -72,7 +72,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
             </div>
           </div>
 
-          <div className="bg-black/5 p-4 border border-xmr-border">
+          <div className="bg-xmr-base/5 p-4 border border-xmr-border">
             <label className="block text-xs uppercase tracking-widest text-xmr-dim/60 mb-2">Number of Fragments (2-10)</label>
             <input
               type="number"
@@ -92,7 +92,7 @@ export function SplinterModal({ onClose, onSplinter, unlockedBalance }: Splinter
           <button
             onClick={handleSubmit}
             disabled={isProcessing || unlockedBalance <= 0}
-            className="w-full py-4 bg-xmr-accent text-white font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-4 bg-xmr-accent text-xmr-base font-black uppercase tracking-[0.2em] font-mono cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isProcessing ? (
               <><Loader2 size={18} className="animate-spin" /> Splintering...</>

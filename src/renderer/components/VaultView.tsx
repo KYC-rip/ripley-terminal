@@ -289,8 +289,8 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
 
                 {/* Balance */}
                 <div className="flex items-baseline gap-2.5 mb-1">
-                  <span className="text-4xl font-black text-xmr-green leading-none" style={{ fontFamily: 'var(--font-display)' }}>{currentAccBalance}</span>
-                  <span className="text-sm text-xmr-dim font-medium" style={{ fontFamily: 'var(--font-display)' }}>XMR</span>
+                  <span className="text-4xl font-black text-xmr-green leading-none font-display">{currentAccBalance}</span>
+                  <span className="text-sm text-xmr-dim font-medium font-display">XMR</span>
                 </div>
                 {usdValue && (
                   <div className="text-xs font-bold text-xmr-dim/60 uppercase tracking-[0.1em] mb-2">{usdValue} USD</div>
@@ -325,7 +325,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                 <div>
                   <div className="text-[9px] font-black uppercase tracking-widest text-xmr-dim/60 mb-1">Portfolio ({accounts.length} accts)</div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-black text-xmr-green" style={{ fontFamily: 'var(--font-display)' }}>{totalBalance.toFixed(4)}</span>
+                    <span className="text-xl font-black text-xmr-green font-display">{totalBalance.toFixed(4)}</span>
                     <span className="text-[10px] text-xmr-dim font-bold">XMR</span>
                   </div>
                   {totalFiat && <div className="text-[10px] font-bold text-xmr-dim/40 uppercase tracking-wider">{totalFiat} USD</div>}
@@ -435,7 +435,7 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
               {['ledger', 'coins', 'addresses', 'contacts'].map((t) => (
                 <button
                   key={t}
-                  onClick={() => setTab(t as any)}
+                  onClick={() => setTab(t as typeof tab)}
                   className={`px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all rounded-sm ${tab === t ? 'text-xmr-green border border-xmr-green/30 bg-xmr-green/5' : 'text-xmr-dim hover:text-xmr-green border border-transparent'}`}
                 >
                   {t}
