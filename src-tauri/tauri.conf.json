@@ -38,6 +38,7 @@
       "desktop": {
         "schemes": [
           "monero",
+          "bitcoin",
           "ripley",
           "xmr402"
         ]
