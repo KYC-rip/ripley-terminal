@@ -39,6 +39,8 @@
         "schemes": [
           "monero",
           "bitcoin",
+          "solana",
+          "ethereum",
           "ripley",
           "xmr402"
         ]
