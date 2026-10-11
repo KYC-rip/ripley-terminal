@@ -437,6 +437,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::system::clipboard_write_image,
+            commands::system::app_version,
             commands::system::capture_window_png,
             // Wallet lifecycle
             commands::wallet::create_wallet,

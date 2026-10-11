@@ -1692,6 +1692,14 @@ mod openalias_tests {
     }
 }
 
+/// The shell's own version (Cargo.toml / tauri.conf.json), for bug reports: RipleyOS's Feedback
+/// app shows "native Terminal 2.1.0" next to the web build id. Shells predating this command are
+/// reported as "version unknown" by the web side, which feature-detects it.
+#[tauri::command]
+pub fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 /// Put a PNG on the system clipboard as an IMAGE.
 ///
 /// The webview cannot do this itself: WKWebView exposes a text-only clipboard, so RipleyOS's
