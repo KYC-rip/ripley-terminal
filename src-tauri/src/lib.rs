@@ -128,7 +128,22 @@ pub fn run() {
     // failed" even for nodes that are perfectly reachable.
     let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // macOS: closing the main window (red button, Cmd-W) HIDES it and the app stays in
+        // the Dock, so reopening gives back RipleyOS exactly as it was — nothing unmounts.
+        // Cmd-Q / Quit still exit. Only the main window: the vpn-control and browser-embed
+        // windows keep the default close. Other platforms keep close = quit.
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if is_main_window(window.label()) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
+        })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -580,6 +595,30 @@ pub fn run() {
             commands::local_ai::local_ai_remove,
             commands::local_ai::local_ai_clear_all,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|app, event| {
+        // macOS Dock click / app activation while the main window is hidden (see
+        // on_window_event above): show it again and bring it to the front.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
+            for label in MAIN_WINDOW_LABELS {
+                if let Some(w) = app.get_webview_window(label) {
+                    if !has_visible_windows {
+                        let _ = w.show();
+                        let _ = w.unminimize();
+                    }
+                    let _ = w.set_focus();
+                }
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (app, event);
+    });
 }
+
+/// The labels the RipleyOS / classic main window is built under (see `setup`): `ros` when the
+/// verified ros:// bundle loads, `main` otherwise. Auxiliary windows (`vpn-control`, the
+/// browser embed) are not main windows.
+const MAIN_WINDOW_LABELS: [&str; 2] = ["main", "ros"];
+fn is_main_window(label: &str) -> bool { MAIN_WINDOW_LABELS.contains(&label) }
