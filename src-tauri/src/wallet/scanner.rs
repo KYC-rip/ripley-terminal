@@ -176,7 +176,7 @@ pub(crate) fn pinned_hint(host: &str, reason: &str) -> Option<&'static str> {
     }
     let r = reason.to_ascii_lowercase();
     if r.contains("-32001") || r.contains("subscription expired") {
-        Some("renew the token at mnr.network — the same token keeps working afterwards")
+        Some("renew the token at mnr.network (the same token keeps working afterwards)")
     } else if r.contains("-32600") || r.contains("unknown token") {
         Some("get a new token at mnr.network and paste it in Settings ▸ Node")
     } else {
@@ -218,11 +218,12 @@ impl DaemonConnector for TorConnector {
         match ArtiTransport::connect(self.tor.clone(), url.clone()).await {
             Ok(daemon) => Ok(daemon),
             Err(e) => {
+                let reason = crate::wallet::reqwest_transport::redact_text(&format!("{e:?}"));
                 log::warn!(
-                    "Tor connect to {} failed: {e:?}",
+                    "Tor connect to {} failed: {reason}",
                     crate::wallet::reqwest_transport::redact_url(&url)
                 );
-                Err(crate::wallet::reqwest_transport::redact_text(&format!("{e:?}")))
+                Err(reason)
             }
         }
     }
@@ -244,12 +245,13 @@ impl DaemonConnector for CustomProxyConnector {
         match SocksTransport::connect(self.proxy.clone(), url.clone()).await {
             Ok(daemon) => Ok(daemon),
             Err(e) => {
+                let reason = crate::wallet::reqwest_transport::redact_text(&format!("{e:?}"));
                 log::warn!(
-                    "SOCKS connect to {} via {} failed: {e:?}",
+                    "SOCKS connect to {} via {} failed: {reason}",
                     crate::wallet::reqwest_transport::redact_url(&url),
                     self.proxy
                 );
-                Err(crate::wallet::reqwest_transport::redact_text(&format!("{e:?}")))
+                Err(reason)
             }
         }
     }
