@@ -153,10 +153,35 @@ pub trait DaemonConnector: Clone + Send + Sync + 'static {
     /// nodes.json section this connector reads ("clearnet" | "tor").
     fn section(&self) -> &'static str;
 
+    /// Err carries a short, URL-free reason ("node refused: HTTP 403 · subscription expired
+    /// (-32001)") so a pinned node's refusal reaches the log instead of "unreachable".
     fn connect(
         &self,
         url: String,
-    ) -> impl Future<Output = Option<MoneroDaemon<Self::Transport>>> + Send;
+    ) -> impl Future<Output = Result<MoneroDaemon<Self::Transport>, String>> + Send;
+}
+
+/// What a race produced: the first daemon to connect, plus why the others (or the only
+/// one) did not. Public-pool races only read `winner`; the pinned-node path reads `failures`.
+pub(crate) struct RaceOutcome<T: HttpTransport> {
+    pub winner: Option<(String, String, MoneroDaemon<T>)>,
+    pub failures: Vec<(String, String)>,
+}
+
+/// A one-line next step for the refusals a user can act on. Host-specific on purpose:
+/// mnr.network's codes mean "your token", a self-hosted node's mean whatever its operator set.
+pub(crate) fn pinned_hint(host: &str, reason: &str) -> Option<&'static str> {
+    if host != "rpc.mnr.network" {
+        return None;
+    }
+    let r = reason.to_ascii_lowercase();
+    if r.contains("-32001") || r.contains("subscription expired") {
+        Some("renew the token at mnr.network — the same token keeps working afterwards")
+    } else if r.contains("-32600") || r.contains("unknown token") {
+        Some("get a new token at mnr.network and paste it in Settings ▸ Node")
+    } else {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -170,13 +195,12 @@ impl DaemonConnector for ClearnetConnector {
     fn section(&self) -> &'static str {
         "clearnet"
     }
-    async fn connect(&self, url: String) -> Option<MoneroDaemon<Self::Transport>> {
+    async fn connect(&self, url: String) -> Result<MoneroDaemon<Self::Transport>, String> {
         crate::wallet::reqwest_transport::ReqwestTransport::connect(
             url,
             std::time::Duration::from_secs(60),
         )
         .await
-        .ok()
     }
 }
 
@@ -190,15 +214,15 @@ impl DaemonConnector for TorConnector {
     fn section(&self) -> &'static str {
         "tor"
     }
-    async fn connect(&self, url: String) -> Option<MoneroDaemon<ArtiTransport>> {
+    async fn connect(&self, url: String) -> Result<MoneroDaemon<ArtiTransport>, String> {
         match ArtiTransport::connect(self.tor.clone(), url.clone()).await {
-            Ok(daemon) => Some(daemon),
+            Ok(daemon) => Ok(daemon),
             Err(e) => {
                 log::warn!(
                     "Tor connect to {} failed: {e:?}",
                     crate::wallet::reqwest_transport::redact_url(&url)
                 );
-                None
+                Err(crate::wallet::reqwest_transport::redact_text(&format!("{e:?}")))
             }
         }
     }
@@ -216,16 +240,16 @@ impl DaemonConnector for CustomProxyConnector {
     fn section(&self) -> &'static str {
         "tor"
     }
-    async fn connect(&self, url: String) -> Option<MoneroDaemon<SocksTransport>> {
+    async fn connect(&self, url: String) -> Result<MoneroDaemon<SocksTransport>, String> {
         match SocksTransport::connect(self.proxy.clone(), url.clone()).await {
-            Ok(daemon) => Some(daemon),
+            Ok(daemon) => Ok(daemon),
             Err(e) => {
                 log::warn!(
                     "SOCKS connect to {} via {} failed: {e:?}",
                     crate::wallet::reqwest_transport::redact_url(&url),
                     self.proxy
                 );
-                None
+                Err(crate::wallet::reqwest_transport::redact_text(&format!("{e:?}")))
             }
         }
     }
@@ -349,7 +373,7 @@ pub(crate) async fn load_pool_nodes(app: &AppHandle, section: &str) -> Vec<(Stri
 async fn race_nodes<C: DaemonConnector>(
     app: &AppHandle,
     connector: &C,
-) -> Option<(String, String, MoneroDaemon<C::Transport>)> {
+) -> RaceOutcome<C::Transport> {
     let nodes = load_nodes(app, connector.section()).await;
     // "Racing 1 nodes" reads oddly — a single node means a pinned custom node.
     if nodes.len() == 1 {
@@ -370,25 +394,42 @@ async fn race_nodes<C: DaemonConnector>(
 async fn race_list<C: DaemonConnector>(
     connector: &C,
     nodes: Vec<(String, String)>,
-) -> Option<(String, String, MoneroDaemon<C::Transport>)> {
+) -> RaceOutcome<C::Transport> {
     use tokio::sync::mpsc;
     let (tx, mut rx) = mpsc::channel(1);
+    // Failures go on an unbounded channel and are sent BEFORE the task's winner sender
+    // drops, so when `rx.recv()` yields None (every task done, nobody won) every reason is
+    // already queued; the drain below cannot miss one.
+    let (ftx, mut frx) = mpsc::unbounded_channel::<(String, String)>();
 
     for (label, url) in nodes {
         let tx = tx.clone();
+        let ftx = ftx.clone();
         let connector = connector.clone();
         tokio::spawn(async move {
-            if let Some(daemon) = connector.connect(url.clone()).await {
-                let _ = tx.send((label, url, daemon)).await;
+            match connector.connect(url.clone()).await {
+                Ok(daemon) => {
+                    let _ = tx.send((label, url, daemon)).await;
+                }
+                Err(reason) => {
+                    log::debug!("node {label} failed: {reason}");
+                    let _ = ftx.send((label, reason));
+                }
             }
         });
     }
     drop(tx);
+    drop(ftx);
 
-    tokio::select! {
+    let winner = tokio::select! {
         result = rx.recv() => result,
         _ = sleep(Duration::from_secs(15)) => None,
+    };
+    let mut failures = Vec::new();
+    while let Ok(f) = frx.try_recv() {
+        failures.push(f);
     }
+    RaceOutcome { winner, failures }
 }
 
 /// Background blockchain scanner.
@@ -522,23 +563,38 @@ async fn run_outer<C: DaemonConnector>(app_clone: AppHandle, generation: u64, co
 
         // Race all nodes
         let (label, url, daemon) = match race_nodes(&app_clone, &connector).await {
-            Some(result) => result,
-            None => {
+            RaceOutcome { winner: Some(result), .. } => result,
+            RaceOutcome { winner: None, failures } => {
                 // A pinned custom node just failed to connect. If the user opted into
                 // fallback, race the PUBLIC POOL (bypassing the pin) so a dead node
                 // doesn't brick sync. Otherwise keep the pin (privacy: never silently
                 // talk to a node the user didn't choose) and surface a clear reason.
                 let custom = read_config_str(&app_clone, "customNodeAddress").unwrap_or_default();
                 let custom = custom.trim().to_string();
+                // Why the pin failed: the daemon's own refusal when it answered ("HTTP 403 ·
+                // subscription expired (-32001)"), else it never answered within the race cap.
+                let why = if custom.is_empty() {
+                    String::new()
+                } else {
+                    let shown = crate::wallet::reqwest_transport::redact_url(&custom);
+                    let host = shown.split("://").last().unwrap_or("").split(':').next().unwrap_or("").to_string();
+                    match failures.first() {
+                        Some((_, reason)) => {
+                            let hint = pinned_hint(&host, reason).map(|h| format!(" · {h}")).unwrap_or_default();
+                            format!("refused: {reason}{hint}")
+                        }
+                        None => "unreachable (no answer in 15 s)".to_string(),
+                    }
+                };
                 if !custom.is_empty() && read_config_bool(&app_clone, "nodeFallback") {
                     emit_log(
                         &app_clone,
                         "Network",
                         "warn",
-                        "🔌 Pinned node unreachable — falling back to the public pool…",
+                        &format!("🔌 Pinned node {why} — falling back to the public pool…"),
                     );
                     let pool = load_pool_nodes(&app_clone, connector.section()).await;
-                    match race_list(&connector, pool).await {
+                    match race_list(&connector, pool).await.winner {
                         Some(result) => result,
                         None => {
                             emit_log(&app_clone, "Network", "error", "❌ Pinned node and public pool both unreachable. Retrying in 10s...");
@@ -547,7 +603,7 @@ async fn run_outer<C: DaemonConnector>(app_clone: AppHandle, generation: u64, co
                         }
                     }
                 } else if !custom.is_empty() {
-                    emit_log(&app_clone, "Network", "error", &format!("❌ Pinned node {} unreachable — check the address or clear the pin in Settings ▸ Node. Retrying in 10s...", crate::wallet::reqwest_transport::redact_url(&custom)));
+                    emit_log(&app_clone, "Network", "error", &format!("❌ Pinned node {} {why} — check the address or clear the pin in Settings ▸ Node. Retrying in 10s...", crate::wallet::reqwest_transport::redact_url(&custom)));
                     sleep(Duration::from_secs(10)).await;
                     continue;
                 } else {
@@ -751,7 +807,7 @@ async fn build_fallback_pool<C: DaemonConnector>(
     let connected: Vec<Option<_>> = futures::stream::iter(others)
         .map(|(_, url)| {
             let connector = connector.clone();
-            async move { connector.connect(url).await }
+            async move { connector.connect(url).await.ok() }
         })
         .buffer_unordered(cap)
         .collect()
@@ -1503,7 +1559,7 @@ async fn pool_loop<C: DaemonConnector>(
             return;
         }
 
-        let (_, _, daemon) = match race_nodes(&app, &connector).await {
+        let (_, _, daemon) = match race_nodes(&app, &connector).await.winner {
             Some(r) => r,
             None => {
                 sleep(Duration::from_secs(15)).await;
@@ -1816,5 +1872,19 @@ mod connect_smoke {
             with_idx > 0,
             "no output indices populated — spending would break"
         );
+    }
+}
+
+#[cfg(test)]
+mod pinned_hint_tests {
+    use super::pinned_hint;
+
+    #[test]
+    fn hints_only_for_mnr_and_only_for_token_problems() {
+        let expired = "node refused: HTTP 403 · subscription expired (-32001)";
+        assert!(pinned_hint("rpc.mnr.network", expired).unwrap().contains("renew"));
+        assert!(pinned_hint("rpc.mnr.network", "node refused: HTTP 401 · unknown token (-32600)").unwrap().contains("new token"));
+        assert_eq!(pinned_hint("rpc.mnr.network", "daemon init failed: timeout"), None);
+        assert_eq!(pinned_hint("node.example.org", expired), None);
     }
 }

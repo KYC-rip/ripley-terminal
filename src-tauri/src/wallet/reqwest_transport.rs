@@ -41,6 +41,52 @@ pub struct ReqwestTransport {
     client: reqwest::Client,
     // (request body, response) — keyed by body so a differing height misses.
     dist_cache: Arc<Mutex<Option<(Vec<u8>, Vec<u8>)>>>,
+    /// The last non-2xx JSON-RPC refusal this transport saw ("HTTP 403 · subscription
+    /// expired (-32001)"). monero-oxide keeps only the error CODE when its connect probe
+    /// fails; the scanner reads this to tell the user WHY a pinned node said no.
+    last_refusal: Arc<std::sync::Mutex<Option<String>>>,
+}
+
+/// "HTTP 403 · subscription expired (-32001)" from a non-2xx JSON-RPC envelope; None when
+/// the body is not an envelope. Daemon text is capped and control-stripped — shown, never
+/// interpreted — and the summary never carries the URL (the token lives in its path).
+pub fn refusal_summary(status: u16, body: &[u8]) -> Option<String> {
+    if !is_json_rpc_envelope(body) {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let err = v.get("error")?;
+    let msg: String = err
+        .get("message")
+        .and_then(|m| m.as_str())
+        .unwrap_or("")
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(120)
+        .collect();
+    let code = err.get("code").and_then(|c| c.as_i64());
+    Some(match (msg.trim().is_empty(), code) {
+        (false, Some(c)) => format!("HTTP {status} · {} ({c})", msg.trim()),
+        (false, None) => format!("HTTP {status} · {}", msg.trim()),
+        (true, Some(c)) => format!("HTTP {status} · error {c}"),
+        (true, None) => format!("HTTP {status} · error"),
+    })
+}
+
+/// Replace every `scheme://…` token in free text with its redacted authority, so an error
+/// string from a lower layer can be logged without leaking a node's path (token).
+pub fn redact_text(s: &str) -> String {
+    fn redact_token(w: &str) -> String {
+        let Some(i) = w.find("://") else { return w.to_string() };
+        let (head, rest) = (&w[..i], &w[i + 3..]);
+        let end = rest.find(['/', '?', '#', '"', '\'', ')', ']', ',']).unwrap_or(rest.len());
+        let authority = &rest[..end];
+        let host = authority.rsplit('@').next().unwrap_or(authority);
+        // Keep the closing punctuation that followed the URL ("…")) so Debug output stays readable.
+        let tail: String = rest[end..].chars().rev().take_while(|c| matches!(c, '"' | '\'' | ')' | ']' | ',')).collect::<Vec<_>>().into_iter().rev().collect();
+        format!("{head}://{host}{tail}")
+    }
+    s.split(|c: char| c.is_whitespace()).map(redact_token).collect::<Vec<_>>().join(" ")
 }
 
 impl ReqwestTransport {
@@ -56,14 +102,23 @@ impl ReqwestTransport {
             .map_err(|e| format!("reqwest client build failed: {e}"))?;
         let base = url.trim_end_matches('/').to_string();
         let base_display = redact_url(&base);
+        // Fresh per connect, so a refusal read after a failed probe is THIS probe's.
+        let last_refusal = Arc::new(std::sync::Mutex::new(None));
         MoneroDaemon::new(ReqwestTransport {
             base,
             base_display,
             client,
             dist_cache: Arc::new(Mutex::new(None)),
+            last_refusal: last_refusal.clone(),
         })
         .await
-        .map_err(|e| format!("daemon init failed: {e:?}"))
+        .map_err(|e| {
+            let refusal = last_refusal.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            match refusal {
+                Some(r) => format!("node refused: {r}"),
+                None => redact_text(&format!("daemon init failed: {e:?}")),
+            }
+        })
     }
 
     async fn do_post(
@@ -72,6 +127,7 @@ impl ReqwestTransport {
         shown: &str,
         body: Vec<u8>,
         response_size_limit: Option<usize>,
+        last_refusal: &std::sync::Mutex<Option<String>>,
     ) -> Result<Vec<u8>, InterfaceError> {
         let resp = client
             .post(url)
@@ -87,6 +143,9 @@ impl ReqwestTransport {
             // must not get to fill memory with a "404 page".
             if let Some(bytes) = read_capped(resp, ENVELOPE_MAX).await {
                 if is_json_rpc_envelope(&bytes) {
+                    if let Some(summary) = refusal_summary(status.as_u16(), &bytes) {
+                        *last_refusal.lock().unwrap_or_else(|p| p.into_inner()) = Some(summary);
+                    }
                     return Ok(bytes);
                 }
             }
@@ -171,6 +230,7 @@ impl HttpTransport for ReqwestTransport {
         let client = self.client.clone();
         let is_distribution = route == OUTPUT_DISTRIBUTION_ROUTE;
         let cache = self.dist_cache.clone();
+        let refusal = self.last_refusal.clone();
         async move {
             if is_distribution {
                 // Hold the lock across the fetch → single-flight: concurrent decoy
@@ -182,11 +242,11 @@ impl HttpTransport for ReqwestTransport {
                     }
                 }
                 let bytes =
-                    Self::do_post(&client, &url, &shown, body.clone(), response_size_limit).await?;
+                    Self::do_post(&client, &url, &shown, body.clone(), response_size_limit, &refusal).await?;
                 *guard = Some((body, bytes.clone()));
                 return Ok(bytes);
             }
-            Self::do_post(&client, &url, &shown, body, response_size_limit).await
+            Self::do_post(&client, &url, &shown, body, response_size_limit, &refusal).await
         }
     }
 }
@@ -288,6 +348,31 @@ mod tests {
             "raw node URL reaches a log/error string:\n{}",
             hits.join("\n")
         );
+    }
+
+    #[test]
+    fn refusal_summary_reads_the_envelope_and_nothing_else() {
+        let mnr = br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"subscription expired"}}"#;
+        assert_eq!(refusal_summary(403, mnr).as_deref(), Some("HTTP 403 · subscription expired (-32001)"));
+        let unknown = br#"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"unknown token"}}"#;
+        assert_eq!(refusal_summary(401, unknown).as_deref(), Some("HTTP 401 · unknown token (-32600)"));
+        // Control characters are dropped and the text is capped; the status still leads.
+        let noisy = format!(r#"{{"jsonrpc":"2.0","id":null,"error":{{"code":1,"message":"a\u001b[31mb\n{}"}}}}"#, "x".repeat(400));
+        let out = refusal_summary(400, noisy.as_bytes()).unwrap();
+        assert!(out.starts_with("HTTP 400 · a[31mb"), "{out}");
+        assert!(out.len() < 160, "{out}");
+        assert_eq!(refusal_summary(403, b"<html>403 Forbidden</html>"), None);
+        assert_eq!(refusal_summary(403, br#"{"status":"Failed"}"#), None);
+    }
+
+    #[test]
+    fn redact_text_strips_paths_from_free_text() {
+        assert_eq!(
+            redact_text("post https://rpc.mnr.network/v1/sub_secret/json_rpc failed: timeout"),
+            "post https://rpc.mnr.network failed: timeout"
+        );
+        assert_eq!(redact_text("no urls here"), "no urls here");
+        assert_eq!(redact_text("Err(\"http://host:18081/get_info\")"), "Err(\"http://host:18081\")");
     }
 
     #[test]
