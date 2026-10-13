@@ -18,7 +18,14 @@ async fn status_json(app: &AppHandle) -> serde_json::Value {
     let gw = app.state::<AgentGatewayState>();
     let cfg = gw.config().await;
     let running = gw.is_running().await;
-    let address = app.state::<WalletState>().get_primary_address().await;
+    let wallet = app.state::<WalletState>();
+    let address = wallet.get_primary_address().await;
+    // The wallet the gateway serves (the resident one), by id and display name, so the UI can
+    // say WHICH wallet's account #n it is spending from.
+    let wallet_id = wallet.get_active_identity_id().await;
+    let wallet_name = wallet_id.as_ref().and_then(|id| {
+        crate::commands::identity::load_identities(app).into_iter().find(|i| &i.id == id).map(|i| i.name)
+    });
     json!({
         "enabled": cfg.enabled,
         "running": running,
@@ -27,6 +34,8 @@ async fn status_json(app: &AppHandle) -> serde_json::Value {
         "boundGrantId": cfg.bound_grant_id,
         "accountIndex": cfg.account_index,
         "address": address,
+        "walletId": wallet_id,
+        "walletName": wallet_name,
     })
 }
 

@@ -16,7 +16,7 @@ fn active_identity_path(app: &AppHandle) -> PathBuf {
         .join("active_identity")
 }
 
-fn load_identities(app: &AppHandle) -> Vec<Identity> {
+pub(crate) fn load_identities(app: &AppHandle) -> Vec<Identity> {
     let path = identities_path(app);
     match std::fs::read_to_string(&path) {
         Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
