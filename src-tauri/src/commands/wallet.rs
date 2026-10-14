@@ -19,7 +19,15 @@ pub async fn create_wallet(
     password: String,
     seed: Option<String>,
     restore_height: Option<u64>,
+    fresh: Option<bool>,
 ) -> Result<serde_json::Value, String> {
+    // `fresh`: the seed was derived just now (unified Wallet root), so this is a NEW wallet despite
+    // carrying a seed — scan from the tip, never from genesis. An explicit restore height still wins.
+    let restore_height = match (restore_height, fresh) {
+        (Some(h), _) => Some(h),
+        (None, Some(true)) => Some(u64::MAX),
+        (None, _) => None,
+    };
     let mnemonic = state
         .create_wallet(&name, &password, seed.as_deref(), restore_height)
         .await?;
