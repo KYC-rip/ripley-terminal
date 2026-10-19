@@ -137,6 +137,23 @@ const APP_COMMANDS: &[&str] = &[
     "agent_gateway_status",
     "agent_gateway_set_config",
     "agent_gateway_rotate_key",
+    // Watch-only + offline signing (registered in lib.rs since 2026-08-17 but never listed
+    // here, so the IPC authority rejected them in every window) and onboarding P1.
+    "import_watch_only",
+    "export_watch_only",
+    "export_unsigned_transfer",
+    "sign_offline_transfer",
+    "import_signed_transfer",
+    "inspect_seed",
+    "import_view_only",
+    // Local AI: granted in every capability and working only because stale permission
+    // files from an earlier build were tracked; listed so it no longer depends on them.
+    "local_ai_status",
+    "local_ai_download",
+    "local_ai_load",
+    "local_ai_complete",
+    "local_ai_remove",
+    "local_ai_clear_all",
 ];
 
 fn main() {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-inspect-seed"
+description = "Enables the inspect_seed command without any pre-configured scope."
+commands.allow = ["inspect_seed"]
+
+[[permission]]
+identifier = "deny-inspect-seed"
+description = "Denies the inspect_seed command without any pre-configured scope."
+commands.deny = ["inspect_seed"]

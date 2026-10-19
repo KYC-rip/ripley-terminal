@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-import-view-only"
+description = "Enables the import_view_only command without any pre-configured scope."
+commands.allow = ["import_view_only"]
+
+[[permission]]
+identifier = "deny-import-view-only"
+description = "Denies the import_view_only command without any pre-configured scope."
+commands.deny = ["import_view_only"]

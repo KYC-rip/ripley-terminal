@@ -2493,10 +2493,22 @@
           "markdownDescription": "Enables the import_signed_transfer command without any pre-configured scope."
         },
         {
+          "description": "Enables the import_view_only command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-import-view-only",
+          "markdownDescription": "Enables the import_view_only command without any pre-configured scope."
+        },
+        {
           "description": "Enables the import_watch_only command without any pre-configured scope.",
           "type": "string",
           "const": "allow-import-watch-only",
           "markdownDescription": "Enables the import_watch_only command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the inspect_seed command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-inspect-seed",
+          "markdownDescription": "Enables the inspect_seed command without any pre-configured scope."
         },
         {
           "description": "Enables the local_ai_clear_all command without any pre-configured scope.",
@@ -3225,10 +3237,22 @@
           "markdownDescription": "Denies the import_signed_transfer command without any pre-configured scope."
         },
         {
+          "description": "Denies the import_view_only command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-import-view-only",
+          "markdownDescription": "Denies the import_view_only command without any pre-configured scope."
+        },
+        {
           "description": "Denies the import_watch_only command without any pre-configured scope.",
           "type": "string",
           "const": "deny-import-watch-only",
           "markdownDescription": "Denies the import_watch_only command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the inspect_seed command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-inspect-seed",
+          "markdownDescription": "Denies the inspect_seed command without any pre-configured scope."
         },
         {
           "description": "Denies the local_ai_clear_all command without any pre-configured scope.",
