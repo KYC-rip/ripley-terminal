@@ -41,6 +41,54 @@ pub fn output_id(o: &WalletOutput) -> String {
     )
 }
 
+/// Where an unlocked wallet resumes. The output cache is authoritative whenever it
+/// has a height: it is saved after every scanned batch, at lock, and at a rescan —
+/// so it is the latest word, including a rescan to a LOWER height. The wallet file's
+/// height (written only at create and lock) is the fallback when there is no cache.
+/// A failed per-batch save leaves the cache behind — that only rescans more. A
+/// failed save AT a rescan to a lower height leaves the old, higher height in
+/// place, so the rescan would not survive a restart: `reset_scan` reports that and
+/// the rescan command warns. A cache height of 0 means "no cache"; u64::MAX is the
+/// new-wallet sentinel and never comes from a cache.
+fn resume_height(file_height: u64, cache_height: u64) -> u64 {
+    if cache_height == 0 || cache_height == u64::MAX {
+        file_height
+    } else {
+        cache_height
+    }
+}
+
+/// Apply a scanner's progress only if `generation` is still the current scanner.
+/// The caller holds the inner write lock, and `reset_scan` bumps the generation
+/// under that same lock, so a superseded scanner can never overwrite a rescan.
+fn apply_sync_status_if_current(
+    current: &AtomicU64,
+    generation: u64,
+    inner: &mut WalletInner,
+    height: u64,
+    daemon_height: u64,
+) -> bool {
+    if current.load(Ordering::SeqCst) != generation {
+        return false;
+    }
+    apply_sync_status(inner, height, daemon_height);
+    true
+}
+
+fn apply_sync_status(inner: &mut WalletInner, height: u64, daemon_height: u64) {
+    inner.scan_height = height;
+    inner.sync_status.height = height;
+    inner.sync_status.daemon_height = daemon_height;
+    if daemon_height > 0 {
+        inner.sync_status.sync_percent = (height as f64 / daemon_height as f64) * 100.0;
+        inner.sync_status.status = if daemon_height.saturating_sub(height) <= 5 {
+            "SYNCED".to_string()
+        } else {
+            "SYNCING".to_string()
+        };
+    }
+}
+
 /// Max length (chars) for an account / subaddress label — bounds wallet-file bloat.
 const MAX_LABEL_CHARS: usize = 64;
 
@@ -272,6 +320,45 @@ struct WalletInner {
     data_dir: PathBuf,
 }
 
+impl WalletInner {
+    /// A locked, empty wallet rooted at `data_dir` (no AppHandle needed — tests use it).
+    fn empty(data_dir: PathBuf) -> Self {
+        WalletInner {
+            is_locked: true,
+            active_identity: None,
+            password: None,
+            accounts: vec![],
+            sync_status: SyncStatus {
+                status: "OFFLINE".to_string(),
+                height: 0,
+                daemon_height: 0,
+                sync_percent: 0.0,
+                node_label: String::new(),
+                node_url: String::new(),
+            },
+            network: Network::Mainnet,
+            spend_key: None,
+            view_key: None,
+            view_pair: None,
+            mnemonic: None,
+            scanner: None,
+            view_only: false,
+            subaddress_next: std::collections::HashMap::from([(0u32, 1u32)]),
+            subaddress_labels: vec![],
+            scanned_outputs: vec![],
+            spent: HashSet::new(),
+            frozen: HashSet::new(),
+            sent: vec![],
+            pending_spends: HashMap::new(),
+            pending_change: HashMap::new(),
+            offline_staged: HashMap::new(),
+            scan_height: 0,
+            daemon_url: None,
+            data_dir,
+        }
+    }
+}
+
 impl WalletState {
     pub fn new(app: AppHandle) -> Self {
         let data_dir = app
@@ -288,39 +375,7 @@ impl WalletState {
             scanner_generation: AtomicU64::new(0),
             vigil_hot: AtomicBool::new(false),
             transfer_grants,
-            inner: Arc::new(RwLock::new(WalletInner {
-                is_locked: true,
-                active_identity: None,
-                password: None,
-                accounts: vec![],
-                sync_status: SyncStatus {
-                    status: "OFFLINE".to_string(),
-                    height: 0,
-                    daemon_height: 0,
-                    sync_percent: 0.0,
-                    node_label: String::new(),
-                    node_url: String::new(),
-                },
-                network: Network::Mainnet,
-                spend_key: None,
-                view_key: None,
-                view_pair: None,
-                mnemonic: None,
-                scanner: None,
-                view_only: false,
-                subaddress_next: std::collections::HashMap::from([(0u32, 1u32)]),
-                subaddress_labels: vec![],
-                scanned_outputs: vec![],
-                spent: HashSet::new(),
-                frozen: HashSet::new(),
-                sent: vec![],
-                pending_spends: HashMap::new(),
-                pending_change: HashMap::new(),
-                offline_staged: HashMap::new(),
-                scan_height: 0,
-                daemon_url: None,
-                data_dir,
-            })),
+            inner: Arc::new(RwLock::new(WalletInner::empty(data_dir))),
         }
     }
 
@@ -551,11 +606,12 @@ impl WalletState {
                     });
                 }
             }
-            // Use cached scan height if it's ahead of what's in the wallet file
-            if cache.scan_height > inner.scan_height {
-                inner.scan_height = cache.scan_height;
-            }
         }
+        // The cache is saved after every scanned batch, so its height is the real
+        // progress — with or without outputs. (It used to count only when the cache
+        // held outputs, so a rescan that found none resumed from the wallet file's
+        // stale height after a restart — ticket #8175618389.)
+        inner.scan_height = resume_height(inner.scan_height, cache.scan_height);
         inner.spent = cache.spent.into_iter().collect();
         inner.frozen = cache.frozen.into_iter().collect();
         inner.sent = cache.sent;
@@ -775,19 +831,14 @@ impl WalletState {
         self.inner.read().await.sync_status.clone()
     }
 
-    pub async fn update_sync_status(&self, height: u64, daemon_height: u64) {
+    /// `update_sync_status` for a scanner of `generation`: applied only while that
+    /// scanner is still current, checked under the write lock a rescan resets in —
+    /// so a superseded scanner can never overwrite a rescan's height. False = stop.
+    /// This is the ONLY way a scanner writes its height — there is deliberately no
+    /// unchecked variant.
+    pub async fn update_sync_status_for(&self, generation: u64, height: u64, daemon_height: u64) -> bool {
         let mut inner = self.inner.write().await;
-        inner.scan_height = height;
-        inner.sync_status.height = height;
-        inner.sync_status.daemon_height = daemon_height;
-        if daemon_height > 0 {
-            inner.sync_status.sync_percent = (height as f64 / daemon_height as f64) * 100.0;
-            inner.sync_status.status = if daemon_height.saturating_sub(height) <= 5 {
-                "SYNCED".to_string()
-            } else {
-                "SYNCING".to_string()
-            };
-        }
+        apply_sync_status_if_current(&self.scanner_generation, generation, &mut inner, height, daemon_height)
     }
 
     pub async fn get_scanner(&self) -> Option<Scanner> {
@@ -1403,9 +1454,22 @@ impl WalletState {
         self.scanner_generation.load(Ordering::SeqCst)
     }
 
-    /// Reset scan progress for a rescan.
-    pub async fn reset_scan(&self, from_height: u64) {
+    /// Reset scan progress for a rescan and persist it before returning. The output
+    /// cache is what unlock resumes from (see `resume_height`), so once this returns
+    /// Ok a restart still rescans; Err means the rescan runs now but will not survive
+    /// a restart before its first batch is saved (the caller tells the user). The
+    /// scanner generation is bumped INSIDE the same write lock, so a batch the old
+    /// scanner has in flight can no longer write its pre-rescan height back (see
+    /// `update_sync_status_for`). Height 0 is stored as 1 — 0 means "no cache" to
+    /// `resume_height`, and every height below the RingCT fork is skipped anyway.
+    pub async fn reset_scan(&self, from_height: u64) -> Result<(), String> {
+        self.reset_scan_in_memory(from_height.max(1)).await;
+        self.save_output_cache_checked().await
+    }
+
+    async fn reset_scan_in_memory(&self, from_height: u64) {
         let mut inner = self.inner.write().await;
+        self.next_scanner_generation();
         inner.scan_height = from_height;
         inner.scanned_outputs.clear();
         // Spent/pending are rebuilt by the rescan; frozen + sent are user/history
@@ -1638,6 +1702,16 @@ impl WalletState {
     /// Set a label for a subaddress.
     /// Persist scanned outputs to disk cache.
     pub async fn save_output_cache(&self) {
+        if self.inner.read().await.active_identity.is_none() {
+            return; // nothing to save — not an error here
+        }
+        if let Err(e) = self.save_output_cache_checked().await {
+            log::warn!("Failed to save output cache: {}", e);
+        }
+    }
+
+    /// `save_output_cache`, reporting a failure instead of only logging it.
+    pub async fn save_output_cache_checked(&self) -> Result<(), String> {
         let inner = self.inner.read().await;
         if let Some(identity_id) = &inner.active_identity {
             let cached_outputs: Vec<storage::CachedOutput> = inner
@@ -1662,15 +1736,15 @@ impl WalletState {
                 sent: inner.sent.clone(),
             };
 
-            if let Err(e) = storage::save_output_cache(&inner.data_dir, identity_id, &cache) {
-                log::warn!("Failed to save output cache: {}", e);
-            } else {
-                log::info!(
-                    "Output cache saved: {} outputs at height {}",
-                    cache.outputs.len(),
-                    cache.scan_height
-                );
-            }
+            storage::save_output_cache(&inner.data_dir, identity_id, &cache)?;
+            log::info!(
+                "Output cache saved: {} outputs at height {}",
+                cache.outputs.len(),
+                cache.scan_height
+            );
+            Ok(())
+        } else {
+            Err("no active wallet".to_string())
         }
     }
 
@@ -1858,6 +1932,43 @@ mod key_reveal_tests {
         // The primary address is the one that carries exactly these two public keys.
         assert_eq!(k.address, view_pair.legacy_address(Network::Mainnet).to_string());
         assert!(k.address.starts_with('4'));
+    }
+
+    #[test]
+    fn resume_height_trusts_the_cache_even_without_outputs() {
+        use super::resume_height;
+        // Ticket #8175618389: file 3,093,610, rescan from 3,755,000 found no outputs → resume there.
+        assert_eq!(resume_height(3_093_610, 3_760_000), 3_760_000);
+        // No cache yet → the file.
+        assert_eq!(resume_height(3_093_610, 0), 3_093_610);
+        // New-wallet sentinel in the file: a scanned cache wins; no cache keeps the sentinel.
+        assert_eq!(resume_height(u64::MAX, 3_787_000), 3_787_000);
+        assert_eq!(resume_height(u64::MAX, 0), u64::MAX);
+        // A sentinel never leaks out of the cache.
+        assert_eq!(resume_height(3_093_610, u64::MAX), 3_093_610);
+        // The cache is the latest word — including a rescan to a LOWER height than the file.
+        assert_eq!(resume_height(3_800_000, 3_600_000), 3_600_000);
+        // A rescan "from 0" is stored as 1 (reset_scan), which is a real cache height.
+        assert_eq!(resume_height(3_800_000, 1), 1);
+    }
+
+    #[test]
+    fn a_superseded_scanner_cannot_write_its_height() {
+        use super::{apply_sync_status_if_current, WalletInner};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let generation = AtomicU64::new(7);
+        let mut inner = WalletInner::empty(std::path::PathBuf::from("."));
+        // The current scanner's batch lands.
+        assert!(apply_sync_status_if_current(&generation, 7, &mut inner, 3_790_000, 3_790_100));
+        assert_eq!(inner.scan_height, 3_790_000);
+        // A rescan resets to a lower height and bumps the generation (as reset_scan does).
+        generation.fetch_add(1, Ordering::SeqCst);
+        inner.scan_height = 3_600_000;
+        // The old scanner's in-flight batch is refused and changes nothing.
+        assert!(!apply_sync_status_if_current(&generation, 7, &mut inner, 3_790_050, 3_790_100));
+        assert_eq!(inner.scan_height, 3_600_000);
+        assert!(apply_sync_status_if_current(&generation, 8, &mut inner, 3_600_100, 3_790_100));
+        assert_eq!(inner.scan_height, 3_600_100);
     }
 
     #[test]

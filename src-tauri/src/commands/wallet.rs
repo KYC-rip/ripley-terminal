@@ -2061,8 +2061,17 @@ pub async fn rescan(
         &format!("🔄 Rescan requested from height {}...", height),
     );
 
-    // Reset scan height and clear cached outputs
-    state.reset_scan(height).await;
+    // Reset scan height and clear cached outputs. The reset is saved before the
+    // scanner restarts; if the save fails, the rescan still runs now but a restart
+    // before its first batch lands would resume from the old height — say so.
+    if let Err(e) = state.reset_scan(height).await {
+        emit_log(
+            &app,
+            "Sync",
+            "warn",
+            &format!("⚠️ Rescan from {} is running but could not be saved ({}) — if the app restarts before the next batch, set the rescan height again", height, e),
+        );
+    }
 
     // Restart the scanner
     let app_clone = app.clone();
