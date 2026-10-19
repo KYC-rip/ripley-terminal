@@ -774,6 +774,32 @@ fn proxied_batch_budget(measured_bps: f64) -> u64 {
     ((measured_bps * PROXIED_BATCH_SECS).floor() as u64).max(1)
 }
 
+/// After a proxied fetch TIMES OUT, wait this long before retrying. Ticket
+/// #8175618389 (built-in Tor and Whonix alike): after one oversized batch, even
+/// 400-block retries and per-block fetches timed out on a node that serves the same
+/// range fine to curl — while our side does close abandoned connections (see the
+/// transport tests). The likely cause is the node still building the abandoned
+/// responses one after another (monerod has no request cancellation), so an
+/// immediate retry queues behind them and each failed round adds more. The pause
+/// lets that backlog drain; it costs nothing on the happy path.
+const PROXIED_TIMEOUT_PAUSE: Duration = Duration::from_secs(20);
+
+fn is_timeout(err: &str) -> bool {
+    err.contains("watchdog") || err.contains("timed out")
+}
+
+async fn proxied_timeout_pause(app: &AppHandle, proxied: bool, err: &str) {
+    if proxied && is_timeout(err) {
+        emit_log(
+            app,
+            "Sync",
+            "info",
+            &format!("⏸ Pausing {}s so the node can finish the abandoned request before retrying", PROXIED_TIMEOUT_PAUSE.as_secs()),
+        );
+        sleep(PROXIED_TIMEOUT_PAUSE).await;
+    }
+}
+
 /// How long any single block-fetch attempt may run before the watchdog aborts it.
 /// Healthy bulk/per-block batches finish in ~10–50s even over Tor; this only trips
 /// on a genuinely stalled node/circuit.
@@ -1177,7 +1203,9 @@ async fn scan_loop<C: DaemonConnector>(
 
         // Show ETA for large syncs, based on MEASURED throughput (updated
         // after each batch) rather than a hardcoded guess.
-        if gap > 10_000 {
+        // On a proxied route, only once a batch has been timed: before that the
+        // figure is the fast-sync seed (80 blk/s), not this route's speed.
+        if gap > 10_000 && (throughput_measured || !proxied) {
             let eta_secs = (gap as f64 / measured_bps.max(0.1)) as u64;
             let eta_mins = eta_secs / 60;
             let eta_hours = eta_mins / 60;
@@ -1207,7 +1235,7 @@ async fn scan_loop<C: DaemonConnector>(
             }
         }
 
-        let batch_end = (scan_height + batch_size).min(daemon_height);
+        let mut batch_end = (scan_height + batch_size).min(daemon_height);
         let range = (scan_height as usize)..=(batch_end as usize);
 
         emit_log(
@@ -1220,7 +1248,10 @@ async fn scan_loop<C: DaemonConnector>(
             ),
         );
 
-        let fetch_start = std::time::Instant::now();
+        let mut fetch_start = std::time::Instant::now();
+        // Set when a timeout pause already ran for this batch (the fallback branch),
+        // so its own failure doesn't pause a second time.
+        let mut paused_this_batch = false;
         // When set, this batch was served by the slow per-block fallback because the
         // node couldn't bulk even at the minimum size — re-race afterward to find a
         // bulk-capable node instead of staying slow.
@@ -1261,6 +1292,7 @@ async fn scan_loop<C: DaemonConnector>(
                     bulk_ceiling = bulk_batch;
                     bulk_streak = 0;
                     emit_log(&app, "Sync", "warn", &format!("⚡ Bulk fetch failed ({:?}) — shrinking to {} blocks per stream ({} per batch) and retrying bulk", e, bulk_batch, bulk_batch * BULK_STREAMS as u64));
+                    proxied_timeout_pause(&app, proxied, &e).await;
                     continue;
                 }
                 Err(e) => {
@@ -1289,7 +1321,18 @@ async fn scan_loop<C: DaemonConnector>(
                     bulk_batch = start_bulk;
                     bulk_ceiling = MAX_BULK_BATCH;
                     bulk_streak = 0;
-                    with_deadline(parallel_per_block(&pool, range.clone())).await
+                    proxied_timeout_pause(&app, proxied, &e).await;
+                    paused_this_batch = proxied && is_timeout(&e);
+                    // Per-block costs several round-trips per block; over Tor a whole
+                    // bulk-sized range can't finish under the watchdog, so take a
+                    // per-block-sized slice of it (the rest is the next batch's).
+                    if proxied {
+                        batch_end = batch_end.min(scan_height + PROXIED_PER_BLOCK_START - 1);
+                        emit_log(&app, "Sync", "info", &format!("📥 Per-block blocks {}-{} / {}", scan_height, batch_end, daemon_height));
+                    }
+                    // Time only the per-block fetch, not the failed bulk + pause.
+                    fetch_start = std::time::Instant::now();
+                    with_deadline(parallel_per_block(&pool, (scan_height as usize)..=(batch_end as usize))).await
                 }
             }
         } else {
@@ -1500,6 +1543,9 @@ async fn scan_loop<C: DaemonConnector>(
                         scan_height, batch_end, consecutive_failures, MAX_NODE_FAILURES
                     ),
                 );
+                if !paused_this_batch {
+                    proxied_timeout_pause(&app, proxied, &e).await;
+                }
                 sleep(Duration::from_millis(400)).await;
                 continue;
             }
@@ -1734,7 +1780,15 @@ async fn pool_loop<C: DaemonConnector>(
 
 #[cfg(test)]
 mod proxied_budget_tests {
-    use super::{proxied_batch_budget, PROXIED_BATCH_SECS};
+    use super::{is_timeout, proxied_batch_budget, PROXIED_BATCH_SECS};
+
+    #[test]
+    fn only_timeouts_trigger_the_pause() {
+        assert!(is_timeout("watchdog: fetch exceeded 75s — node/circuit stalled, recovering"));
+        assert!(is_timeout("SOCKS request to abc.onion:18089 timed out"));
+        assert!(!is_timeout("HTTP 403 Forbidden"));
+        assert!(!is_timeout("InvalidNode(\"wrong block hash\")"));
+    }
 
     #[test]
     fn budget_tracks_measured_throughput() {
