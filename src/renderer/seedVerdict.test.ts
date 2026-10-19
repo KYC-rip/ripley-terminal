@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   birthdayToDateInput, countVerdict, formatMonthYear, normalizePhrase, phraseWordCount,
-  prettyLanguage, seedVerdict, shouldInspect, validateViewOnlyForm,
+  parseHeight, planAuthSubmit, prettyLanguage, seedVerdict, shouldInspect, validateViewOnlyForm,
 } from './seedVerdict';
 
 const ADDR = '4' + 'A'.repeat(94);
@@ -71,5 +71,76 @@ describe('validateViewOnlyForm', () => {
     expect(validateViewOnlyForm({ ...ok, viewKey: 'zz' })).toMatch(/^VIEW_KEY_INVALID/);
     expect(validateViewOnlyForm({ ...ok, password: 'short', confirmPassword: 'short' })).toBe('SECRET_TOO_SHORT: MIN 8 CHARS');
     expect(validateViewOnlyForm({ ...ok, confirmPassword: 'password2' })).toBe('PASSWORDS_DO_NOT_MATCH');
+  });
+});
+
+describe('planAuthSubmit (the restore / create form submit)', () => {
+  const base = {
+    step: 'RESTORE', restoreMode: 'phrase' as const, isInitialSetup: true, canImportViewOnly: true,
+    password: 'hunter2hunter2', confirmPassword: 'hunter2hunter2', newName: 'Main',
+    restoreSeed: '', restoreHeight: '', seedLanguage: 'English', viewAddress: '', viewKey: '',
+  };
+  const KEY = 'ab'.repeat(32);
+
+  it('restore: normalised phrase, height and language reach unlock', () => {
+    expect(planAuthSubmit({ ...base, restoreSeed: '  unaware  yard\ndonate ', restoreHeight: '3100000' })).toEqual({
+      kind: 'unlock', password: base.password, name: 'Main', seed: 'unaware yard donate', height: 3100000, seedLanguage: 'English',
+    });
+  });
+
+  it('restore with an empty phrase is refused — it used to create a NEW wallet', () => {
+    expect(planAuthSubmit({ ...base, restoreSeed: '   ' })).toEqual({ kind: 'error', error: 'RECOVERY_PHRASE_REQUIRED' });
+  });
+
+  it('a garbled height is refused, an empty one means no height', () => {
+    expect(planAuthSubmit({ ...base, restoreSeed: 'a b', restoreHeight: '12abc' }).kind).toBe('error');
+    expect(planAuthSubmit({ ...base, restoreSeed: 'a b', restoreHeight: '-5' }).kind).toBe('error');
+    expect(planAuthSubmit({ ...base, restoreSeed: 'a b', restoreHeight: ' ' })).toMatchObject({ kind: 'unlock', height: undefined });
+    expect(parseHeight('0')).toBe(0);
+    expect(parseHeight('9'.repeat(400))).toBeUndefined();   // Infinity / unsafe, never forwarded
+  });
+
+  it('password rules apply to restore and create, not to unlocking', () => {
+    expect(planAuthSubmit({ ...base, restoreSeed: 'a', password: 'short', confirmPassword: 'short' })).toEqual({ kind: 'error', error: 'SECRET_TOO_SHORT: MIN 8 CHARS' });
+    expect(planAuthSubmit({ ...base, step: 'NEW_PASSWORD', confirmPassword: 'different1' })).toEqual({ kind: 'error', error: 'PASSWORDS_DO_NOT_MATCH' });
+    expect(planAuthSubmit({ ...base, step: 'AUTH', password: 'x', confirmPassword: '', newName: '' })).toEqual({
+      kind: 'unlock', password: 'x', name: undefined, seed: undefined, height: undefined, seedLanguage: undefined,
+    });
+  });
+
+  it('create (NEW_PASSWORD) sends no seed even if the restore box had text', () => {
+    expect(planAuthSubmit({ ...base, step: 'NEW_PASSWORD', restoreSeed: 'left over' })).toMatchObject({ kind: 'unlock', seed: undefined, seedLanguage: undefined });
+  });
+
+  it('view-only: trimmed fields reach the import; checks run first', () => {
+    expect(planAuthSubmit({ ...base, restoreMode: 'viewonly', viewAddress: ` ${ADDR} `, viewKey: ` ${KEY} `, restoreHeight: '3000000' })).toEqual({
+      kind: 'viewOnly', name: 'Main', password: base.password, address: ADDR, viewKey: KEY, height: 3000000,
+    });
+    expect(planAuthSubmit({ ...base, restoreMode: 'viewonly', viewAddress: ADDR, viewKey: 'zz' })).toEqual({ kind: 'error', error: 'VIEW_KEY_INVALID: 64 HEX CHARACTERS' });
+    expect(planAuthSubmit({ ...base, restoreMode: 'viewonly', canImportViewOnly: false })).toEqual({ kind: 'error', error: 'VIEW_ONLY_IMPORT_UNAVAILABLE' });
+  });
+
+  it('AUTH never forwards a leftover name (unlock would CREATE a wallet) or height', () => {
+    expect(planAuthSubmit({ ...base, step: 'AUTH', newName: 'Typed earlier', restoreHeight: '12abc', confirmPassword: '' })).toEqual({
+      kind: 'unlock', password: base.password, name: undefined, seed: undefined, height: undefined, seedLanguage: undefined,
+    });
+  });
+
+  it('create (NEW_PASSWORD) keeps its name but ignores a leftover height, valid or not', () => {
+    expect(planAuthSubmit({ ...base, step: 'NEW_PASSWORD', restoreHeight: '3100000' })).toMatchObject({ kind: 'unlock', name: 'Main', height: undefined });
+    expect(planAuthSubmit({ ...base, step: 'NEW_PASSWORD', restoreHeight: '-5' })).toMatchObject({ kind: 'unlock', height: undefined });
+  });
+
+  it('view-only mode outside RESTORE is an ordinary unlock', () => {
+    expect(planAuthSubmit({ ...base, step: 'AUTH', restoreMode: 'viewonly' }).kind).toBe('unlock');
+  });
+});
+
+describe('alsoBip39 verdict', () => {
+  it('warns but still shows the address to compare', () => {
+    const v = seedVerdict({ format: 'legacy24', language: 'English', primaryAddress: ADDR, network: 'mainnet', alsoBip39: true });
+    expect(v.tone).toBe('warn');
+    expect(v.text).toMatch(/ALSO A BIP39 PHRASE/);
+    expect(v.addressLine).toContain(ADDR);
   });
 });

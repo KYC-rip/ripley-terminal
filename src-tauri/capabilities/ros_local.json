@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "ros-local",
-  "description": "Verified local RipleyOS bundle served over the ros:// protocol (ui_mode=ros, ros_source=ota). Same narrow invoke surface as ros_remote \u2014 ONLY what ripley-os/src/os/platform/native.ts uses \u2014 and deliberately NO fs:*, shell:*, dialog:*, or core:default. Even an OTA-verified bundle is treated as untrusted per the threat model (a stolen update key could push a malicious *signed* bundle), so it must never reach the filesystem or a shell. ISOLATION: a ros:// custom-protocol page is LOCAL context in Tauri, so the broad `default` capability (windows:[\"main\"]) WOULD apply to it if the OTA window shared that label \u2014 verified empirically. The OTA window therefore uses a DISTINCT label \"ros\", and this capability is scoped to it; default (main) cannot reach it. Keep in sync with ros_remote.json + native.ts.",
+  "description": "Verified local RipleyOS bundle served over the ros:// protocol (ui_mode=ros, ros_source=ota). Same narrow invoke surface as ros_remote \u2014 ONLY what ripley-os/src/os/platform/native.ts uses \u2014 and deliberately NO fs:*, shell:*, dialog:*, or core:default. Even an OTA-verified bundle is treated as untrusted per the threat model (a stolen update key could push a malicious *signed* bundle), so it must never reach the filesystem or a shell. ISOLATION: a ros:// custom-protocol page is LOCAL context in Tauri, so the broad `default` capability (windows:[\"main\"]) WOULD apply to it if the OTA window shared that label \u2014 verified empirically. The OTA window therefore uses a DISTINCT label \"ros\", and this capability is scoped to it; default (main) cannot reach it. Keep in sync with ros_remote.json + native.ts. One bounded exception, as in ros_remote: the wallpaper store (wallpaper_*) writes images under app data/wallpapers only, sanitized names, 20 MB per file, 16 files total.",
   "windows": [
     "ros"
   ],
@@ -96,6 +96,11 @@
     "allow-ros-channel-status",
     "allow-capture-window-png",
     "allow-clipboard-write-image",
+    "allow-ros-native-fetch-bytes",
+    "allow-app-version",
+    "allow-wallpaper-save",
+    "allow-wallpaper-url",
+    "allow-wallpaper-clear",
     "notification:default"
   ]
 }

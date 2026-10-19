@@ -55,6 +55,40 @@ fn prune(app: &AppHandle, key: &str, keep: u64) -> Result<(), String> {
     Ok(())
 }
 
+/// At most this many stored images in total (10 skins today). The RipleyOS remote window
+/// (app.ros.rip) is granted this store, so its disk use must be bounded even for a hostile page
+/// inventing keys: 16 × MAX_WALLPAPER_BYTES ≈ 320 MB worst case.
+const MAX_WALLPAPER_FILES: usize = 16;
+
+/// Which files to delete so at most `cap` remain: the oldest first, never `keep`.
+fn over_cap(mut files: Vec<(String, std::time::SystemTime)>, keep: &str, cap: usize) -> Vec<String> {
+    if files.len() <= cap {
+        return vec![];
+    }
+    files.sort_by_key(|(_, t)| *t);
+    let excess = files.len() - cap;
+    files.into_iter().map(|(n, _)| n).filter(|n| n != keep).take(excess).collect()
+}
+
+/// Evict the oldest images beyond MAX_WALLPAPER_FILES (best-effort).
+fn enforce_cap(app: &AppHandle, keep: &str) -> Result<(), String> {
+    let d = dir(app)?;
+    let files = fs::read_dir(&d)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let t = e.metadata().and_then(|m| m.modified()).ok()?;
+            // .img.tmp too: a crash mid-write leaves one, and it must count against the cap.
+            (name.ends_with(".img") || name.ends_with(".img.tmp")).then_some((name, t))
+        })
+        .collect();
+    for name in over_cap(files, keep, MAX_WALLPAPER_FILES) {
+        let _ = fs::remove_file(d.join(name));
+    }
+    Ok(())
+}
+
 /// Save raw image bytes for key@rev, pruning older revs. Body is the RAW request payload
 /// (`invoke(cmd, bytes, { headers })` on the JS side) — never base64, never a JSON array.
 #[tauri::command]
@@ -93,6 +127,8 @@ pub async fn wallpaper_save(
     fs::write(&tmp, bytes).map_err(|e| format!("write: {e}"))?;
     fs::rename(&tmp, &path).map_err(|e| format!("rename: {e}"))?;
     let _ = prune(&app, &key, rev);
+    let keep = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let _ = enforce_cap(&app, &keep);
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -116,3 +152,23 @@ pub async fn wallpaper_url(
 pub async fn wallpaper_clear(app: AppHandle, key: String) -> Result<(), String> {
     prune(&app, &key, u64::MAX)
 }
+
+#[cfg(test)]
+mod cap_tests {
+    use super::over_cap;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    fn at(n: &str, secs: u64) -> (String, std::time::SystemTime) {
+        (n.to_string(), UNIX_EPOCH + Duration::from_secs(secs))
+    }
+
+    #[test]
+    fn evicts_oldest_beyond_the_cap_and_never_the_new_file() {
+        assert!(over_cap(vec![at("a", 1), at("b", 2)], "b", 2).is_empty());
+        assert_eq!(over_cap(vec![at("c", 3), at("a", 1), at("b", 2)], "c", 2), vec!["a"]);
+        // The just-written file is protected even when its mtime is the oldest (clock skew).
+        assert_eq!(over_cap(vec![at("new", 0), at("a", 1), at("b", 2)], "new", 2), vec!["a"]);
+        assert_eq!(over_cap((0..20).map(|i| at(&format!("k{i}"), i)).collect(), "k19", 16).len(), 4);
+    }
+}
+

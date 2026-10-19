@@ -2365,6 +2365,10 @@ pub async fn inspect_seed(
                 "birthdayUnix": p.birthday_unix,
                 "primaryAddress": view_pair.legacy_address(network).to_string(),
                 "network": format!("{:?}", network).to_lowercase(),
+                // 24 words that are ALSO a valid BIP39 phrase: the UI must ask which it is
+                // before restoring (a BIP39 phrase decoded as Monero opens an empty wallet).
+                "alsoBip39": p.format == crate::wallet::keys::SeedFormat::Legacy24
+                    && crate::wallet::keys::is_bip39_english(&words),
             })
         }
         Err(e) => {

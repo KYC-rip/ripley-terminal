@@ -76,6 +76,35 @@ pub fn seed_format_by_count(words: usize) -> SeedFormat {
     }
 }
 
+/// The BIP39 English wordlist (bitcoin/bips bip-0039/english.txt, sha256 2f5eed53…24dbda — pinned
+/// by a test). Only used to RECOGNISE a BIP39 phrase, never to derive keys from one.
+const BIP39_ENGLISH: &str = include_str!("bip39_english.txt");
+
+/// True when `phrase` is a valid English BIP39 mnemonic (12/15/18/21/24 words, checksum ok).
+/// Matters for 24 words: Monero decodes words by prefix across 13 wordlists, so a 24-word BIP39
+/// phrase (Cake BIP39, Ledger, MetaMask…) can also decode as an old 24-word Monero seed and open
+/// a different, empty wallet. Callers use this to make the user say which one it is.
+pub fn is_bip39_english(phrase: &str) -> bool {
+    let words: Vec<&str> = phrase.split_whitespace().collect();
+    if ![12, 15, 18, 21, 24].contains(&words.len()) {
+        return false;
+    }
+    let list: Vec<&str> = BIP39_ENGLISH.lines().collect();
+    let mut bits = Vec::with_capacity(words.len() * 11);
+    for w in &words {
+        let Some(i) = list.iter().position(|l| l.eq_ignore_ascii_case(w)) else { return false };
+        bits.extend((0..11).rev().map(|b| (i >> b) & 1 == 1));
+    }
+    let cs_len = bits.len() / 33;
+    let ent_len = bits.len() - cs_len;
+    let entropy: Zeroizing<Vec<u8>> = Zeroizing::new(
+        bits[..ent_len].chunks(8).map(|c| c.iter().fold(0u8, |a, &b| (a << 1) | b as u8)).collect(),
+    );
+    use sha2::Digest;
+    let hash = sha2::Sha256::digest(&*entropy);
+    (0..cs_len).all(|i| bits[ent_len + i] == ((hash[i / 8] >> (7 - i % 8)) & 1 == 1))
+}
+
 /// A phrase that parsed into Monero keys.
 pub struct ParsedSeed {
     pub spend: Zeroizing<Scalar>,
@@ -254,6 +283,61 @@ mod tests {
     const CAKE_POLYSEED: &str = "unaware yard donate shallow slot sing oil oxygen loyal bench near hill surround forum execute lamp";
     const CAKE_KEY_HEX: &str = "cbbd142d38347773d44aa830f5f01442aa6d0d3bb48571884479531248e6fa1c";
     const CAKE_LEGACY: &str = "avidly chlorine gave yeti ramped certain hybrid comb governing amply hinder pamphlet offend geometry narrate unopened robot epoxy annoyed glide ingested ascend were austere unopened";
+
+    // Published BIP39 vectors (trezor/python-mnemonic vectors.json) and the wordlist pin.
+    #[test]
+    fn bip39_recognition_matches_published_vectors() {
+        use sha2::Digest;
+        assert_eq!(
+            hex::encode(sha2::Sha256::digest(BIP39_ENGLISH.as_bytes())),
+            "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda"
+        );
+        let abandon = |n: usize, last: &str| format!("{}{last}", "abandon ".repeat(n));
+        assert!(is_bip39_english(&abandon(11, "about")));
+        assert!(is_bip39_english(&abandon(23, "art")));
+        assert!(is_bip39_english("legal winner thank year wave sausage worth useful legal winner thank yellow"));
+        assert!(is_bip39_english("zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote"));
+        assert!(is_bip39_english("  ABANDON abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about "));
+        assert!(!is_bip39_english(&abandon(11, "abandon")), "bad checksum");
+        assert!(!is_bip39_english(&abandon(24, "about")), "25 words is never BIP39");
+        assert!(!is_bip39_english(CAKE_LEGACY));
+    }
+
+    /// The reason `alsoBip39` exists: a phrase built (searched for) to be BOTH a valid BIP39
+    /// phrase and an old 24-word Monero seed — every word is in both English lists. Random
+    /// BIP39 phrases hit this ~1e-9 of the time (425 shared words, exact match required).
+    #[test]
+    fn a_phrase_can_be_both_bip39_and_a_24_word_monero_seed() {
+        let p = "hedgehog claim large science anxiety avoid wrong oyster below island powder army occur else always badge loyal light aunt eternal because pencil lobster love";
+        assert!(is_bip39_english(p));
+        assert!(matches!(parse_seed(p).map(|x| x.format), Ok(SeedFormat::Legacy24)));
+    }
+
+    /// Builds a valid 24-word BIP39 phrase from 32 bytes of entropy (test helper).
+    fn bip39_24(entropy: &[u8; 32]) -> String {
+        use sha2::Digest;
+        let list: Vec<&str> = BIP39_ENGLISH.lines().collect();
+        let mut bits: Vec<bool> = entropy.iter().flat_map(|b| (0..8).rev().map(move |i| (b >> i) & 1 == 1)).collect();
+        let h = sha2::Sha256::digest(entropy);
+        bits.extend((0..8).rev().map(|i| (h[0] >> i) & 1 == 1));
+        bits.chunks(11).map(|c| list[c.iter().fold(0usize, |a, &b| (a << 1) | b as usize)]).collect::<Vec<_>>().join(" ")
+    }
+
+    /// Measures how often a 24-word BIP39 phrase ALSO decodes as a Monero seed (the reason
+    /// the check exists). `cargo test --lib bip39_monero_collision -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn bip39_monero_collision_rate() {
+        use sha2::Digest;
+        let n = 2000;
+        let hits = (0..n).filter(|i: &u32| {
+            let e: [u8; 32] = sha2::Sha256::digest(i.to_le_bytes()).into();
+            let p = bip39_24(&e);
+            assert!(is_bip39_english(&p));
+            parse_seed(&p).is_ok()
+        }).count();
+        println!("{hits}/{n} random 24-word BIP39 phrases also parse as a Monero seed");
+    }
 
     #[test]
     fn polyseed_matches_cakes_published_vector() {

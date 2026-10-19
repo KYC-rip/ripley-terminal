@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { Shield, ShieldCheck, Users, Globe, ShieldAlert, LayoutGrid } from 'lucide-react';
 import { Card } from './Card';
 import { AuthForm, type RestoreMode } from './auth/AuthForm';
-import { validateViewOnlyForm } from '../seedVerdict';
+import { planAuthSubmit } from '../seedVerdict';
 import { IdentitySwitcher } from './auth/IdentitySwitcher';
 import { LogEntry } from '../contexts/VaultContext';
 
@@ -146,38 +146,24 @@ export function AuthView({ onUnlock, onImportViewOnly, isInitialSetup, identitie
     e.preventDefault();
     if (isProcessing) return;
 
-    // View-only: field checks first (the native import is authoritative on network/key match).
-    const viewOnly = step === 'RESTORE' && restoreMode === 'viewonly';
-    if (viewOnly) {
-      const problem = !onImportViewOnly
-        ? 'VIEW_ONLY_IMPORT_UNAVAILABLE'
-        : validateViewOnlyForm({ name: newName, address: viewAddress, viewKey, password, confirmPassword });
-      if (problem) { setError(problem); return; }
-    }
-
-    // Validation logic
-    if (step === 'RESTORE' || step === 'NEW_PASSWORD' || (step === 'LABEL' && isInitialSetup)) {
-      if (password.length < 8) { setError('SECRET_TOO_SHORT: MIN 8 CHARS'); return; }
-      if (password !== confirmPassword) { setError('PASSWORDS_DO_NOT_MATCH'); return; }
-    }
+    // Field checks + what to call, decided in one pure helper (seedVerdict.ts, tested there).
+    // The native import / restore stays authoritative on network, key match and seed validity.
+    const plan = planAuthSubmit({
+      step, restoreMode, isInitialSetup, canImportViewOnly: !!onImportViewOnly,
+      password, confirmPassword, newName, restoreSeed, restoreHeight, seedLanguage, viewAddress, viewKey,
+    });
+    if (plan.kind === 'error') { setError(plan.error); return; }
 
     setIsProcessing(true);
     setError('');
 
     try {
-      const height = restoreHeight ? parseInt(restoreHeight) : undefined;
-      if (viewOnly) {
-        await onImportViewOnly!(newName.trim(), password, viewAddress, viewKey, height);
+      if (plan.kind === 'viewOnly') {
+        await onImportViewOnly!(plan.name, plan.password, plan.address, plan.viewKey, plan.height);
         return;
       }
       // 🚀 Call the new unlock in VaultContext
-      await onUnlock(
-        password,
-        newName || undefined,
-        step === 'RESTORE' ? restoreSeed : undefined,
-        height,
-        step === 'RESTORE' ? seedLanguage : undefined
-      );
+      await onUnlock(plan.password, plan.name, plan.seed, plan.height, plan.seedLanguage);
     } catch (err: any) {
       const msg = err.message || '';
       const lower = msg.toLowerCase();

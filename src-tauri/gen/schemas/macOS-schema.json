@@ -2211,6 +2211,12 @@
           "markdownDescription": "Enables the agent_web_read command without any pre-configured scope."
         },
         {
+          "description": "Enables the app_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-app-version",
+          "markdownDescription": "Enables the app_version command without any pre-configured scope."
+        },
+        {
           "description": "Enables the arm_transfer_grant command without any pre-configured scope.",
           "type": "string",
           "const": "allow-arm-transfer-grant",
@@ -2685,6 +2691,12 @@
           "markdownDescription": "Enables the ros_native_fetch command without any pre-configured scope."
         },
         {
+          "description": "Enables the ros_native_fetch_bytes command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ros-native-fetch-bytes",
+          "markdownDescription": "Enables the ros_native_fetch_bytes command without any pre-configured scope."
+        },
+        {
           "description": "Enables the save_config command without any pre-configured scope.",
           "type": "string",
           "const": "allow-save-config",
@@ -2925,6 +2937,24 @@
           "markdownDescription": "Enables the vpn_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the wallpaper_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-wallpaper-clear",
+          "markdownDescription": "Enables the wallpaper_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the wallpaper_save command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-wallpaper-save",
+          "markdownDescription": "Enables the wallpaper_save command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the wallpaper_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-wallpaper-url",
+          "markdownDescription": "Enables the wallpaper_url command without any pre-configured scope."
+        },
+        {
           "description": "Enables the watch_sync_set command without any pre-configured scope.",
           "type": "string",
           "const": "allow-watch-sync-set",
@@ -2953,6 +2983,12 @@
           "type": "string",
           "const": "deny-agent-web-read",
           "markdownDescription": "Denies the agent_web_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the app_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-app-version",
+          "markdownDescription": "Denies the app_version command without any pre-configured scope."
         },
         {
           "description": "Denies the arm_transfer_grant command without any pre-configured scope.",
@@ -3429,6 +3465,12 @@
           "markdownDescription": "Denies the ros_native_fetch command without any pre-configured scope."
         },
         {
+          "description": "Denies the ros_native_fetch_bytes command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ros-native-fetch-bytes",
+          "markdownDescription": "Denies the ros_native_fetch_bytes command without any pre-configured scope."
+        },
+        {
           "description": "Denies the save_config command without any pre-configured scope.",
           "type": "string",
           "const": "deny-save-config",
@@ -3667,6 +3709,24 @@
           "type": "string",
           "const": "deny-vpn-status",
           "markdownDescription": "Denies the vpn_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wallpaper_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-wallpaper-clear",
+          "markdownDescription": "Denies the wallpaper_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wallpaper_save command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-wallpaper-save",
+          "markdownDescription": "Denies the wallpaper_save command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wallpaper_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-wallpaper-url",
+          "markdownDescription": "Denies the wallpaper_url command without any pre-configured scope."
         },
         {
           "description": "Denies the watch_sync_set command without any pre-configured scope.",

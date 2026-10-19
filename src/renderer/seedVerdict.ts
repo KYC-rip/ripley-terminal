@@ -9,6 +9,8 @@ export interface SeedInspection {
   birthdayUnix?: number | null;
   primaryAddress?: string | null;
   network?: string | null;
+  /** 24 words that are ALSO a valid BIP39 phrase (~1e-9 by chance; a built phrase can be both). */
+  alsoBip39?: boolean | null;
   error?: string | null;
 }
 
@@ -82,6 +84,15 @@ export function seedVerdict(r: SeedInspection): SeedVerdict {
       case 'legacy25':
         return { tone: 'ok', text: `25-WORD MONERO SEED${lang ? ` (${lang})` : ''}`, addressLine };
       case 'legacy24':
+        if (r.alsoBip39) {
+          // Both formats at once: a BIP39 phrase (Cake BIP39, Ledger, MetaMask…) read as Monero
+          // opens a different, empty wallet. The address line is how the user tells which.
+          return {
+            tone: 'warn',
+            text: 'THESE 24 WORDS ARE ALSO A BIP39 PHRASE — if they came from Cake (BIP39), Ledger, Trezor or MetaMask they will NOT open your Monero funds',
+            addressLine,
+          };
+        }
         return { tone: 'ok', text: `24-WORD MONERO SEED${lang ? ` (${lang})` : ''}`, addressLine };
       default:
         // An importable result in a format the UI has no copy for: still say what it opens.
@@ -120,4 +131,68 @@ export function validateViewOnlyForm(f: ViewOnlyForm): string | null {
   if (f.password.length < 8) return 'SECRET_TOO_SHORT: MIN 8 CHARS';
   if (f.password !== f.confirmPassword) return 'PASSWORDS_DO_NOT_MATCH';
   return null;
+}
+
+/** What the restore/create form's submit does, decided from its fields (AuthView.handleUnlockSubmit). */
+export type AuthSubmitPlan =
+  | { kind: 'error'; error: string }
+  | { kind: 'viewOnly'; name: string; password: string; address: string; viewKey: string; height?: number }
+  | { kind: 'unlock'; password: string; name?: string; seed?: string; height?: number; seedLanguage?: string };
+
+export interface AuthSubmitFields {
+  step: string;
+  restoreMode: 'phrase' | 'viewonly';
+  isInitialSetup: boolean;
+  canImportViewOnly: boolean;
+  password: string;
+  confirmPassword: string;
+  newName: string;
+  restoreSeed: string;
+  restoreHeight: string;
+  seedLanguage: string;
+  viewAddress: string;
+  viewKey: string;
+}
+
+/** A height field value → a block height, or undefined (empty / not a whole non-negative number). */
+export function parseHeight(raw: string): number | undefined {
+  const t = raw.trim();
+  const n = /^\d+$/.test(t) ? Number(t) : NaN;
+  return Number.isSafeInteger(n) ? n : undefined;
+}
+
+export function planAuthSubmit(f: AuthSubmitFields): AuthSubmitPlan {
+  const viewOnly = f.step === 'RESTORE' && f.restoreMode === 'viewonly';
+  if (viewOnly) {
+    const problem = !f.canImportViewOnly
+      ? 'VIEW_ONLY_IMPORT_UNAVAILABLE'
+      : validateViewOnlyForm({ name: f.newName, address: f.viewAddress, viewKey: f.viewKey, password: f.password, confirmPassword: f.confirmPassword });
+    if (problem) return { kind: 'error', error: problem };
+  }
+  if (f.step === 'RESTORE' || f.step === 'NEW_PASSWORD' || (f.step === 'LABEL' && f.isInitialSetup)) {
+    if (f.password.length < 8) return { kind: 'error', error: 'SECRET_TOO_SHORT: MIN 8 CHARS' };
+    if (f.password !== f.confirmPassword) return { kind: 'error', error: 'PASSWORDS_DO_NOT_MATCH' };
+  }
+  const restoring = f.step === 'RESTORE';
+  // Name and height belong to the step that uses them. A name typed in create/restore and left
+  // in state must not reach an AUTH unlock — VaultContext.unlock treats ANY name as "create a
+  // wallet". A height only means something when restoring.
+  const creating = restoring || f.step === 'NEW_PASSWORD';
+  // An empty phrase box on RESTORE used to reach unlock() with seed '' — which CREATES a new
+  // wallet. Restoring without a phrase is never what the user meant.
+  if (restoring && !viewOnly && !normalizePhrase(f.restoreSeed)) return { kind: 'error', error: 'RECOVERY_PHRASE_REQUIRED' };
+  const height = restoring ? parseHeight(f.restoreHeight) : undefined;
+  // A garbled height must not silently become "scan from 2017".
+  if (restoring && f.restoreHeight.trim() && height === undefined) return { kind: 'error', error: 'RESTORE_HEIGHT_INVALID: A WHOLE BLOCK NUMBER' };
+  if (viewOnly) {
+    return { kind: 'viewOnly', name: f.newName.trim(), password: f.password, address: f.viewAddress.trim(), viewKey: f.viewKey.trim(), height };
+  }
+  return {
+    kind: 'unlock',
+    password: f.password,
+    name: creating ? f.newName || undefined : undefined,
+    seed: restoring ? normalizePhrase(f.restoreSeed) : undefined,
+    height,
+    seedLanguage: restoring ? f.seedLanguage : undefined,
+  };
 }

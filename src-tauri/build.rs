@@ -81,6 +81,13 @@ const APP_COMMANDS: &[&str] = &[
     "clipboard_write_image",
     "resolve_openalias",
     "ros_native_fetch",
+    // RipleyOS windows only (granted in ros_local / ros_remote): the binary-safe fetch, the
+    // shell version for the Feedback app, and the rev-addressed wallpaper file store.
+    "ros_native_fetch_bytes",
+    "app_version",
+    "wallpaper_save",
+    "wallpaper_url",
+    "wallpaper_clear",
     "open_native_browser",
     "open_external_url",
     "browser_embed_open",
