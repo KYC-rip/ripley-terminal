@@ -1,5 +1,6 @@
-import type { FormEvent } from 'react';
-import { Lock, Skull, RefreshCw, Key, Download, Sparkles, ArrowLeft, Calendar, ChevronDown } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Lock, Skull, RefreshCw, Key, Download, Sparkles, ArrowLeft, Calendar } from 'lucide-react';
+import { moneroRestoreHeightFromDate } from '../../restoreHeight';
 
 interface LogEntry {
   msg: string;
@@ -17,7 +18,8 @@ interface AuthFormProps {
   restoreSeed: string; setRestoreSeed: (v: string) => void;
   restoreHeight: string; setRestoreHeight: (v: string) => void;
   newName: string; setNewName: (v: string) => void;
-  seedLanguage: string; setSeedLanguage: (v: string) => void;
+  /** Chain network from config ("mainnet" default) — the date estimate needs it. */
+  network?: string;
   
   // State
   error: string;
@@ -32,10 +34,12 @@ export function AuthForm({
   step, setStep, isInitialSetup,
   password, setPassword, confirmPassword, setConfirmPassword,
   restoreSeed, setRestoreSeed, restoreHeight, setRestoreHeight,
-  newName, setNewName, seedLanguage, setSeedLanguage,
+  newName, setNewName,
+  network,
   error, isProcessing, logs,
   handleUnlockSubmit
 }: AuthFormProps) {
+  const [walletDate, setWalletDate] = useState('');
 
   if (step === 'LABEL') {
     return (
@@ -78,22 +82,34 @@ export function AuthForm({
               <label className="text-[11px] font-black text-xmr-dim uppercase ml-1 flex items-center gap-2"><Calendar size={10} /> Restore_Height (Optional)</label>
               <input type="number" value={restoreHeight} onChange={(e) => setRestoreHeight(e.target.value)} placeholder="e.g. 3000000" className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none" />
             </div>
+            {/* Was a Seed_Language picker the backend never read (it detects the language
+                from the words). The wallet's creation date is what a restore actually needs. */}
             <div className="space-y-1">
-              <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Seed_Language</label>
-              <div className="relative">
-                <select
-                  value={seedLanguage}
-                  onChange={(e) => setSeedLanguage(e.target.value)}
-                  className="w-full appearance-none bg-xmr-base border border-xmr-border p-3 pr-9 text-xs text-xmr-green focus:border-xmr-green outline-none cursor-pointer"
-                >
-                  {['English','Chinese (Simplified)','Japanese','Spanish','Portuguese','German','French','Italian','Dutch','Russian','Esperanto','Lojban'].map(lang => (
-                    <option key={lang} value={lang} className="bg-xmr-base text-xmr-green">{lang}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-xmr-dim pointer-events-none" />
-              </div>
+              <label className="text-[11px] font-black text-xmr-dim uppercase ml-1">Wallet_Created (Date)</label>
+              <input
+                type="date"
+                min="2014-04-18"
+                max={new Date().toISOString().slice(0, 10)}
+                value={walletDate}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  setWalletDate(date);
+                  const h = moneroRestoreHeightFromDate(date, null, Date.now(), network);
+                  // No estimate (e.g. stagenet, no node yet): clear any height from an earlier
+                  // date rather than submit one that no longer matches the chosen date.
+                  setRestoreHeight(h != null ? String(h) : '');
+                }}
+                className="w-full bg-xmr-base border border-xmr-border p-3 text-xs text-xmr-green focus:border-xmr-green outline-none"
+              />
             </div>
           </div>
+          <p className="text-[10px] text-xmr-dim leading-snug ml-1">
+            {restoreHeight
+              ? (walletDate ? 'Height estimated from the date and moved one week earlier for safety. Earlier only scans more; later can miss funds.' : 'Scanning starts at this block height. Earlier only scans more; later can miss funds.')
+              : walletDate
+                ? 'Could not estimate a height for this date on this network — enter a block height, or leave it empty to scan from 2017.'
+                : 'No date — Ripley scans from 2017. This can take hours, or days over Tor. Any date before the wallet\'s first transaction is safe; earlier only scans more.'}
+          </p>
         </div>
       )}
 

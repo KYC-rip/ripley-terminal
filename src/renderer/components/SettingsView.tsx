@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings, Server, Zap, EyeOff, Check, RefreshCw, History, ShieldAlert, Edit2, Download, FolderOpen, ExternalLink, Loader2, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { Card } from './Card';
 import { useVault } from '../hooks/useVault';
+import { moneroRestoreHeightFromDate } from '../restoreHeight';
 
 
 /** mnr verified uplink helpers (optional clearnet preset — never the default). */
@@ -26,7 +27,7 @@ function parseMnrTokenFromAddress(addr: string): string | null {
 }
 
 export function SettingsView() {
-  const { rescan, currentHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
+  const { rescan, currentHeight, totalHeight, purgeIdentity, activeId, renameIdentity, identities } = useVault();
 
   // 🟢 Unified configuration state
   const [config, setConfig] = useState<any>(null);
@@ -58,23 +59,14 @@ export function SettingsView() {
   const [restoreDate, setRestoreDate] = useState<string>('');
   const [isRescanning, setIsRescanning] = useState(false);
 
-  // Convert date to approximate Monero block height
-  // Genesis: April 18, 2014. Average: 1 block per 2 minutes (720 blocks/day)
-  const dateToHeight = (dateStr: string): number => {
-    const genesis = new Date('2014-04-18T00:00:00Z');
-    const target = new Date(dateStr);
-    const diffMs = target.getTime() - genesis.getTime();
-    if (diffMs <= 0) return 0;
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    return Math.floor(diffDays * 720);
-  };
-
+  // Date → a safe restore height: back from the live tip (or the mainnet anchor when no
+  // node has answered), one week early. The old 720/day-from-genesis count ignored the
+  // chain's one-minute-block era and landed ~500k blocks too low (safe, but slow).
   const handleDateChange = (dateStr: string) => {
     setRestoreDate(dateStr);
-    if (dateStr) {
-      const h = dateToHeight(dateStr);
-      setTargetHeight(h.toString());
-    }
+    // No date, or no estimate → clear, so a height from an earlier date is never rescanned by mistake.
+    const h = dateStr ? moneroRestoreHeightFromDate(dateStr, totalHeight || null, Date.now(), config?.network) : null;
+    setTargetHeight(h != null ? h.toString() : '');
   };
 
   // 📦 App Info & Updates state

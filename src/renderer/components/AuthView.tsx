@@ -27,6 +27,7 @@ type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
 export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
   const [routingMode, setRoutingMode] = useState<'tor' | 'clearnet' | 'custom'>('tor');
+  const [network, setNetwork] = useState('mainnet');
   const [step, setStep] = useState<SetupStep>('AUTH');
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -34,6 +35,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
     // Load initial network mode
     window.api.getConfig().then((config: any) => {
       setRoutingMode(config.routingMode || 'tor');
+      setNetwork(config.network || 'mainnet');
     });
 
   // Handle step transition after identity load
@@ -263,7 +265,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             restoreSeed={restoreSeed} setRestoreSeed={setRestoreSeed}
             restoreHeight={restoreHeight} setRestoreHeight={setRestoreHeight}
             newName={newName} setNewName={setNewName}
-            seedLanguage={seedLanguage} setSeedLanguage={setSeedLanguage}
+            network={network}
             error={error} isProcessing={isProcessing} logs={logs}
             handleUnlockSubmit={handleUnlockSubmit}
 
