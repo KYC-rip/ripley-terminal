@@ -41,6 +41,104 @@ pub fn output_id(o: &WalletOutput) -> String {
     )
 }
 
+/// wallet2's defaults (Monero GUI/CLI, Feather, Cake, Monerujo): watch this many
+/// accounts beyond the highest used one, and this many subaddresses beyond the highest
+/// used index of each. A restored seed whose funds sit in account 1 or at subaddress
+/// #120 was invisible when Ripley watched account 0, indices 1–50 only.
+pub(crate) const ACCOUNT_LOOKAHEAD: u32 = 50;
+pub(crate) const SUBADDRESS_LOOKAHEAD: u32 = 200;
+/// The window grows in steps: the highest used index is rounded UP to a multiple of
+/// this before adding the lookahead (so it always reaches ≥ 200 past the highest used,
+/// as wallet2 does). Every widening makes the scan loop revisit earlier blocks of its
+/// batch, so growing once per 50 new indices instead of once per index keeps a wallet
+/// that pays to ever-new subaddresses from rescanning its batch after each output.
+pub(crate) const WINDOW_STEP: u32 = 50;
+
+/// What one `add_outputs` call changed.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct AddedOutputs {
+    /// Outputs not seen before (re-scans of a block add none).
+    pub count: u64,
+    pub amount: u64,
+    /// The watched window grew — the caller must re-scan its current batch.
+    pub grew: bool,
+}
+
+/// Every (account, index) the scanner should watch, given `next` = per-account next
+/// minor index to hand out (so `next - 1` is the highest in use). Account 0's index 0
+/// is the primary address, scanned without registration.
+pub(crate) fn lookahead_indices(next: &HashMap<u32, u32>) -> Vec<(u32, u32)> {
+    let max_account = next.keys().copied().max().unwrap_or(0);
+    let mut out = Vec::new();
+    for account in 0..=max_account.saturating_add(ACCOUNT_LOOKAHEAD) {
+        let highest_used = next.get(&account).copied().unwrap_or(1).saturating_sub(1);
+        let stepped = highest_used.div_ceil(WINDOW_STEP).saturating_mul(WINDOW_STEP);
+        let start = if account == 0 { 1 } else { 0 };
+        for index in start..=stepped.saturating_add(SUBADDRESS_LOOKAHEAD) {
+            out.push((account, index));
+        }
+    }
+    out
+}
+
+/// The indices `lookahead_indices(after)` watches that `lookahead_indices(before)` did not.
+pub(crate) fn window_growth(before: &HashMap<u32, u32>, after: &HashMap<u32, u32>) -> Vec<(u32, u32)> {
+    if before == after {
+        return Vec::new();
+    }
+    let old: HashSet<(u32, u32)> = lookahead_indices(before).into_iter().collect();
+    lookahead_indices(after).into_iter().filter(|i| !old.contains(i)).collect()
+}
+
+/// Raise `next[major]` past `minor`. Returns true if the map changed — a higher index,
+/// or an account seen for the first time (which can move the account window).
+pub(crate) fn bump_next(next: &mut HashMap<u32, u32>, major: u32, minor: u32) -> bool {
+    let wanted = minor.saturating_add(1).max(1);
+    match next.get_mut(&major) {
+        Some(e) if wanted > *e => {
+            *e = wanted;
+            true
+        }
+        Some(_) => false,
+        None => {
+            next.insert(major, wanted);
+            true
+        }
+    }
+}
+
+/// An output was seen at (major, minor): raise that account's high-water mark and, if
+/// the account itself is new to this wallet, list it ("Account #N") so its balance
+/// shows per account. In memory only — rebuilt from cached outputs at every unlock;
+/// persisted the usual way if the user renames it.
+fn note_used_index(inner: &mut WalletInner, major: u32, minor: u32) {
+    bump_next(&mut inner.subaddress_next, major, minor);
+    if inner.accounts.iter().any(|a| a.index == major) {
+        return;
+    }
+    let base_address = match (inner.view_pair.as_ref(), monero_address::SubaddressIndex::new(major, 0)) {
+        (Some(vp), Some(idx)) if major > 0 => vp.subaddress(inner.network, idx).to_string(),
+        (Some(vp), _) => vp.legacy_address(inner.network).to_string(),
+        _ => String::new(),
+    };
+    inner.accounts.push(MoneroAccount {
+        index: major,
+        label: format!("Account #{major}"),
+        balance: "0".to_string(),
+        unlocked_balance: "0".to_string(),
+        base_address,
+    });
+    inner.accounts.sort_by_key(|a| a.index);
+}
+
+fn register_indices(scanner: &mut Scanner, indices: &[(u32, u32)]) {
+    for &(account, index) in indices {
+        if let Some(idx) = monero_address::SubaddressIndex::new(account, index) {
+            scanner.register_subaddress(idx);
+        }
+    }
+}
+
 /// Where an unlocked wallet resumes. The output cache is authoritative whenever it
 /// has a height: it is saved after every scanned batch, at lock, and at a rescan —
 /// so it is the latest word, including a rescan to a LOWER height. The wallet file's
@@ -507,22 +605,8 @@ impl WalletState {
             }
         }
 
-        // Register subaddresses for EVERY account so funds to any of them are detected.
-        // Account 0's base is the legacy main address (auto-scanned); account>0's base is
-        // subaddress (N,0), which MUST be registered explicitly. Cover persisted indices
-        // plus a lookahead window per account so freshly-created (receive / churn /
-        // splinter / vanish) subaddresses — and funds already sent to them — are scanned
-        // even before their label is persisted.
-        const SUBADDRESS_LOOKAHEAD: u32 = 50;
-        for (&account, &next) in &subaddress_next {
-            let cover = next.saturating_sub(1).max(SUBADDRESS_LOOKAHEAD);
-            let start = if account == 0 { 1 } else { 0 };
-            for i in start..=cover {
-                if let Some(idx) = monero_address::SubaddressIndex::new(account, i) {
-                    scanner.register_subaddress(idx);
-                }
-            }
-        }
+        // Subaddresses are registered after the output cache loads (below), so the
+        // lookahead window also covers indices that cached outputs show are in use.
 
         // Set up accounts from saved labels; account 0 = legacy main address, account>0
         // base = subaddress (N,0). Guarantee account 0 is always present.
@@ -615,6 +699,25 @@ impl WalletState {
         inner.spent = cache.spent.into_iter().collect();
         inner.frozen = cache.frozen.into_iter().collect();
         inner.sent = cache.sent;
+
+        // Cached outputs say which accounts / subaddress indices are really in use —
+        // including ones found by lookahead in an earlier session and never labelled.
+        // Raise the per-account high-water marks and surface their accounts, then
+        // register the whole wallet2-sized window (see lookahead_indices).
+        let used: Vec<(u32, u32)> = inner
+            .scanned_outputs
+            .iter()
+            .filter_map(|o| o.output.subaddress().map(|s| (s.account(), s.address())))
+            .collect();
+        for (major, minor) in used {
+            note_used_index(&mut inner, major, minor);
+        }
+        let window = lookahead_indices(&inner.subaddress_next);
+        if let Some(scanner) = inner.scanner.as_mut() {
+            // ~10k key derivations (~0.4 s): off the async worker, still under the
+            // unlock lock (nothing can use a wallet mid-unlock).
+            tokio::task::block_in_place(|| register_indices(scanner, &window));
+        }
 
         log::info!("Wallet unlocked for identity: {} (resume from height {}, {} accounts, {} cached outputs)",
             identity_id, inner.scan_height, inner.accounts.len(), inner.scanned_outputs.len());
@@ -861,11 +964,13 @@ impl WalletState {
         height: u64,
         timestamp: u64,
         generation: u64,
-    ) {
+    ) -> AddedOutputs {
         let mut inner = self.inner.write().await;
+        let mut added = AddedOutputs::default();
         if self.scanner_generation.load(Ordering::SeqCst) != generation {
-            return;
+            return added;
         }
+        let before = inner.subaddress_next.clone();
         // Dedupe by output id (txid:index). Re-scanning a block (e.g. a re-race or a
         // restart overlapping the same range) would otherwise add the same output
         // twice and inflate the balance. output_id is unique per real output.
@@ -882,6 +987,11 @@ impl WalletState {
                 inner
                     .pending_change
                     .remove(&hex::encode(output.transaction()));
+                added.count += 1;
+                added.amount = added.amount.saturating_add(output.commitment().amount);
+                if let Some(s) = output.subaddress() {
+                    note_used_index(&mut inner, s.account(), s.address());
+                }
                 inner.scanned_outputs.push(OwnedOutput {
                     output,
                     height,
@@ -889,6 +999,17 @@ impl WalletState {
                 });
             }
         }
+        // A newly used index moves its account's window (and possibly the account
+        // window) further out: register just the new part on the shared scanner. The
+        // scan loop re-scans the current batch when this happens (see scanner.rs).
+        let growth = window_growth(&before, &inner.subaddress_next);
+        if !growth.is_empty() {
+            if let Some(scanner) = inner.scanner.as_mut() {
+                register_indices(scanner, &growth);
+            }
+            added.grew = true;
+        }
+        added
     }
 
     pub async fn get_spend_key(&self) -> Option<Zeroizing<Scalar>> {
@@ -1950,6 +2071,66 @@ mod key_reveal_tests {
         assert_eq!(resume_height(3_800_000, 3_600_000), 3_600_000);
         // A rescan "from 0" is stored as 1 (reset_scan), which is a real cache height.
         assert_eq!(resume_height(3_800_000, 1), 1);
+    }
+
+    #[test]
+    fn a_fresh_restore_watches_wallet2s_window() {
+        use super::{lookahead_indices, ACCOUNT_LOOKAHEAD, SUBADDRESS_LOOKAHEAD};
+        use std::collections::{HashMap, HashSet};
+        let w: HashSet<(u32, u32)> = lookahead_indices(&HashMap::from([(0u32, 1u32)])).into_iter().collect();
+        // Accounts 0..=50, each with indices up to 200; account 0 skips its primary (0,0).
+        assert!(!w.contains(&(0, 0)));
+        assert!(w.contains(&(0, 1)) && w.contains(&(0, SUBADDRESS_LOOKAHEAD)) && !w.contains(&(0, SUBADDRESS_LOOKAHEAD + 1)));
+        assert!(w.contains(&(1, 0)) && w.contains(&(ACCOUNT_LOOKAHEAD, SUBADDRESS_LOOKAHEAD)));
+        assert!(!w.contains(&(ACCOUNT_LOOKAHEAD + 1, 0)));
+        assert_eq!(w.len() as u32, (ACCOUNT_LOOKAHEAD + 1) * (SUBADDRESS_LOOKAHEAD + 1) - 1);
+        // The research case: funds in account 1 and at account-0 subaddress #150 are watched.
+        assert!(w.contains(&(1, 0)) && w.contains(&(0, 150)));
+    }
+
+    #[test]
+    fn a_used_index_moves_the_window_and_only_the_new_part_is_registered() {
+        use super::{bump_next, lookahead_indices, window_growth, ACCOUNT_LOOKAHEAD, SUBADDRESS_LOOKAHEAD};
+        use std::collections::HashMap;
+        let before = HashMap::from([(0u32, 1u32)]);
+        let mut next = before.clone();
+        // An output at (0, 150): the window for account 0 now reaches 150 + 200.
+        assert!(bump_next(&mut next, 0, 150));
+        let grow = window_growth(&before, &next);
+        assert_eq!(grow.len() as u32, 150);
+        assert!(grow.iter().all(|&(a, i)| a == 0 && i > SUBADDRESS_LOOKAHEAD && i <= 150 + SUBADDRESS_LOOKAHEAD));
+        // A lower index changes nothing.
+        assert!(!bump_next(&mut next, 0, 3));
+        // A higher index inside the same step moves the high-water mark but not the window.
+        let before_step = next.clone();
+        assert!(bump_next(&mut next, 0, 149) == false && bump_next(&mut next, 0, 150) == false);
+        let mut n2 = before_step.clone();
+        assert!(bump_next(&mut n2, 0, 160));       // 160 → rounds to 200 → window 400
+        assert_eq!(window_growth(&before_step, &n2).len(), 50);
+        let mut n3 = n2.clone();
+        assert!(bump_next(&mut n3, 0, 170));       // same step: no new indices to watch
+        assert!(window_growth(&n2, &n3).is_empty());
+        // An output in account 7 pushes the account window to 7 + 50.
+        let before = next.clone();
+        assert!(bump_next(&mut next, 7, 0));
+        let grow = window_growth(&before, &next);
+        assert!(grow.iter().all(|&(a, _)| a > ACCOUNT_LOOKAHEAD && a <= 7 + ACCOUNT_LOOKAHEAD));
+        assert!(lookahead_indices(&next).contains(&(7 + ACCOUNT_LOOKAHEAD, 0)));
+        assert!(window_growth(&next, &next).is_empty());
+    }
+
+    #[test]
+    fn accounts_found_by_lookahead_are_listed() {
+        use super::{note_used_index, WalletInner};
+        let mut inner = WalletInner::empty(std::path::PathBuf::from("."));
+        note_used_index(&mut inner, 0, 120);
+        note_used_index(&mut inner, 3, 9);
+        note_used_index(&mut inner, 3, 2);
+        let idx: Vec<u32> = inner.accounts.iter().map(|a| a.index).collect();
+        assert_eq!(idx, vec![0, 3]);   // account 0 is listed too when the wallet had none
+        assert_eq!(inner.accounts[1].label, "Account #3");
+        assert_eq!(inner.subaddress_next.get(&0), Some(&121));
+        assert_eq!(inner.subaddress_next.get(&3), Some(&10));
     }
 
     #[test]

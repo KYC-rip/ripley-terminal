@@ -3,7 +3,7 @@
 //! Connects to a Monero daemon, fetches blocks in batches, and scans each block
 //! for outputs belonging to the wallet's ViewPair using monero-wallet's Scanner.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,7 +21,7 @@ use monero_daemon_rpc::{HttpTransport, MoneroDaemon};
 use monero_simple_request_rpc::SimpleRequestTransport;
 use monero_wallet::{Scanner, ViewPair};
 
-use super::state::WalletState;
+use super::state::{bump_next, lookahead_indices, window_growth, WalletState};
 use super::{storage, types::SyncStatus};
 use crate::emit_log;
 use crate::tor::{ArtiTransport, SocksTransport, TorState};
@@ -774,6 +774,58 @@ fn proxied_batch_budget(measured_bps: f64) -> u64 {
     ((measured_bps * PROXIED_BATCH_SECS).floor() as u64).max(1)
 }
 
+/// Which blocks of an in-memory batch still need scanning when the watched subaddress
+/// window can widen mid-batch. Each widening bumps a version; a block is (re)visited
+/// while the window version it was last scanned with is older than the current one.
+/// The caller refreshes its scanner right after a widening, so blocks after it in the
+/// same pass are already current — only the blocks before it (and the widening block
+/// itself) are revisited. Terminates: each widening needs a newly found output.
+pub(crate) struct DiscoveryCursor {
+    /// Window version each block was last scanned with (0 = never).
+    scanned_with: Vec<u32>,
+    version: u32,
+    pos: usize,
+    visits: usize,
+}
+
+impl DiscoveryCursor {
+    pub(crate) fn new(len: usize) -> Self {
+        Self { scanned_with: vec![0; len], version: 1, pos: 0, visits: 0 }
+    }
+
+    /// The next block to scan, in height order, or None when every block is current.
+    pub(crate) fn next_block(&mut self) -> Option<usize> {
+        for _ in 0..2 {
+            while self.pos < self.scanned_with.len() {
+                let b = self.pos;
+                self.pos += 1;
+                if self.scanned_with[b] < self.version {
+                    return Some(b);
+                }
+            }
+            if !self.scanned_with.iter().any(|&v| v < self.version) {
+                return None;
+            }
+            self.pos = 0; // stale blocks remain behind us: another pass
+        }
+        None
+    }
+
+    /// Block `b` was just scanned with the current window; `grew` = it widened it.
+    pub(crate) fn scanned(&mut self, b: usize, grew: bool) {
+        self.scanned_with[b] = self.version;
+        self.visits += 1;
+        if grew {
+            self.version += 1;
+        }
+    }
+
+    /// Visits beyond the first pass (0 when nothing was discovered).
+    pub(crate) fn revisits(&self) -> usize {
+        self.visits.saturating_sub(self.scanned_with.len())
+    }
+}
+
 /// After a proxied fetch TIMES OUT, wait this long before retrying. Ticket
 /// #8175618389 (built-in Tor and Whonix alike): after one oversized batch, even
 /// 400-block retries and per-block fetches timed out on a node that serves the same
@@ -798,6 +850,15 @@ async fn proxied_timeout_pause(app: &AppHandle, proxied: bool, err: &str) {
         );
         sleep(PROXIED_TIMEOUT_PAUSE).await;
     }
+}
+
+/// How far above the node's tip a start height must be before it is treated as
+/// impossible (not this chain's height) rather than a node that is merely behind.
+/// No usable node lags ~140 days; a mainnet height on stagenet is ~1.8M above.
+const BEYOND_TIP_BLOCKS: u64 = 100_000;
+
+fn start_beyond_tip(scan_height: u64, daemon_height: u64) -> bool {
+    scan_height != u64::MAX && daemon_height > 0 && scan_height > daemon_height.saturating_add(BEYOND_TIP_BLOCKS)
 }
 
 /// How long any single block-fetch attempt may run before the watchdog aborts it.
@@ -1081,6 +1142,21 @@ async fn scan_loop<C: DaemonConnector>(
                 ),
             );
             scan_height = daemon_height.saturating_sub(10);
+        }
+        // A start height FAR above the tip is not a real height on this chain — e.g. a
+        // mainnet date estimate handed to a stagenet wallet. Left alone, the wallet would
+        // idle as "synced" until the tip caught up (years). Scan from the start instead.
+        if start_beyond_tip(scan_height, daemon_height) {
+            emit_log(
+                &app,
+                "Sync",
+                "warn",
+                &format!(
+                    "⚠️ Start height {} is far above the node's tip {} — not a height on this chain; scanning from the start instead",
+                    scan_height, daemon_height
+                ),
+            );
+            scan_height = 0;
         }
         // NOTE: being slightly AHEAD of the daemon (scan_height == daemon_height + 1,
         // the normal fully-synced state) must NOT reset to near-tip — that caused an
@@ -1382,7 +1458,16 @@ async fn scan_loop<C: DaemonConnector>(
                     // use as the txid (we can't recompute pruned-tx hashes ourselves).
                     let mut ki_to_tx: HashMap<[u8; 32], ([u8; 32], u64)> = HashMap::new();
 
-                    for (i, block) in blocks.iter().enumerate() {
+                    // Discovery can widen the watched subaddress window mid-batch (an
+                    // output at a new index → add_outputs registers the next 200). The
+                    // scanner is refreshed at once, and DiscoveryCursor re-visits exactly
+                    // the blocks scanned with an older window (they are never fetched
+                    // again). add_outputs dedupes by output id; the key-image map is
+                    // idempotent. With no discovery every block is visited once.
+                    let mut cursor = DiscoveryCursor::new(blocks.len());
+                    while let Some(i) = cursor.next_block() {
+                        let block = &blocks[i];
+                        let mut window_grew = false;
                         // Blocks are fetched in range order starting at scan_height,
                         // so the i-th block is at height scan_height + i.
                         let block_height = scan_height + i as u64;
@@ -1390,16 +1475,16 @@ async fn scan_loop<C: DaemonConnector>(
                             Ok(timelocked) => {
                                 let outputs = timelocked.ignore_additional_timelock();
                                 if !outputs.is_empty() {
-                                    for output in &outputs {
-                                        new_amount += output.commitment().amount;
-                                    }
-                                    new_output_count += outputs.len() as u64;
                                     // Real block header time (Unix s) — stable, unlike the
                                     // now−(tip−height)·120 estimate that drifts during sync.
                                     let block_ts = block.block.header.timestamp;
-                                    wallet_state
+                                    let added = wallet_state
                                         .add_outputs(outputs, block_height, block_ts, generation)
                                         .await;
+                                    // Count what was NEW, so a re-scan can't double the log.
+                                    new_output_count += added.count;
+                                    new_amount += added.amount;
+                                    window_grew = added.grew;
                                 }
                             }
                             Err(e) => {
@@ -1428,6 +1513,23 @@ async fn scan_loop<C: DaemonConnector>(
                                 }
                             }
                         }
+                        cursor.scanned(i, window_grew);
+                        if window_grew {
+                            if let Some(s) = wallet_state.get_scanner().await {
+                                scanner = s;
+                            }
+                        }
+                    }
+                    if cursor.revisits() > 0 {
+                        emit_log(
+                            &app,
+                            "Scan",
+                            "info",
+                            &format!(
+                                "🔁 New subaddresses in use — re-scanned {} block(s) of {}-{} with the wider window",
+                                cursor.revisits(), scan_height, batch_end
+                            ),
+                        );
                     }
 
                     let scan_ms = scan_start.elapsed().as_millis();
@@ -1627,17 +1729,38 @@ async fn pool_loop<C: DaemonConnector>(
 
     let data_dir = app.state::<WalletState>().data_dir().await;
 
-    // Build a view-only scanner and register subaddresses (account 0). Generous
-    // fixed count so outputs to any reasonable subaddress are detected.
-    let mut scanner = Scanner::new(view_pair.clone());
-    for i in 1..=100u32 {
-        if let Some(idx) = SubaddressIndex::new(0, i) {
-            scanner.register_subaddress(idx);
-        }
-    }
-
     // Resume from (and accumulate into) the wallet's own cache.
     let mut cache = storage::load_output_cache(&data_dir, &identity_id);
+
+    // View-only scanner watching the same wallet2-sized window as the active wallet
+    // (state::lookahead_indices), seeded with the indices its cached outputs show are
+    // in use. ~10k key derivations, so build it off the async workers.
+    let mut next: HashMap<u32, u32> = HashMap::from([(0u32, 1u32)]);
+    let mut seen: HashSet<String> = HashSet::new();
+    for c in &cache.outputs {
+        seen.insert(format!("{}:{}", c.tx_hash, c.tx_index));
+        if let Ok(o) = monero_wallet::WalletOutput::read(&mut c.data.as_slice()) {
+            if let Some(s) = o.subaddress() {
+                bump_next(&mut next, s.account(), s.address());
+            }
+        }
+    }
+    let window = lookahead_indices(&next);
+    let vp = view_pair.clone();
+    let mut scanner = match tokio::task::spawn_blocking(move || {
+        let mut s = Scanner::new(vp);
+        for (account, index) in window {
+            if let Some(idx) = SubaddressIndex::new(account, index) {
+                s.register_subaddress(idx);
+            }
+        }
+        s
+    })
+    .await
+    {
+        Ok(s) => s,
+        Err(_) => return,
+    };
     if cache.scan_height > scan_height {
         scan_height = cache.scan_height;
     }
@@ -1701,6 +1824,16 @@ async fn pool_loop<C: DaemonConnector>(
                 Ok(h) => h as u64,
                 Err(_) => continue 'outer, // re-race
             };
+            // Same start-height rules as the active scan loop: the new-wallet sentinel
+            // starts near the tip, and an impossible height (far above this chain's tip)
+            // scans from the start. Without these a background wallet "synced" at
+            // u64::MAX — and saved that — forever.
+            if scan_height == u64::MAX {
+                scan_height = daemon_height.saturating_sub(10);
+            } else if start_beyond_tip(scan_height, daemon_height) {
+                log::warn!("[bg {short}] start height {scan_height} is far above the tip {daemon_height}; scanning from the start");
+                scan_height = RINGCT_FORK_HEIGHT;
+            }
             if scan_height >= daemon_height {
                 cache.scan_height = scan_height;
                 let _ = storage::save_output_cache(&data_dir, &identity_id, &cache);
@@ -1751,10 +1884,22 @@ async fn pool_loop<C: DaemonConnector>(
                 bg_bps = Some(bg_bps.map_or(bps, |prev| prev * 0.6 + bps * 0.4));
             }
 
-            for (i, block) in blocks.iter().enumerate() {
+            // Same discovery as the active scan loop: an output at a new index widens
+            // the window, and the batch is re-scanned in memory until nothing widens.
+            // `seen` keeps re-scans (and re-raced overlaps) from duplicating outputs.
+            let mut cursor = DiscoveryCursor::new(blocks.len());
+            while let Some(i) = cursor.next_block() {
+                let block = &blocks[i];
                 let h = scan_height + i as u64;
+                let before = next.clone();
                 if let Ok(timelocked) = scanner.scan(block.clone()) {
                     for o in timelocked.ignore_additional_timelock() {
+                        if !seen.insert(format!("{}:{}", hex::encode(o.transaction()), o.index_in_transaction())) {
+                            continue;
+                        }
+                        if let Some(s) = o.subaddress() {
+                            bump_next(&mut next, s.account(), s.address());
+                        }
                         cache.outputs.push(storage::CachedOutput {
                             data: o.serialize(),
                             amount: o.commitment().amount,
@@ -1766,6 +1911,13 @@ async fn pool_loop<C: DaemonConnector>(
                         });
                     }
                 }
+                let growth = window_growth(&before, &next);
+                for &(account, index) in &growth {
+                    if let Some(idx) = SubaddressIndex::new(account, index) {
+                        scanner.register_subaddress(idx);
+                    }
+                }
+                cursor.scanned(i, !growth.is_empty());
             }
             scan_height = batch_end + 1;
             cache.scan_height = scan_height;
@@ -1779,8 +1931,102 @@ async fn pool_loop<C: DaemonConnector>(
 }
 
 #[cfg(test)]
+mod discovery_cursor_tests {
+    use super::DiscoveryCursor;
+    use std::collections::BTreeSet;
+
+    /// Drive the cursor like the scan loops do, over a fake chain: `blocks[i]` holds the
+    /// subaddress indices paid in block i; the "scanner" sees an index only if it is
+    /// within the window — the highest used index (starting at `known`) rounded up to
+    /// WINDOW_STEP, plus the 200 lookahead, exactly as state::lookahead_indices.
+    /// Returns (indices found, block visits).
+    fn edge(highest: u32) -> u32 {
+        use crate::wallet::state::{SUBADDRESS_LOOKAHEAD, WINDOW_STEP};
+        highest.div_ceil(WINDOW_STEP) * WINDOW_STEP + SUBADDRESS_LOOKAHEAD
+    }
+    fn run_from(known: u32, blocks: &[Vec<u32>]) -> (BTreeSet<u32>, usize) {
+        let mut window = edge(known);
+        let mut found = BTreeSet::new();
+        let mut cursor = DiscoveryCursor::new(blocks.len());
+        let mut visits = 0;
+        while let Some(i) = cursor.next_block() {
+            visits += 1;
+            let visible_window = window; // the scanner as refreshed before this block
+            let mut grew = false;
+            for &idx in &blocks[i] {
+                if idx <= visible_window && found.insert(idx) && edge(idx) > window {
+                    window = edge(idx);
+                    grew = true;
+                }
+            }
+            cursor.scanned(i, grew);
+        }
+        (found, visits)
+    }
+    fn run(blocks: &[Vec<u32>]) -> (BTreeSet<u32>, usize) {
+        run_from(0, blocks)
+    }
+
+    #[test]
+    fn outputs_inside_the_current_window_step_cost_no_revisits() {
+        // The wallet already used index 40, so indices up to 50 don't widen the window.
+        let (found, visits) = run_from(40, &[vec![], vec![5], vec![], vec![47]]);
+        assert_eq!(found, BTreeSet::from([5, 47]));
+        assert_eq!(visits, 4);
+    }
+
+    #[test]
+    fn an_output_beyond_the_window_earlier_in_the_batch_is_found() {
+        // #230 in block 0 is invisible until #150 (block 3) widens the window to 350.
+        let (found, visits) = run(&[vec![230], vec![], vec![], vec![150], vec![], vec![]]);
+        assert_eq!(found, BTreeSet::from([150, 230]));
+        // Pass 1: 6 visits. Block 3 widened → blocks 0..=3 revisited; block 0 widens
+        // again (#230 → 430) → everything scanned with the older window is revisited.
+        assert!(visits > 6 && visits <= 6 * 3, "visits = {visits}");
+    }
+
+    #[test]
+    fn chained_discoveries_inside_one_batch_are_all_found() {
+        // Each index is only visible once the previous one is found; they appear in
+        // REVERSE block order, the worst case for a single forward pass.
+        let (found, _) = run(&[vec![790], vec![590], vec![390], vec![190]]);
+        assert_eq!(found, BTreeSet::from([190, 390, 590, 790]));
+    }
+
+    #[test]
+    fn an_index_past_any_lookahead_stays_unseen_like_wallet2() {
+        // #10 widens the window to 250 (block 1 → revisit 0..=1); #900 stays out of reach.
+        let (found, visits) = run(&[vec![900], vec![10]]);
+        assert_eq!(found, BTreeSet::from([10]));
+        assert!(visits <= 4, "visits = {visits}");
+    }
+
+    #[test]
+    fn many_new_indices_widen_rarely() {
+        // 40 blocks each paying the next subaddress (1..=40): one step, so at most one
+        // widening and one revisit pass — not 40.
+        let blocks: Vec<Vec<u32>> = (1..=40).map(|i| vec![i]).collect();
+        let (found, visits) = run(&blocks);
+        assert_eq!(found.len(), 40);
+        assert!(visits <= 40 + 2, "visits = {visits}");
+    }
+}
+
+#[cfg(test)]
 mod proxied_budget_tests {
-    use super::{is_timeout, proxied_batch_budget, PROXIED_BATCH_SECS};
+    use super::{is_timeout, proxied_batch_budget, start_beyond_tip, PROXIED_BATCH_SECS};
+
+    #[test]
+    fn only_an_impossible_start_height_is_reset() {
+        // A mainnet estimate on stagenet (tip ~1.9M) is reset…
+        assert!(start_beyond_tip(3_783_000, 1_900_000));
+        // …a node merely a few days behind the wallet's cache is not.
+        assert!(!start_beyond_tip(3_790_000, 3_785_000));
+        assert!(!start_beyond_tip(3_790_000 + 99_000, 3_790_000));
+        // The new-wallet sentinel and an unknown tip are never touched.
+        assert!(!start_beyond_tip(u64::MAX, 1_900_000));
+        assert!(!start_beyond_tip(3_783_000, 0));
+    }
 
     #[test]
     fn only_timeouts_trigger_the_pause() {
