@@ -26,7 +26,7 @@ interface AuthViewProps {
 type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
 export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
-  const [routingMode, setRoutingMode] = useState<'tor' | 'clearnet'>('tor');
+  const [routingMode, setRoutingMode] = useState<'tor' | 'clearnet' | 'custom'>('tor');
   const [step, setStep] = useState<SetupStep>('AUTH');
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -49,6 +49,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
   // 🟢 2. Handle network toggle (persist directly to main process)
   const toggleNetwork = async () => {
+    // A custom SOCKS proxy (Whonix) is configured in Settings; this two-way toggle
+    // must never silently replace it with built-in Tor.
+    if (routingMode === 'custom') return;
     const newMode = routingMode === 'tor' ? 'clearnet' : 'tor';
     setRoutingMode(newMode);
 
@@ -284,18 +287,19 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             <div className="mt-6 pt-4 border-t border-xmr-border/10 flex flex-col gap-3">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  {routingMode === 'tor' ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
+                  {routingMode !== 'clearnet' ? <ShieldCheck size={12} className="text-xmr-green" /> : <Globe size={12} className="text-xmr-accent" />}
                   <span className="text-xs font-black uppercase tracking-widest text-xmr-dim">Uplink_Strategy</span>
                 </div>
                 <button
                   type="button"
                   onClick={toggleNetwork}
-                  className={`px-2 py-0.5 rounded-sm border text-xs font-black transition-all cursor-pointer ${routingMode === 'tor'
+                  title={routingMode === 'custom' ? 'Custom SOCKS proxy — change it in Settings' : undefined}
+                  className={`px-2 py-0.5 rounded-sm border text-xs font-black transition-all ${routingMode === 'custom' ? 'cursor-default' : 'cursor-pointer'} ${routingMode !== 'clearnet'
                     ? 'border-xmr-green/50 text-xmr-green hover:bg-xmr-green/10'
                     : 'border-xmr-accent/50 text-xmr-accent hover:bg-xmr-accent/10'
                     }`}
                 >
-                  {routingMode === 'tor' ? 'TOR_ONLY' : 'CLEARNET_ACTIVE'}
+                  {routingMode === 'tor' ? 'TOR_ONLY' : routingMode === 'custom' ? 'PROXY_ACTIVE' : 'CLEARNET_ACTIVE'}
                 </button>
               </div>
 

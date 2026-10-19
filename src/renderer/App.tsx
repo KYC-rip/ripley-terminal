@@ -161,6 +161,8 @@ function MainApp() {
 
   const toggleTor = async () => {
     if (!appConfig) return;
+    // Custom SOCKS (Whonix) is set in Settings; never flip it to built-in Tor here.
+    if (appConfig.routingMode === 'custom') return;
     const newConfig = {
       ...appConfig,
       routingMode: appConfig.routingMode === 'tor' ? 'clearnet' : 'tor'
@@ -498,7 +500,7 @@ function MainApp() {
               const title = bootstrapping
                 ? `Bootstrapping Tor… ${torStatus?.percent ?? 0}%`
                 : appConfig.routingMode === 'clearnet' ? 'Clearnet'
-                : appConfig.routingMode === 'custom' ? 'Custom proxy' : 'Tor Only';
+                : appConfig.routingMode === 'custom' ? 'Custom proxy — change it in Settings' : 'Tor Only';
               return (
                 <button onClick={toggleTor} className={`flex flex-col items-center gap-0.5 py-1.5 rounded-sm border cursor-pointer ${appConfig.routingMode !== 'clearnet' ? 'border-xmr-green/50 text-xmr-green' : 'border-xmr-accent/50 text-xmr-accent'}`} title={title}>
                   <Shield size={12} className={bootstrapping ? 'animate-pulse' : ''} />
