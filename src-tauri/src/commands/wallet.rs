@@ -276,7 +276,10 @@ pub async fn get_balance(
     let (total, unlocked) = state.balances_for_account(account_index, tip).await;
     Ok(serde_json::json!({
         "total": total,
-        "unlocked": unlocked
+        "unlocked": unlocked,
+        // A view-only wallet cannot see its spends (no key images), so its balance can read
+        // HIGH — the UIs label it "incoming only".
+        "viewOnly": state.is_view_only().await
     }))
 }
 
@@ -2174,16 +2177,39 @@ pub async fn import_watch_only(
     }
 
     let identity_id = name.unwrap_or_else(|| format!("wo-{}", &payload.spend_public_key_hex[..12]));
+    register_watch_only(&app, &state, &identity_id, &password, spend_bytes, view_bytes, 0).await?;
+
+    Ok(serde_json::json!({
+        "identityId": identity_id,
+        "address": derived,
+        "success": true,
+    }))
+}
+
+/// The shared tail of every watch-only import: persist the vault (view key + PUBLIC spend
+/// point, starting at `scan_height`), register the identity for the switcher and background
+/// sync, unlock it, start the scanner, and — if the user enabled watch sync — write the
+/// watch-tier pair so boot-time sync covers it too.
+async fn register_watch_only(
+    app: &AppHandle,
+    state: &State<'_, WalletState>,
+    identity_id: &str,
+    password: &str,
+    spend_bytes: [u8; 32],
+    view_bytes: [u8; 32],
+    scan_height: u64,
+) -> Result<(), String> {
     let data_dir = app
         .path()
         .app_data_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
     crate::wallet::storage::save_watch_only_vault(
         &data_dir,
-        &identity_id,
-        &password,
-        &payload.spend_public_key_hex,
-        &payload.view_key_hex,
+        identity_id,
+        password,
+        &hex::encode(spend_bytes),
+        &hex::encode(view_bytes),
+        scan_height,
     )?;
 
     // Register the new identity so it appears in the wallet switcher and is
@@ -2195,8 +2221,8 @@ pub async fn import_watch_only(
         .unwrap_or_default();
     if !ids.iter().any(|i| i.id == identity_id) {
         ids.push(crate::wallet::Identity {
-            id: identity_id.clone(),
-            name: identity_id.clone(),
+            id: identity_id.to_string(),
+            name: identity_id.to_string(),
             created: now,
         });
         if let Err(e) = crate::commands::identity::save_identities(app.clone(), ids).await {
@@ -2204,33 +2230,152 @@ pub async fn import_watch_only(
         }
     }
 
-    state.unlock(&identity_id, &password).await?;
+    state.unlock(identity_id, password).await?;
     emit_log(
-        &app,
+        app,
         "Wallet",
         "success",
         &format!("✅ Watch-only wallet imported: {}", identity_id),
     );
 
-    let scan_height = state.get_scan_height().await;
-    crate::wallet::BlockScanner::start(app.clone(), "", "", scan_height).await?;
+    let start = state.get_scan_height().await;
+    crate::wallet::BlockScanner::start(app.clone(), "", "", start).await?;
 
     // Watch tier: persist the view pair so boot-time watch sync covers this
     // identity too (best-effort, consent-gated, encrypt-or-don't-write inside).
-    if crate::wallet::scanner::read_config_bool(&app, "watchSync") {
+    if crate::wallet::scanner::read_config_bool(app, "watchSync") {
         let view_sec = zeroize::Zeroizing::new(view_bytes);
         if let Err(e) =
-            crate::wallet::storage::save_watch(&data_dir, &identity_id, &spend_bytes, &view_sec)
+            crate::wallet::storage::save_watch(&data_dir, identity_id, &spend_bytes, &view_sec)
         {
             log::warn!("watch store write for {identity_id} failed: {e}");
         }
     }
 
+    // The imported wallet is now the active one: reconcile "Sync all wallets" around it,
+    // as open/create do (the pool stops scanning it and resumes the previously active one).
+    let pool = app.state::<crate::wallet::SyncPool>();
+    refresh_pool(app, state, &pool, identity_id, password).await;
+    Ok(())
+}
+
+/// Checks for a standard view-only import, separated from storage so they can be tested:
+/// the address must be a PRIMARY address on this wallet's network, and the private view key
+/// must be the one that address carries. Returns (public spend point, view key bytes).
+pub(crate) fn check_view_only_pair(
+    network: monero_address::Network,
+    address: &str,
+    view_key_hex: &str,
+) -> Result<([u8; 32], [u8; 32]), String> {
+    let address = address.trim();
+    let parsed = match monero_address::MoneroAddress::from_str(network, address) {
+        Ok(a) => a,
+        Err(e) => {
+            // Say "wrong network" when it is one — the most confusing failure otherwise.
+            if let Ok(other) = monero_address::MoneroAddress::from_str_with_unchecked_network(address) {
+                return Err(format!(
+                    "This is a {:?} address, but Ripley is on {:?}.",
+                    other.network(),
+                    network
+                ));
+            }
+            return Err(format!("Not a Monero address: {e:?}"));
+        }
+    };
+    match parsed.kind() {
+        monero_address::AddressType::Legacy => {}
+        monero_address::AddressType::Subaddress => {
+            return Err("This is a subaddress. A view-only wallet needs the wallet's PRIMARY address (the one starting with 4 on mainnet).".into())
+        }
+        _ => {
+            return Err("This is an integrated or featured address. Use the wallet's primary address.".into())
+        }
+    }
+    let view_bytes: [u8; 32] = hex::decode(view_key_hex.trim())
+        .map_err(|_| "The private view key must be 64 hex characters.".to_string())?
+        .try_into()
+        .map_err(|_| "The private view key must be 64 hex characters.".to_string())?;
+    let view_scalar = Option::<curve25519_dalek::Scalar>::from(
+        curve25519_dalek::Scalar::from_canonical_bytes(view_bytes),
+    )
+    .ok_or("This is not a valid private view key.")?;
+    let view_public = (view_scalar * curve25519_dalek::constants::ED25519_BASEPOINT_POINT)
+        .compress()
+        .to_bytes();
+    let address_view: [u8; 32] = parsed.view().compress().to_bytes();
+    if view_public != address_view {
+        return Err("This private view key does not belong to this address.".into());
+    }
+    Ok((parsed.spend().compress().to_bytes(), view_bytes))
+}
+
+/// Standard view-only import: primary address + private view key (+ optional restore height),
+/// as exported by Monero GUI/CLI, Feather, Cake or Monerujo. Incoming funds only — spends made
+/// from the real wallet are invisible without its key images.
+#[tauri::command]
+pub async fn import_view_only(
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    name: String,
+    password: String,
+    address: String,
+    view_key: String,
+    restore_height: Option<u64>,
+) -> Result<serde_json::Value, String> {
+    let network = state.get_network().await;
+    let view_key = zeroize::Zeroizing::new(view_key);
+    let (spend_bytes, view_bytes) = check_view_only_pair(network, &address, &view_key)?;
+    let identity_id = name.trim().to_string();
+    if identity_id.is_empty() {
+        return Err("Name required".into());
+    }
+    register_watch_only(&app, &state, &identity_id, &password, spend_bytes, view_bytes, restore_height.unwrap_or(0)).await?;
     Ok(serde_json::json!({
         "identityId": identity_id,
-        "address": derived,
+        "address": address.trim(),
         "success": true,
     }))
+}
+
+/// What a pasted phrase is, without creating anything: its format, wordlist, Polyseed
+/// birthday, and the PRIMARY ADDRESS it opens on this wallet's network — public data only, so
+/// the UI can ask "does this match your old wallet?" before import. Never returns key material.
+#[tauri::command]
+pub async fn inspect_seed(
+    state: State<'_, WalletState>,
+    words: String,
+) -> Result<serde_json::Value, String> {
+    let network = state.get_network().await;
+    let words = zeroize::Zeroizing::new(words);
+    let count = words.split_whitespace().count();
+    // Polyseed runs PBKDF2 (10k iterations) per language tried — off the async workers.
+    let phrase = words.clone();
+    let parsed = tokio::task::spawn_blocking(move || crate::wallet::keys::parse_seed(&phrase))
+        .await
+        .map_err(|e| format!("inspect failed: {e}"))?;
+    Ok(match parsed {
+        Ok(p) => {
+            let spend: curve25519_dalek::Scalar = (*p.spend).into();
+            let spend_point = monero_oxide::ed25519::Point::from(spend * curve25519_dalek::constants::ED25519_BASEPOINT_POINT);
+            let view_pair = monero_wallet::ViewPair::new(spend_point, p.view.clone())
+                .map_err(|e| format!("Failed to create ViewPair: {:?}", e))?;
+            serde_json::json!({
+                "format": p.format,
+                "language": p.language,
+                "birthdayUnix": p.birthday_unix,
+                "primaryAddress": view_pair.legacy_address(network).to_string(),
+                "network": format!("{:?}", network).to_lowercase(),
+            })
+        }
+        Err(e) => {
+            let format = match crate::wallet::keys::seed_format_by_count(count) {
+                // 24 words that are not Monero words are a BIP39 phrase.
+                crate::wallet::keys::SeedFormat::Legacy24 => crate::wallet::keys::SeedFormat::Bip39Like,
+                f => f,
+            };
+            serde_json::json!({ "format": format, "error": e })
+        }
+    })
 }
 
 /// Step 1 of the offline flow (hot device): prepare a transfer (coins, decoys,
@@ -2512,5 +2657,61 @@ mod spend_confirm_tests {
             !body.contains("Send "),
             "fallback must not render a destination line"
         );
+    }
+}
+
+#[cfg(test)]
+mod view_only_tests {
+    use super::check_view_only_pair;
+    use monero_address::Network;
+
+    /// A real wallet's primary address + private view key, derived from Cake's published
+    /// Polyseed vector (keys.rs) — so the pair is genuine, not hand-made.
+    fn cake_pair(network: Network) -> (String, String, monero_wallet::ViewPair) {
+        let p = crate::wallet::keys::parse_seed("unaware yard donate shallow slot sing oil oxygen loyal bench near hill surround forum execute lamp").unwrap();
+        let spend: curve25519_dalek::Scalar = (*p.spend).into();
+        let point = monero_oxide::ed25519::Point::from(spend * curve25519_dalek::constants::ED25519_BASEPOINT_POINT);
+        let vp = monero_wallet::ViewPair::new(point, p.view.clone()).unwrap();
+        let view: curve25519_dalek::Scalar = (*p.view).into();
+        (vp.legacy_address(network).to_string(), hex::encode(view.to_bytes()), vp)
+    }
+
+    #[test]
+    fn the_matching_primary_address_and_view_key_import() {
+        let (addr, view, vp) = cake_pair(Network::Mainnet);
+        let (spend, view_bytes) = check_view_only_pair(Network::Mainnet, &format!("  {addr}\n"), &view).unwrap();
+        assert_eq!(hex::encode(view_bytes), view);
+        // The stored public spend point rebuilds the same address.
+        let point = monero_oxide::ed25519::CompressedPoint::from(spend).decompress().unwrap();
+        assert_eq!(point.compress().to_bytes(), vp.legacy_address(Network::Mainnet).spend().compress().to_bytes());
+    }
+
+    #[test]
+    fn a_view_key_from_another_wallet_is_refused() {
+        let (addr, _, _) = cake_pair(Network::Mainnet);
+        let other = hex::encode(curve25519_dalek::Scalar::from(42u64).to_bytes());
+        let err = check_view_only_pair(Network::Mainnet, &addr, &other).unwrap_err();
+        assert!(err.contains("does not belong"), "{err}");
+        assert!(check_view_only_pair(Network::Mainnet, &addr, "nothex").unwrap_err().contains("64 hex"));
+    }
+
+    #[test]
+    fn subaddresses_and_other_networks_are_refused_with_a_reason() {
+        let (_, view, vp) = cake_pair(Network::Mainnet);
+        let sub = vp.subaddress(Network::Mainnet, monero_address::SubaddressIndex::new(0, 1).unwrap()).to_string();
+        assert!(check_view_only_pair(Network::Mainnet, &sub, &view).unwrap_err().contains("subaddress"));
+        let (stagenet_addr, view_s, _) = cake_pair(Network::Stagenet);
+        let err = check_view_only_pair(Network::Mainnet, &stagenet_addr, &view_s).unwrap_err();
+        assert!(err.contains("Stagenet") && err.contains("Mainnet"), "{err}");
+        assert!(check_view_only_pair(Network::Mainnet, "not-an-address", &view).unwrap_err().contains("Not a Monero address"));
+        // An integrated address (primary + payment id) is refused too.
+        let integrated = monero_address::MoneroAddress::new(
+            Network::Mainnet,
+            monero_address::AddressType::LegacyIntegrated([7u8; 8]),
+            vp.legacy_address(Network::Mainnet).spend(),
+            vp.legacy_address(Network::Mainnet).view(),
+        )
+        .to_string();
+        assert!(check_view_only_pair(Network::Mainnet, &integrated, &view).unwrap_err().contains("integrated"));
     }
 }

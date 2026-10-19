@@ -503,9 +503,12 @@ impl WalletState {
         restore_height: Option<u64>,
     ) -> Result<String, String> {
         let (mnemonic, spend_key, view_key) = if let Some(seed) = seed_phrase {
-            // Restore from existing mnemonic
+            // Restore from an existing phrase. What we hand back (and what Show seed shows
+            // later) is the wallet's canonical 25-word seed — for a Polyseed, or a legacy seed
+            // whose bytes needed reducing, that differs from the words typed, and it is the
+            // form every Monero wallet restores.
             let (sk, vk) = keys::keys_from_mnemonic(seed)?;
-            (seed.to_string(), sk, vk)
+            (mnemonic_from_spend_key(&sk)?, sk, vk)
         } else {
             // Generate new wallet
             keys::generate_mnemonic()

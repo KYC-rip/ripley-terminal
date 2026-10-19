@@ -4199,7 +4199,6 @@ dependencies = [
 [[package]]
 name = "monero-seed"
 version = "0.1.0"
-source = "git+https://github.com/kayabaNerve/monero-wallet-util#797fe701a6f9e99ae614c49479bb981de1afe8ec"
 dependencies = [
  "curve25519-dalek",
  "rand_core 0.6.4",
@@ -4978,6 +4977,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest",
+ "hmac",
+ "password-hash",
+ "sha2",
+]
+
+[[package]]
 name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5336,6 +5347,20 @@ dependencies = [
  "cpufeatures",
  "opaque-debug",
  "universal-hash",
+]
+
+[[package]]
+name = "polyseed"
+version = "0.1.0"
+source = "git+https://github.com/kayabaNerve/monero-wallet-util#797fe701a6f9e99ae614c49479bb981de1afe8ec"
+dependencies = [
+ "pbkdf2",
+ "rand_core 0.6.4",
+ "sha2",
+ "std-shims 0.1.4",
+ "subtle",
+ "thiserror 1.0.69",
+ "zeroize",
 ]
 
 [[package]]
@@ -5974,6 +5999,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "objc2-web-kit",
+ "polyseed",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "reqwest 0.12.28",

@@ -77,6 +77,9 @@ monero-daemon-rpc = { git = "https://github.com/KYC-rip/monero-oxide", rev = "31
 monero-address = { git = "https://github.com/KYC-rip/monero-oxide", rev = "31136bc913ebd8cc96b1e9048ce98c5c7c54de5e", package = "monero-address" }
 monero-simple-request-rpc = { git = "https://github.com/KYC-rip/monero-oxide", rev = "31136bc913ebd8cc96b1e9048ce98c5c7c54de5e", package = "monero-simple-request-rpc" }
 monero-seed = { git = "https://github.com/kayabaNerve/monero-wallet-util" }
+# Polyseed (16 words — the default in Feather ≥2.0 and Cake). Same repo, so it locks to the
+# same commit as monero-seed.
+polyseed = { git = "https://github.com/kayabaNerve/monero-wallet-util", features = ["std"] }
 
 # Crypto primitives (matching monero-oxide's versions)
 curve25519-dalek = { version = "4", default-features = false, features = ["alloc", "zeroize"] }
@@ -165,6 +168,11 @@ hickory-proto = { version = "0.24", default-features = false }
 # (ring-offset multiset) and to classify change ownership on a cold signer. See
 # vendor/monero-oxide/FORK_DELTA.md; rebase onto upstream = apply the same small
 # delta to a newer rev.
+# monero-seed with one additive function (lenient legacy decode) — see
+# vendor/monero-seed/FORK_DELTA.md.
+[patch."https://github.com/kayabaNerve/monero-wallet-util"]
+monero-seed = { path = "vendor/monero-seed" }
+
 [patch."https://github.com/KYC-rip/monero-oxide"]
 monero-wallet = { path = "vendor/monero-oxide/monero-oxide/wallet" }
 monero-oxide = { path = "vendor/monero-oxide/monero-oxide" }

@@ -203,13 +203,14 @@ pub fn save_watch_only_vault(
     password: &str,
     spend_public_hex: &str,
     view_key_hex: &str,
+    scan_height: u64,
 ) -> Result<(), String> {
     if wallet_exists(data_dir, identity_id) {
         return Err("A wallet already exists for this identity".into());
     }
     let wallet_data = WalletFileData {
         seed_entropy: String::new(),
-        scan_height: 0,
+        scan_height,
         accounts: vec![AccountLabel {
             index: 0,
             label: "Primary".into(),
@@ -527,6 +528,21 @@ pub fn list_watch_ids(data_dir: &Path) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// A standard view-only import starts at the height the user gave, not at genesis.
+    #[test]
+    fn watch_only_vault_keeps_its_start_height() {
+        let dir = std::env::temp_dir().join(format!("ros-wo-height-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        save_watch_only_vault(&dir, "vo_t", "pw", &"11".repeat(32), &"22".repeat(32), 3_600_000).unwrap();
+        let w = load_wallet(&dir, "vo_t", "pw").unwrap();
+        assert_eq!(w.scan_height, 3_600_000);
+        assert!(w.view_only.is_some() && w.seed_entropy.is_empty());
+        // Never overwrites an existing vault.
+        assert!(save_watch_only_vault(&dir, "vo_t", "pw", &"11".repeat(32), &"22".repeat(32), 0).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]
