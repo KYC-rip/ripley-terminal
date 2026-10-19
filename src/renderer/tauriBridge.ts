@@ -98,6 +98,21 @@ function createTauriApi() {
     renameIdentity: (id: string, name: string) => invoke('rename_identity', { id, name }),
     deleteIdentityFiles: (id: string) => invoke('delete_identity', { id }).then(() => ({ success: true })),
 
+    // ── Onboarding (P1): what a pasted phrase is + standard view-only import ──
+    // inspect_seed returns PUBLIC data only (format, wordlist, Polyseed birthday, the primary
+    // address it opens on this shell's network). Polyseed runs PBKDF2 — callers debounce.
+    inspectSeed: (words: string) => invoke('inspect_seed', { words }),
+    // Address + private view key → a watch-only vault; the backend registers the identity,
+    // unlocks it and starts the scanner. Rejects with a readable reason.
+    importViewOnly: (req: { name: string; password: string; address: string; viewKey: string; restoreHeight?: number | null }) =>
+      invoke('import_view_only', {
+        name: req.name,
+        password: req.password,
+        address: req.address,
+        viewKey: req.viewKey,
+        restoreHeight: req.restoreHeight ?? null,
+      }),
+
     // ── Wallet Actions ──
     walletAction: async (action: string, payload?: any) => {
       try {
@@ -268,6 +283,7 @@ function createTauriApi() {
             result = {
               total_balance: bal.total,
               unlocked_balance: bal.unlocked,
+              view_only: bal.viewOnly === true,
               per_subaddress: subsForBal.map((s: any) => ({
                 address_index: s.index,
                 balance: Number(s.balance) || 0,

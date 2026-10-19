@@ -16,6 +16,8 @@ export interface VaultContextType {
   accounts: MoneroAccount[];
   selectedAccountIndex: number;
   balance: { total: string; unlocked: string };
+  /** The active wallet is view-only: incoming funds only, its balance can read high. */
+  isViewOnly: boolean;
   address: string;
   subaddresses: SubaddressInfo[];
   status: string;
@@ -39,6 +41,9 @@ export interface VaultContextType {
   setSelectedAccountIndex: (index: number) => void;
   createAccount: (label: string) => Promise<void>;
   unlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
+  /** Standard view-only import (address + private view key). The backend registers the
+   *  identity, unlocks it and starts the scanner; this lands the UI in the unlocked wallet. */
+  importViewOnly: (name: string, password: string, address: string, viewKey: string, restoreHeight?: number) => Promise<void>;
   lock: () => void;
   sendXmr: (address: string, amount: number, accountIndex?: number, priority?: number) => Promise<string | undefined>;
   sendMulti: (destinations: { address: string; amount: number }[], subaddrIndices?: number[], priority?: number) => Promise<string | undefined>;
@@ -101,6 +106,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
+  const [isViewOnly, setIsViewOnly] = useState(false);
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [activeId, setActiveId] = useState<string>("primary");
   const [hasVaultFile, setHasVaultFile] = useState(false);
@@ -179,7 +185,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
         const [balRes, heightRes, txsRes, addrRes, outsRes] = results;
 
-        if (balRes.status === 'fulfilled') setBalance(balRes.value);
+        if (balRes.status === 'fulfilled') {
+          const { viewOnly, ...bal } = balRes.value;
+          setBalance(bal);
+          setIsViewOnly(viewOnly);
+        }
         if (heightRes.status === 'fulfilled') {
           const h = heightRes.value;
           setCurrentHeight(h);
@@ -472,6 +482,46 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeId, identities, addLog]);
 
+  const importViewOnly = useCallback(async (
+    name: string,
+    password: string,
+    address: string,
+    viewKey: string,
+    restoreHeight?: number
+  ) => {
+    if (!window.api.importViewOnly) throw new Error('View-only import needs the native app.');
+    setIsInitializing(true);
+    addLog(`👁️ Importing view-only wallet: ${name}...`, 'process');
+    try {
+      // Same id shape as a created wallet (a safe filename); the backend names the identity
+      // after its id, so the display name is set right after.
+      const newId = `vault_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      let res: { identityId: string };
+      try {
+        res = await window.api.importViewOnly({ name: newId, password, address: address.trim(), viewKey: viewKey.trim(), restoreHeight: restoreHeight ?? null });
+      } catch (e: any) {
+        // Tauri rejects with the command's error STRING, not an Error.
+        throw new Error(typeof e === 'string' ? e : (e?.message || String(e)));
+      }
+      const id = res.identityId || newId;
+      await window.api.renameIdentity(id, name).catch((e: any) => console.warn('[Vault] view-only rename failed:', e));
+      const ids = await window.api.getIdentities().catch(() => null);
+      setIdentities(ids && ids.length ? ids : [...identities, { id, name, created: Date.now() }]);
+      await window.api.setActiveIdentity(id);
+      setActiveId(id);
+
+      setHasVaultFile(true);
+      setIsLocked(false);
+      setIsInitializing(false);
+      addLog('✅ View-only wallet open — incoming funds only. Synchronizing with network...', 'success');
+    } catch (e: any) {
+      addLog(`❌ FATAL: ${e.message}`, 'error');
+      setIsInitializing(false);
+      setIsLocked(true);
+      throw e;
+    }
+  }, [identities, addLog]);
+
   const lock = useCallback(async () => {
     // 1. 🟢 Immediate UI update (instant lock manifestation)
     setIsLocked(true);
@@ -480,6 +530,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     // 2. 🧹 Purge sensitive state
     setAddress('');
     setBalance({ total: '0.0000', unlocked: '0.0000' });
+    setIsViewOnly(false);
     setSubaddresses([]);
     setTxs([]);
     setOutputs([]);
@@ -711,9 +762,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo(() => ({
     accounts, selectedAccountIndex,
-    balance, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent, nodeLabel,
+    balance, isViewOnly, address, subaddresses, status, logs, txs, currentHeight, totalHeight, syncPercent, nodeLabel,
     isAppLoading, isInitializing, isLocked, isSending, hasVaultFile, identities, activeId, isStagenet,
-    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex, addLog,
+    unlock, importViewOnly, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, outputs, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
     createAccount, sendMulti, getFeeEstimates,
     getTxKey, getTxProof, checkTxKey, checkTxProof,
@@ -724,7 +775,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     accounts, selectedAccountIndex, balance, address, subaddresses, status, logs, txs,
     currentHeight, totalHeight, syncPercent, nodeLabel, isAppLoading, isInitializing, isLocked,
     isSending, hasVaultFile, identities, activeId, isStagenet, outputs,
-    unlock, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex, addLog,
+    unlock, importViewOnly, lock, purgeIdentity, sendXmr, refresh, createSubaddress, renameIdentity, setSelectedAccountIndex, addLog,
     rescan, renameAccount, churn, splinter, vanishCoin, vanishSubaddress, setSubaddressLabel, switchIdentity,
     createAccount, sendMulti, getFeeEstimates, requestedAction, setRequestedAction,
     getTxKey, getTxProof, checkTxKey, checkTxProof,

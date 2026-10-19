@@ -52,7 +52,7 @@ function MainApp() {
 
   const vault = useVault();
   const {
-    address, logs, status, isAppLoading, isInitializing, syncPercent, currentHeight, totalHeight, isLocked, unlock, lock, purgeIdentity,
+    address, logs, status, isAppLoading, isInitializing, syncPercent, currentHeight, totalHeight, isLocked, unlock, importViewOnly, lock, purgeIdentity,
     hasVaultFile, identities, activeId, switchIdentity
   } = vault;
 
@@ -343,6 +343,7 @@ function MainApp() {
         <div className="relative z-10 w-full h-full">
           <AuthView
             onUnlock={unlock}
+            onImportViewOnly={importViewOnly}
             isInitialSetup={!hasVaultFile}
             identities={identities}
             activeId={activeId}

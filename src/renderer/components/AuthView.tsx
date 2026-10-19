@@ -1,7 +1,8 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Shield, ShieldCheck, Users, Globe, ShieldAlert, LayoutGrid } from 'lucide-react';
 import { Card } from './Card';
-import { AuthForm } from './auth/AuthForm';
+import { AuthForm, type RestoreMode } from './auth/AuthForm';
+import { validateViewOnlyForm } from '../seedVerdict';
 import { IdentitySwitcher } from './auth/IdentitySwitcher';
 import { LogEntry } from '../contexts/VaultContext';
 
@@ -14,6 +15,8 @@ interface Identity { id: string; name: string; created: number; }
 
 interface AuthViewProps {
   onUnlock: (password: string, newIdentityName?: string, restoreSeed?: string, restoreHeight?: number, seedLanguage?: string) => Promise<void>;
+  /** Standard view-only import; resolves once the wallet is open (VaultContext.importViewOnly). */
+  onImportViewOnly?: (name: string, password: string, address: string, viewKey: string, restoreHeight?: number) => Promise<void>;
   isInitialSetup: boolean;
   identities: Identity[];
   activeId: string;
@@ -23,9 +26,9 @@ interface AuthViewProps {
   logs?: LogEntry[];
 }
 
-type SetupStep = 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
+type SetupStep = 'WELCOME' | 'AUTH' | 'LABEL' | 'MODE' | 'RESTORE' | 'NEW_PASSWORD';
 
-export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
+export function AuthView({ onUnlock, onImportViewOnly, isInitialSetup, identities, activeId, onSwitchIdentity, onCreateIdentity, onPurgeIdentity, logs = [] }: AuthViewProps) {
   const [routingMode, setRoutingMode] = useState<'tor' | 'clearnet' | 'custom'>('tor');
   const [network, setNetwork] = useState('mainnet');
   const [step, setStep] = useState<SetupStep>('AUTH');
@@ -43,9 +46,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
       setStep('AUTH');
       setHasInitialized(true);
     } else if (!hasInitialized && identities.length === 0) {
-      // First launch: skip to password creation directly (Exodus-style)
+      // First launch: one clear choice — create a new wallet, or bring an existing one.
       setNewName('My_Wallet');
-      setStep('NEW_PASSWORD');
+      setStep('WELCOME');
     }
   }, [identities.length, hasInitialized]);
 
@@ -71,6 +74,9 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
   const [restoreHeight, setRestoreHeight] = useState('');
   const [newName, setNewName] = useState('');
   const [seedLanguage, setSeedLanguage] = useState('English');
+  const [restoreMode, setRestoreMode] = useState<RestoreMode>('phrase');
+  const [viewAddress, setViewAddress] = useState('');
+  const [viewKey, setViewKey] = useState('');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [appVersion, setAppVersion] = useState('');
@@ -100,7 +106,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
   // Clear any stale error when navigating between auth steps — a failed unlock's
   // "INVALID PASSWORD" must not linger on the create/restore screens.
-  useEffect(() => { setError(''); }, [step]);
+  useEffect(() => { setError(''); }, [step, restoreMode]);
 
   // Wallets from a previous (Electron) Ripley install, not yet imported here.
   const [legacy, setLegacy] = useState<{ id: string; name: string; est_restore_height: number }[]>([]);
@@ -140,6 +146,15 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
     e.preventDefault();
     if (isProcessing) return;
 
+    // View-only: field checks first (the native import is authoritative on network/key match).
+    const viewOnly = step === 'RESTORE' && restoreMode === 'viewonly';
+    if (viewOnly) {
+      const problem = !onImportViewOnly
+        ? 'VIEW_ONLY_IMPORT_UNAVAILABLE'
+        : validateViewOnlyForm({ name: newName, address: viewAddress, viewKey, password, confirmPassword });
+      if (problem) { setError(problem); return; }
+    }
+
     // Validation logic
     if (step === 'RESTORE' || step === 'NEW_PASSWORD' || (step === 'LABEL' && isInitialSetup)) {
       if (password.length < 8) { setError('SECRET_TOO_SHORT: MIN 8 CHARS'); return; }
@@ -151,6 +166,10 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
 
     try {
       const height = restoreHeight ? parseInt(restoreHeight) : undefined;
+      if (viewOnly) {
+        await onImportViewOnly!(newName.trim(), password, viewAddress, viewKey, height);
+        return;
+      }
       // 🚀 Call the new unlock in VaultContext
       await onUnlock(
         password,
@@ -193,7 +212,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             {step === 'AUTH' ? <Shield size={40} className={isProcessing ? 'animate-pulse' : ''} /> : <ShieldCheck size={40} />}
           </div>
           <h1 className="text-2xl font-black uppercase text-xmr-green tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-            {step === 'RESTORE' ? 'Restore Wallet' : step === 'NEW_PASSWORD' ? (identities.length === 0 ? 'Create Your Wallet' : 'Set Password') : step === 'LABEL' ? 'Name Your Wallet' : 'Unlock Vault'}
+            {step === 'WELCOME' ? 'Set Up Your Wallet' : step === 'RESTORE' ? (restoreMode === 'viewonly' ? 'Import View-Only' : 'Restore Wallet') : step === 'NEW_PASSWORD' ? (identities.length === 0 ? 'Create Your Wallet' : 'Set Password') : step === 'LABEL' ? 'Name Your Wallet' : 'Unlock Vault'}
           </h1>
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center justify-center gap-2 text-[11px] text-xmr-dim uppercase tracking-widest">
@@ -244,6 +263,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
                   setNewName(w.name);
                   setRestoreHeight(w.est_restore_height ? String(w.est_restore_height) : '');
                   setRestoreSeed('');
+                  setRestoreMode('phrase');
                   setPassword('');
                   setConfirmPassword('');
                   setStep('RESTORE');
@@ -260,6 +280,10 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
         <Card topGradientAccentColor={step === 'AUTH' ? 'xmr-accent' : 'xmr-green'} className="p-8 shadow-2xl relative">
           <AuthForm
             step={step} setStep={setStep} isInitialSetup={isInitialSetup}
+            firstRun={identities.length === 0}
+            restoreMode={restoreMode} setRestoreMode={setRestoreMode}
+            viewAddress={viewAddress} setViewAddress={setViewAddress}
+            viewKey={viewKey} setViewKey={setViewKey}
             password={password} setPassword={setPassword}
             confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
             restoreSeed={restoreSeed} setRestoreSeed={setRestoreSeed}
@@ -346,7 +370,7 @@ export function AuthView({ onUnlock, isInitialSetup, identities, activeId, onSwi
             Same setUiMode as Settings → Use_RipleyOS_Desktop, surfaced here so beta
             isn't buried three clicks deep. Tauri only. */}
         {/* Unlock (AUTH) or first-run create (no vault yet) — don't bury beta behind Settings. */}
-        {canRos && !isProcessing && (step === 'AUTH' || (step === 'NEW_PASSWORD' && identities.length === 0)) && (
+        {canRos && !isProcessing && (step === 'AUTH' || ((step === 'NEW_PASSWORD' || step === 'WELCOME') && identities.length === 0)) && (
           <div className="rounded-lg border border-xmr-green/25 bg-xmr-green/5 px-4 py-3.5 space-y-2.5">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-xmr-green/30 bg-xmr-base/60">

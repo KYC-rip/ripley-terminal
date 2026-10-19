@@ -374,6 +374,11 @@ export function VaultView({ setView, vault, handleBurn, appConfig }: VaultViewPr
                     <span className="text-[10px] text-xmr-dim font-bold">XMR</span>
                   </div>
                   {totalFiat && <div className="text-[10px] font-bold text-xmr-dim/40 uppercase tracking-wider">{totalFiat} USD</div>}
+                  {vault.isViewOnly && (
+                    <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-amber-400" title="View-only — sees incoming funds only. Spends made from your real wallet don't show here, so the balance can read higher than it really is.">
+                      View-only · incoming only
+                    </div>
+                  )}
                 </div>
 
                 {/* Status rows */}

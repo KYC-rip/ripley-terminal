@@ -112,6 +112,10 @@ export interface IApi {
   renameIdentity: (id: string, name: string) => Promise<boolean>;
   deleteIdentityFiles: (id: string) => Promise<{ success: boolean; error?: string }>;
 
+  // --- Onboarding (native host only; absent in the legacy Electron shell) ---
+  inspectSeed?: (words: string) => Promise<import('./seedVerdict').SeedInspection>;
+  importViewOnly?: (req: { name: string; password: string; address: string; viewKey: string; restoreHeight?: number | null }) => Promise<{ identityId: string; address: string; success: boolean }>;
+
   // --- Core Wallet Operations (Delegated to RPC) ---
   walletAction: (action: 'create' | 'open' | 'close' | 'hard-close' | 'label_account' | 'mnemonic' | 'keys', payload?: { name?: string; pwd?: string, seed?: string, height?: number, language?: string, account_index?: number, label?: string }) => Promise<WalletActionResponse>;
 

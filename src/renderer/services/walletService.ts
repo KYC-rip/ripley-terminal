@@ -62,7 +62,9 @@ export const WalletService = {
     const balance = await RpcClient.call('get_balance', { account_index: accountIndex });
     return {
       total: RpcClient.formatXmr(balance.total_balance.toString()),
-      unlocked: RpcClient.formatXmr(balance.unlocked_balance.toString())
+      unlocked: RpcClient.formatXmr(balance.unlocked_balance.toString()),
+      // A view-only wallet cannot see its spends, so its balance can read high.
+      viewOnly: balance.view_only === true,
     };
   },
 
