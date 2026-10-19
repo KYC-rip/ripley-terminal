@@ -188,10 +188,13 @@ export function AuthView({ onUnlock, onImportViewOnly, isInitialSetup, identitie
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-xmr-base text-xmr-green font-mono p-6 relative overflow-y-auto custom-scrollbar">
+    // h-screen + overflow-y-auto: the body and App's locked wrapper clip overflow, so this view
+    // must scroll itself (min-h-screen let it grow past the window, unscrollable). The card
+    // centres with my-auto, not justify-center, which would push overflow off the top.
+    <div className="flex flex-col items-center h-screen bg-xmr-base text-xmr-green font-mono p-6 relative overflow-y-auto custom-scrollbar">
       <div className="fixed inset-0 scanline-overlay pointer-events-none z-50 opacity-[0.05]"></div>
 
-      <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 py-10">
+      <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-500 py-10 my-auto">
         {/* HEADER */}
         <div className="text-center space-y-3">
           <div className="inline-block p-3 rounded-full bg-xmr-green/10 border border-xmr-green/20 mb-1">
