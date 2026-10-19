@@ -411,10 +411,14 @@ where
         .map_err(|e| format!("HTTP handshake failed: {e}"))?;
 
     // The connection future must be driven concurrently while we await the
-    // response. Spawn it; abort once the body is fully read.
-    let conn_task = tokio::spawn(async move {
+    // response. Spawn it, and abort it whenever THIS future ends — including when
+    // a caller's timeout/watchdog drops it mid-request. Today hyper already closes
+    // the connection once the request/body side is dropped (the abandoned_* tests
+    // pass without the guard); the guard makes that independent of hyper's
+    // internals, so an abandoned download can never keep a slow Tor/SOCKS route busy.
+    let conn_task = AbortOnDrop(tokio::spawn(async move {
         let _ = conn.await;
-    });
+    }));
 
     let response = sender
         .send_request(request)
@@ -425,7 +429,6 @@ where
     // non-2xx (e.g. a CDN 4xx/redirect) means the body is not what we asked for.
     let status = response.status();
     if !status.is_success() {
-        conn_task.abort();
         return Err(format!("HTTP {status}"));
     }
 
@@ -441,10 +444,18 @@ where
             .map_err(|e| format!("Response body error: {e}")),
     };
 
-    // Always tear down the connection driver, including on the body-error path
-    // (an early `?` would otherwise leak the spawned task until the stream dies).
-    conn_task.abort();
+    // The guard tears the connection driver down on every exit path.
+    drop(conn_task);
     Ok(result?.to_bytes().to_vec())
+}
+
+/// Aborts the wrapped task when dropped, so a cancelled request closes its socket.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 /// Process-wide rustls connector, built once from the OS trust store. ring is the
@@ -540,6 +551,82 @@ fn parse_host_port(url: &str) -> Result<(String, u16), InterfaceError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A request abandoned by a caller's timeout must close its connection — the
+    /// node side must see EOF, not keep streaming into a detached driver.
+    /// The ticket's case: the node is mid-way through a big response when the
+    /// caller gives up. The connection must close, not keep downloading the rest.
+    #[tokio::test]
+    async fn abandoned_download_closes_the_connection() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (client, server) = tokio::io::duplex(16 * 1024);
+        let (mut srv_rd, mut srv_wr) = tokio::io::split(server);
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/get_blocks.bin")
+            .header(hyper::header::HOST, "node.onion")
+            .body(Full::new(Bytes::from_static(b"x")))
+            .unwrap();
+        // The "node": read the request, announce 50 MB, then trickle the body forever.
+        let node = tokio::spawn(async move {
+            let mut buf = vec![0u8; 4096];
+            let _ = srv_rd.read(&mut buf).await;
+            srv_wr
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 52428800\r\n\r\n")
+                .await
+                .unwrap();
+            let chunk = vec![0u8; 1024];
+            let mut sent = 0usize;
+            loop {
+                match tokio::time::timeout(Duration::from_secs(2), srv_wr.write_all(&chunk)).await {
+                    Ok(Ok(())) => sent += chunk.len(),
+                    Ok(Err(_)) => return (true, sent),    // peer closed: the download stopped
+                    Err(_) => return (false, sent),       // nobody reading, nobody closing: still parked
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+        let abandoned = tokio::time::timeout(
+            Duration::from_millis(300),
+            http_over_stream(client, request, None),
+        )
+        .await;
+        assert!(abandoned.is_err(), "the download should still be running at the timeout");
+        let (closed, sent) = tokio::time::timeout(Duration::from_secs(10), node).await.unwrap().unwrap();
+        assert!(sent > 0, "the body had started streaming");
+        assert!(closed, "the abandoned download kept its connection open");
+    }
+
+    #[tokio::test]
+    async fn abandoned_request_closes_the_connection() {
+        use tokio::io::AsyncReadExt;
+        let (client, mut server) = tokio::io::duplex(64 * 1024);
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/get_blocks.bin")
+            .header(hyper::header::HOST, "node.onion")
+            .body(Full::new(Bytes::from_static(b"x")))
+            .unwrap();
+        // The "node" reads the request and never answers; the caller gives up.
+        let abandoned = tokio::time::timeout(
+            Duration::from_millis(100),
+            http_over_stream(client, request, None),
+        )
+        .await;
+        assert!(abandoned.is_err(), "the request should still be pending at the timeout");
+        // Drain whatever the client wrote; the next read must hit EOF (connection gone).
+        let mut buf = vec![0u8; 4096];
+        let closed = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                match server.read(&mut buf).await {
+                    Ok(0) | Err(_) => break true,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert_eq!(closed, Ok(true), "the abandoned connection stayed open");
+    }
 
     #[test]
     fn parses_host_and_port() {

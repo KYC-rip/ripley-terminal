@@ -29,10 +29,24 @@ use crate::tor::{ArtiTransport, SocksTransport, TorState};
 const GITHUB_NODES_URL: &str =
     "https://raw.githubusercontent.com/KYC-rip/ripley-terminal/main/resources/nodes.json";
 
-/// Read the configured routing mode ("tor" | "clearnet") from config.json.
-/// Defaults to "clearnet" when the file is absent or unparseable.
+/// Read the configured routing mode ("tor" | "clearnet" | "custom") from config.json.
+/// Defaults to "clearnet" when the file is absent or unparseable — the unparseable
+/// case is logged, since it silently drops a Tor/custom user to clearnet.
 pub(crate) fn read_routing_mode(app: &AppHandle) -> String {
-    read_config_str(app, "routingMode").unwrap_or_else(|| "clearnet".to_string())
+    if let Some(mode) = read_config_str(app, "routingMode") {
+        return mode;
+    }
+    let path = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("config.json");
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(&data) {
+            log::warn!("config.json does not parse ({e}) — routing falls back to clearnet until it is fixed");
+        }
+    }
+    "clearnet".to_string()
 }
 
 pub(crate) fn known_routing_mode(mode: &str) -> bool {
@@ -742,6 +756,24 @@ where
     Ok(chunks.into_iter().flatten().collect())
 }
 
+/// Seconds of transfer one proxied batch may plan for at the measured rate — well
+/// inside both FETCH_DEADLINE (75 s) and the transport's 60 s per-request timeout,
+/// so a normal batch never trips either and a stall still does.
+const PROXIED_BATCH_SECS: f64 = 30.0;
+/// Per-block (validated) batches on a proxied route before throughput is known,
+/// and their floor.
+const PROXIED_PER_BLOCK_START: u64 = 20;
+const PROXIED_PER_BLOCK_MIN: u64 = 5;
+
+/// Blocks a proxied route can move in PROXIED_BATCH_SECS at `measured_bps`
+/// (at least 1). Callers clamp it to their own floors and ceilings.
+fn proxied_batch_budget(measured_bps: f64) -> u64 {
+    if !measured_bps.is_finite() || measured_bps <= 0.0 {
+        return 1;
+    }
+    ((measured_bps * PROXIED_BATCH_SECS).floor() as u64).max(1)
+}
+
 /// How long any single block-fetch attempt may run before the watchdog aborts it.
 /// Healthy bulk/per-block batches finish in ~10–50s even over Tor; this only trips
 /// on a genuinely stalled node/circuit.
@@ -839,6 +871,11 @@ async fn scan_loop<C: DaemonConnector>(
     // circuits add latency and arti builds them lazily, so fewer parallel
     // streams perform better over Tor; clearnet keeps wide parallelism.
     let fetch_concurrency: usize = if connector.section() == "tor" { 4 } else { 12 };
+    // Built-in Tor and an external SOCKS proxy (Whonix) both report section "tor".
+    // Those routes can be ~30 blk/s, so a batch is sized to what the route has
+    // actually delivered (see proxied_batch_budget) instead of a fixed size that
+    // can never finish under the watchdog.
+    let proxied = connector.section() == "tor";
 
     // Opt-in "Fast sync" (Settings, default OFF): bulk-fetch each batch via
     // get_blocks.bin, trusting the node for tx content. Skips the prunable_hash
@@ -930,7 +967,17 @@ async fn scan_loop<C: DaemonConnector>(
     // node that can't bulk. Successful batches grow it back toward the max.
     const MAX_BULK_BATCH: u64 = 1000;
     const MIN_BULK_BATCH: u64 = 100;
-    let mut bulk_batch: u64 = MAX_BULK_BATCH;
+    // Proxied routes start small (4 × 50 = 200 blocks) and grow only as far as the
+    // measured throughput allows; their floor is low enough to stay on bulk at a
+    // few blocks per second. Ticket #8175618389: a fixed 4 × 1000 first batch at
+    // ~28 blk/s needed ~140 s against a 75 s watchdog and never completed.
+    const PROXIED_START_BULK_BATCH: u64 = 50;
+    const PROXIED_MIN_BULK_BATCH: u64 = 10;
+    let start_bulk = if proxied { PROXIED_START_BULK_BATCH } else { MAX_BULK_BATCH };
+    let min_bulk = if proxied { PROXIED_MIN_BULK_BATCH } else { MIN_BULK_BATCH };
+    let mut bulk_batch: u64 = start_bulk;
+    // Set once a batch has been timed on this route (the seed is a guess).
+    let mut throughput_measured = false;
 
     // Bulk fetches in flight per batch (fast sync). Over Tor the bottleneck is
     // circuit latency, not bandwidth, so we fetch BULK_STREAMS sub-ranges of
@@ -1035,7 +1082,10 @@ async fn scan_loop<C: DaemonConnector>(
             // branch every iteration and never sets sync_status.daemon_height — leaving
             // tip_height() at 0, so balances()/get_spendable_outputs() treat EVERY output
             // as immature: unlocked balance reads 0, no spendable inputs, sends fail.
-            ws.update_sync_status(scan_height, daemon_height).await;
+            if !ws.update_sync_status_for(generation, scan_height, daemon_height).await {
+                emit_log(&app, "Sync", "info", "🛑 Scan loop stopped (superseded at tip)");
+                return Ok(());
+            }
             // Reconcile spends with the daemon once we're at the tip (authoritative,
             // catches spends made in any wallet — including before this feature).
             if !spend_reconciled {
@@ -1105,9 +1155,20 @@ async fn scan_loop<C: DaemonConnector>(
         // automatically once the gap is small (and in the SYNCED branch above).
         app.state::<crate::wallet::SyncPool>()
             .set_active_busy(gap > 2_000);
+        // On a proxied route, once throughput is known, no batch may need more than
+        // PROXIED_BATCH_SECS at that rate.
+        let budget = (proxied && throughput_measured).then(|| proxied_batch_budget(measured_bps));
+        // Sub-range size for this bulk batch (fast sync): the adaptive size, clamped
+        // to the time budget split across the concurrent streams.
+        let sub_size: u64 = match budget {
+            Some(b) => bulk_batch.min((b / BULK_STREAMS as u64).max(min_bulk)),
+            None => bulk_batch,
+        };
         let batch_size: u64 = if fast_sync {
-            // K sub-ranges of `bulk_batch`, fetched concurrently (see bulk_parallel).
-            (bulk_batch * BULK_STREAMS as u64).min(gap)
+            // K sub-ranges of `sub_size`, fetched concurrently (see bulk_parallel).
+            (sub_size * BULK_STREAMS as u64).min(gap)
+        } else if proxied {
+            budget.unwrap_or(PROXIED_PER_BLOCK_START).clamp(PROXIED_PER_BLOCK_MIN, 100).min(gap.max(1))
         } else if gap > 1_000 {
             100
         } else {
@@ -1170,7 +1231,7 @@ async fn scan_loop<C: DaemonConnector>(
             match with_deadline(bulk_parallel(
                 &daemon,
                 range.clone(),
-                bulk_batch as usize,
+                sub_size as usize,
                 BULK_STREAMS,
             ))
             .await
@@ -1191,15 +1252,15 @@ async fn scan_loop<C: DaemonConnector>(
                     }
                     Ok(blocks)
                 }
-                Err(e) if bulk_batch > MIN_BULK_BATCH => {
+                Err(e) if sub_size > min_bulk => {
                     // K concurrent responses of this size overwhelmed the circuit/timeout.
                     // HALVE and retry bulk (stay on the fast path), and remember the
                     // halved size as the ceiling so we don't immediately grow back into
                     // the size that just failed.
-                    bulk_batch = (bulk_batch / 2).max(MIN_BULK_BATCH);
+                    bulk_batch = (sub_size / 2).max(min_bulk);
                     bulk_ceiling = bulk_batch;
                     bulk_streak = 0;
-                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk fetch failed ({:?}) — shrinking to {}-block batches and retrying bulk", e, bulk_batch));
+                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk fetch failed ({:?}) — shrinking to {} blocks per stream ({} per batch) and retrying bulk", e, bulk_batch, bulk_batch * BULK_STREAMS as u64));
                     continue;
                 }
                 Err(e) => {
@@ -1207,7 +1268,7 @@ async fn scan_loop<C: DaemonConnector>(
                     // THIS batch via the validated per-block path so we still progress,
                     // then re-race to hunt for a node that CAN bulk (resetting the batch
                     // size) — never grinding the slow path forever.
-                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk unavailable on {} even at {} blocks ({:?}) — one validated per-block batch, then re-racing", node_label, MIN_BULK_BATCH, e));
+                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk unavailable on {} even at {} blocks ({:?}) — one validated per-block batch, then re-racing", node_label, min_bulk, e));
                     if pool.len() == 1 {
                         pool = build_fallback_pool(
                             &app,
@@ -1225,7 +1286,7 @@ async fn scan_loop<C: DaemonConnector>(
                         );
                     }
                     reraise_for_bulk = true;
-                    bulk_batch = MAX_BULK_BATCH;
+                    bulk_batch = start_bulk;
                     bulk_ceiling = MAX_BULK_BATCH;
                     bulk_streak = 0;
                     with_deadline(parallel_per_block(&pool, range.clone())).await
@@ -1240,7 +1301,10 @@ async fn scan_loop<C: DaemonConnector>(
                 // Update rolling throughput (EMA) from this batch's real timing
                 if fetch_ms > 0 && !blocks.is_empty() {
                     let batch_bps = blocks.len() as f64 / (fetch_ms as f64 / 1000.0);
-                    measured_bps = measured_bps * 0.6 + batch_bps * 0.4;
+                    // The first real timing replaces the seed outright — blending it
+                    // with an optimistic guess would size the next proxied batch too big.
+                    measured_bps = if throughput_measured { measured_bps * 0.6 + batch_bps * 0.4 } else { batch_bps };
+                    throughput_measured = true;
                 }
                 let blk_s = if fetch_ms > 0 {
                     blocks.len() as f64 / (fetch_ms as f64 / 1000.0)
@@ -1397,9 +1461,11 @@ async fn scan_loop<C: DaemonConnector>(
 
                 scan_height = batch_end + 1;
 
-                // Check generation BEFORE updating state — don't overwrite a rescan's reset
+                // Update scan height in state — only while this scanner is still
+                // current, checked under the same lock a rescan resets in, so a
+                // superseded scanner can't write its height over a rescan's.
                 let ws = app.state::<WalletState>();
-                if ws.current_scanner_generation() != generation {
+                if !ws.update_sync_status_for(generation, scan_height, daemon_height).await {
                     emit_log(
                         &app,
                         "Sync",
@@ -1408,9 +1474,6 @@ async fn scan_loop<C: DaemonConnector>(
                     );
                     return Ok(());
                 }
-
-                // Update scan height in state
-                ws.update_sync_status(scan_height, daemon_height).await;
 
                 // Persist progress after EVERY batch. The old `scan_height % 500`
                 // heuristic drifted with the batch step and rarely fired, so the
@@ -1547,6 +1610,10 @@ async fn pool_loop<C: DaemonConnector>(
 
     // Opt-in fast sync (same trade-off as the active scanner; see scan_loop).
     let fast_sync = read_config_bool(&app, "fast_sync");
+    // Proxied routes (built-in Tor / external SOCKS): size each background batch to
+    // PROXIED_BATCH_SECS at the throughput this loop has measured, like scan_loop.
+    let proxied = connector.section() == "tor";
+    let mut bg_bps: Option<f64> = None;
 
     'outer: loop {
         if cancel.load(Ordering::SeqCst) {
@@ -1596,8 +1663,14 @@ async fn pool_loop<C: DaemonConnector>(
                 continue;
             }
 
-            let batch_step: u64 = if fast_sync { 1000 } else { 100 };
+            let batch_step: u64 = match (proxied, fast_sync) {
+                (false, true) => 1000,
+                (false, false) => 100,
+                (true, true) => bg_bps.map(proxied_batch_budget).unwrap_or(200).clamp(20, 1000),
+                (true, false) => bg_bps.map(proxied_batch_budget).unwrap_or(PROXIED_PER_BLOCK_START).clamp(PROXIED_PER_BLOCK_MIN, 100),
+            };
             let batch_end = (scan_height + batch_step).min(daemon_height);
+            let fetch_start = std::time::Instant::now();
             let range = (scan_height as usize)..=(batch_end as usize);
             let per_block = || async {
                 let r: Result<Vec<_>, _> = futures::stream::iter(range.clone())
@@ -1626,6 +1699,11 @@ async fn pool_loop<C: DaemonConnector>(
                 Ok(b) => b,
                 Err(_) => continue 'outer, // re-race
             };
+            let secs = fetch_start.elapsed().as_secs_f64();
+            if secs > 0.0 && !blocks.is_empty() {
+                let bps = blocks.len() as f64 / secs;
+                bg_bps = Some(bg_bps.map_or(bps, |prev| prev * 0.6 + bps * 0.4));
+            }
 
             for (i, block) in blocks.iter().enumerate() {
                 let h = scan_height + i as u64;
@@ -1651,6 +1729,22 @@ async fn pool_loop<C: DaemonConnector>(
                 cache.outputs.len()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod proxied_budget_tests {
+    use super::{proxied_batch_budget, PROXIED_BATCH_SECS};
+
+    #[test]
+    fn budget_tracks_measured_throughput() {
+        // Ticket #8175618389: ~28 blk/s over Whonix → 840 blocks, ~30 s, not 4000 (~140 s).
+        assert_eq!(proxied_batch_budget(28.0), 840);
+        assert!(proxied_batch_budget(28.0) as f64 / 28.0 <= PROXIED_BATCH_SECS);
+        assert_eq!(proxied_batch_budget(0.5), 15);
+        assert_eq!(proxied_batch_budget(0.0), 1);
+        assert_eq!(proxied_batch_budget(f64::NAN), 1);
+        assert_eq!(proxied_batch_budget(-3.0), 1);
     }
 }
 
