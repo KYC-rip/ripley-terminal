@@ -4,6 +4,7 @@ pub mod device_key;
 pub mod keys;
 pub mod msg_sign;
 pub mod offline;
+pub mod owner;
 pub mod reqwest_transport;
 pub mod scanner;
 pub mod state;

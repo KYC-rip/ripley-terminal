@@ -1321,6 +1321,40 @@ impl WalletState {
         own_address_strings(&inner).contains(&addr.to_string())
     }
 
+    /// "Whose address": where the OPEN wallet holds `addr` (None = not this wallet) with its
+    /// account + subaddress labels, plus the open identity id. None while locked.
+    pub async fn locate_in_open(&self, addr: &MoneroAddress) -> Option<(String, Option<super::owner::Located>)> {
+        let inner = self.inner.read().await;
+        let id = inner.active_identity.clone()?;
+        let vp = inner.view_pair.as_ref()?;
+        let view = inner.view_key.clone()?;
+        let keys = super::owner::OwnerKeys { spend: vp.spend(), view };
+        let spot = super::owner::locate(addr, &keys, &inner.subaddress_next, inner.network);
+        let located = spot.map(|spot| {
+            let account = super::owner::spot_account(&spot);
+            super::owner::Located {
+                account_label: account.and_then(|a| inner.accounts.iter().find(|x| x.index == a).map(|x| x.label.clone())),
+                label: match spot {
+                    super::owner::Spot::Sub { account, index } => inner
+                        .subaddress_labels
+                        .iter()
+                        .find(|(a, i, _)| *a == account && *i == index)
+                        .map(|(_, _, l)| l.clone()),
+                    _ => None,
+                },
+                labels_read: true,
+                spot,
+            }
+        });
+        Some((id, located))
+    }
+
+    /// The open wallet's unlock password, for trying it on the OTHER vaults in memory
+    /// (as "Sync all wallets" does). Never stored or returned to the UI.
+    pub(crate) async fn retained_password(&self) -> Option<Zeroizing<String>> {
+        self.inner.read().await.password.clone().map(Zeroizing::new)
+    }
+
     /// Detect spent outputs by matching their key images against a set of input
     /// key images observed on-chain (collected from scanned blocks' transaction
     /// inputs). Marks any owned output whose key image appears as spent. Requires

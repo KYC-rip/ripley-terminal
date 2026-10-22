@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-find-address-owner"
+description = "Enables the find_address_owner command without any pre-configured scope."
+commands.allow = ["find_address_owner"]
+
+[[permission]]
+identifier = "deny-find-address-owner"
+description = "Denies the find_address_owner command without any pre-configured scope."
+commands.deny = ["find_address_owner"]

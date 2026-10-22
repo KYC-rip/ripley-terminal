@@ -24,6 +24,7 @@ const APP_COMMANDS: &[&str] = &[
     "get_height",
     // Address operations
     "get_subaddresses",
+    "find_address_owner",
     "create_subaddress",
     "set_subaddress_label",
     "estimate_fees",

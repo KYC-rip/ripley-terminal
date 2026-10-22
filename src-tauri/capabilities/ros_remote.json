@@ -55,6 +55,7 @@
     "allow-get-balance",
     "allow-get-height",
     "allow-get-subaddresses",
+    "allow-find-address-owner",
     "allow-create-subaddress",
     "allow-set-subaddress-label",
     "allow-estimate-fees",

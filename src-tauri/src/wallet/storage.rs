@@ -479,11 +479,30 @@ pub fn load_watch(data_dir: &Path, identity_id: &str) -> Option<monero_wallet::V
     load_watch_with_key(&k, data_dir, identity_id)
 }
 
+/// An identity's persisted public spend point + private view scalar (the watch pair's
+/// parts), for checks that need the scalar itself ("whose address"). None on any failure.
+pub fn load_watch_parts(
+    data_dir: &Path,
+    identity_id: &str,
+) -> Option<(monero_oxide::ed25519::Point, Zeroizing<monero_oxide::ed25519::Scalar>)> {
+    let k = super::device_key::watch_key()?;
+    load_watch_parts_with_key(&k, data_dir, identity_id)
+}
+
 fn load_watch_with_key(
     k: &[u8; KEY_LEN],
     data_dir: &Path,
     identity_id: &str,
 ) -> Option<monero_wallet::ViewPair> {
+    let (spend, view) = load_watch_parts_with_key(k, data_dir, identity_id)?;
+    monero_wallet::ViewPair::new(spend, view).ok()
+}
+
+fn load_watch_parts_with_key(
+    k: &[u8; KEY_LEN],
+    data_dir: &Path,
+    identity_id: &str,
+) -> Option<(monero_oxide::ed25519::Point, Zeroizing<monero_oxide::ed25519::Scalar>)> {
     let path = watch_path(data_dir, identity_id).ok()?;
     let data = std::fs::read(&path).ok()?;
     let pt = Zeroizing::new(open_sealed(k, &data)?);
@@ -500,7 +519,7 @@ fn load_watch_with_key(
         curve25519_dalek::Scalar::from_canonical_bytes(view_bytes),
     )?;
     let view = Zeroizing::new(monero_oxide::ed25519::Scalar::from(view_scalar));
-    monero_wallet::ViewPair::new(spend, view).ok()
+    Some((spend, view))
 }
 
 /// Remove an identity's watch file (identity deletion / watch-sync toggle-off).

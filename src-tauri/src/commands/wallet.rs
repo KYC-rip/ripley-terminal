@@ -316,6 +316,158 @@ pub async fn get_subaddresses(
     Ok(state.get_subaddresses(account_index, tip).await)
 }
 
+/// Which of my wallets owns an address — wallet, account, index and labels.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddressOwner {
+    identity_id: String,
+    name: String,
+    is_open: bool,
+    /// "primary" | "integrated" | "subaddress" | "beyond" (ours, past the issued range + lookahead)
+    kind: &'static str,
+    account: Option<u32>,
+    index: Option<u32>,
+    account_label: Option<String>,
+    label: Option<String>,
+    /// False when only a view pair was readable: labels are unknown, not absent.
+    labels_read: bool,
+    payment_id: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddressOwnerResult {
+    found: Option<AddressOwner>,
+    /// Wallets actually checked.
+    checked: u32,
+    /// Names of wallets that could not be read (other password / no view pair).
+    unchecked: Vec<String>,
+}
+
+fn owner_of(id: String, names: &std::collections::HashMap<String, String>, is_open: bool, l: crate::wallet::owner::Located) -> AddressOwner {
+    use crate::wallet::owner::Spot;
+    let (kind, account, index, payment_id) = match &l.spot {
+        Spot::Primary { payment_id: Some(p) } => ("integrated", Some(0), Some(0), Some(hex::encode(p))),
+        Spot::Primary { payment_id: None } => ("primary", Some(0), Some(0), None),
+        Spot::Sub { account, index } => ("subaddress", Some(*account), Some(*index), None),
+        Spot::BeyondWindow => ("beyond", None, None, None),
+    };
+    AddressOwner {
+        name: names.get(&id).cloned().unwrap_or_else(|| id.clone()),
+        identity_id: id,
+        is_open,
+        kind,
+        account,
+        index,
+        account_label: l.account_label,
+        label: l.label,
+        labels_read: l.labels_read,
+        payment_id,
+    }
+}
+
+/// "Whose address is this?" Read-only: opens, switches and writes nothing. Order: the open
+/// wallet; then each other wallet's watch pair (no password; a hit then reads that vault for
+/// its labels); then the remaining vaults, decrypted in memory with the open wallet's
+/// password and/or `password`. Neither the address nor the password is logged or echoed.
+#[tauri::command]
+pub async fn find_address_owner(
+    app: AppHandle,
+    state: State<'_, WalletState>,
+    address: String,
+    password: Option<String>,
+) -> Result<AddressOwnerResult, String> {
+    use crate::wallet::owner::{self, Located, OwnerKeys};
+    use crate::wallet::storage;
+    use zeroize::Zeroizing;
+
+    let password = password.map(Zeroizing::new);
+    let network = state.get_network().await;
+    let addr = match MoneroAddress::from_str(network, address.trim()) {
+        Ok(a) => a,
+        Err(_) => {
+            return Err(match MoneroAddress::from_str_with_unchecked_network(address.trim()) {
+                Ok(o) => format!("This is a {:?} address; your wallets are on {:?}.", o.network(), network),
+                Err(_) => "Not a Monero address.".to_string(),
+            })
+        }
+    };
+    let names: std::collections::HashMap<String, String> = crate::commands::identity::load_identities(&app)
+        .into_iter()
+        .map(|i| (i.id, i.name))
+        .collect();
+    let ids = crate::commands::identity::identity_ids(&app);
+
+    let mut checked = 0u32;
+    let open_id = match state.locate_in_open(&addr).await {
+        Some((id, Some(l))) => {
+            return Ok(AddressOwnerResult { found: Some(owner_of(id, &names, true, l)), checked: 1, unchecked: vec![] });
+        }
+        Some((id, None)) => {
+            checked += 1;
+            Some(id)
+        }
+        None => None,
+    };
+
+    let mut pws: Vec<Zeroizing<String>> = Vec::new();
+    if let Some(p) = state.retained_password().await {
+        pws.push(p);
+    }
+    if let Some(p) = password {
+        if !p.is_empty() && !pws.iter().any(|q| **q == *p) {
+            pws.push(p);
+        }
+    }
+    let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let others: Vec<String> = ids.into_iter().filter(|id| Some(id) != open_id.as_ref()).collect();
+
+    // Argon2 per vault: off the async runtime, sequential, stopping at the first owner.
+    let (found, more, unread) = tokio::task::spawn_blocking(move || {
+        let mut checked = 0u32;
+        let read_vault = |id: &str| pws.iter().find_map(|pw| storage::load_wallet(&data_dir, id, pw).ok());
+        let mut no_watch = Vec::new();
+        for id in others {
+            match storage::load_watch_parts(&data_dir, &id) {
+                Some((spend, view)) => {
+                    checked += 1;
+                    let keys = OwnerKeys { spend, view };
+                    if let Some(spot) = owner::locate(&addr, &keys, &std::collections::HashMap::from([(0u32, 1u32)]), network) {
+                        // The vault (when it opens) has the labels and the issued range.
+                        if let Some(Ok(Some(l))) = read_vault(&id).map(|wd| owner::locate_in_vault(&addr, &wd, network)) {
+                            return (Some((id, l)), checked, Vec::new());
+                        }
+                        let l = Located { spot, account_label: None, label: None, labels_read: false };
+                        return (Some((id, l)), checked, Vec::new());
+                    }
+                }
+                None => no_watch.push(id),
+            }
+        }
+        let mut unread = Vec::new();
+        for id in no_watch {
+            match read_vault(&id) {
+                Some(wd) => {
+                    checked += 1;
+                    if let Ok(Some(l)) = owner::locate_in_vault(&addr, &wd, network) {
+                        return (Some((id, l)), checked, Vec::new());
+                    }
+                }
+                None => unread.push(id),
+            }
+        }
+        (None, checked, unread)
+    })
+    .await
+    .map_err(|_| "The address check stopped unexpectedly.".to_string())?;
+
+    Ok(AddressOwnerResult {
+        found: found.map(|(id, l)| owner_of(id, &names, false, l)),
+        checked: checked + more,
+        unchecked: unread.into_iter().map(|id| names.get(&id).cloned().unwrap_or(id)).collect(),
+    })
+}
+
 #[tauri::command]
 pub async fn create_subaddress(
     state: State<'_, WalletState>,

@@ -2373,6 +2373,12 @@
           "markdownDescription": "Enables the fetch_price_history command without any pre-configured scope."
         },
         {
+          "description": "Enables the find_address_owner command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-find-address-owner",
+          "markdownDescription": "Enables the find_address_owner command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_accounts command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-accounts",
@@ -3145,6 +3151,12 @@
           "type": "string",
           "const": "deny-fetch-price-history",
           "markdownDescription": "Denies the fetch_price_history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the find_address_owner command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-find-address-owner",
+          "markdownDescription": "Denies the find_address_owner command without any pre-configured scope."
         },
         {
           "description": "Denies the get_accounts command without any pre-configured scope.",

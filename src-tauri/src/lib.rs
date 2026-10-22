@@ -469,6 +469,7 @@ pub fn run() {
             commands::wallet::get_height,
             // Address operations
             commands::wallet::get_subaddresses,
+            commands::wallet::find_address_owner,
             commands::wallet::create_subaddress,
             commands::wallet::set_subaddress_label,
             commands::wallet::estimate_fees,
