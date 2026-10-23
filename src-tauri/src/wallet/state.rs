@@ -156,6 +156,28 @@ fn resume_height(file_height: u64, cache_height: u64) -> u64 {
     }
 }
 
+/// Where a spend-capable wallet resumes: the spend marker when it lags the scan
+/// (catch-up), else the scan height. A legacy cache (None) or a sentinel/0 height means
+/// unknown → no catch-up.
+fn resume_with_spends(scan: u64, spends_checked: Option<u64>) -> u64 {
+    match spends_checked {
+        Some(c) if scan != 0 && scan != u64::MAX && c >= RINGCT_FORK_HEIGHT && c < scan => c,
+        _ => scan,
+    }
+}
+
+/// The scan's RingCT floor (scanner::RINGCT_FORK_HEIGHT): no catch-up below it.
+const RINGCT_FORK_HEIGHT: u64 = 1_220_516;
+
+/// Advance the spend marker over a batch [from, to] scanned with the spend key —
+/// contiguously only: a batch past a gap (or from a stale scanner) leaves it.
+fn advance_spends_checked(cur: Option<u64>, from: u64, to: u64) -> Option<u64> {
+    match cur {
+        Some(c) if c >= from => Some(c.max(to.saturating_add(1))),
+        other => other,
+    }
+}
+
 /// Apply a scanner's progress only if `generation` is still the current scanner.
 /// The caller holds the inner write lock, and `reset_scan` bumps the generation
 /// under that same lock, so a superseded scanner can never overwrite a rescan.
@@ -397,6 +419,9 @@ struct WalletInner {
     frozen: HashSet<String>,
     /// Broadcast transactions, for outgoing history.
     sent: Vec<storage::SentTx>,
+    /// First block not yet scanned WITH the spend key (see OutputCache). Moved only by
+    /// unlock, `detect_and_record_spends` and `reset_scan_in_memory`; saves just read it.
+    spends_checked: Option<u64>,
     /// Spend staged at prepare time (spent ids + partial sent-log entry), keyed
     /// by a hash of the tx metadata; committed only after the broadcast succeeds.
     pending_spends: HashMap<String, (Vec<String>, storage::SentTx)>,
@@ -447,12 +472,63 @@ impl WalletInner {
             spent: HashSet::new(),
             frozen: HashSet::new(),
             sent: vec![],
+            spends_checked: None,
             pending_spends: HashMap::new(),
             pending_change: HashMap::new(),
             offline_staged: HashMap::new(),
             scan_height: 0,
             daemon_url: None,
             data_dir,
+        }
+    }
+}
+
+impl WalletInner {
+    /// Start spend detection for a scanned batch [from, to]: the spend key, or None
+    /// (soft lock / view-only, or a scanner superseded by a rescan — its spends must not
+    /// land in the reset state) — in which case the spend marker stays put. Otherwise the
+    /// batch advances the marker (contiguously), whether or not it turns out to hold a
+    /// spend of ours. The caller records under the same write lock without awaiting; a
+    /// panic in between kills the scan task before any save, so the advance is lost too.
+    fn begin_spend_batch(&mut self, from: u64, to: u64, current: bool) -> Option<Zeroizing<Scalar>> {
+        if !current {
+            return None;
+        }
+        let sk = self.spend_key.clone()?;
+        self.spends_checked = advance_spends_checked(self.spends_checked, from, to);
+        Some(sk)
+    }
+
+    /// What `save_output_cache` persists. Reads the spend marker; never moves it.
+    fn cache_snapshot(&self) -> storage::OutputCache {
+        let cached_outputs: Vec<storage::CachedOutput> = self
+            .scanned_outputs
+            .iter()
+            .map(|o| storage::CachedOutput {
+                data: o.output.serialize(),
+                amount: o.output.commitment().amount,
+                tx_hash: hex::encode(o.output.transaction()),
+                tx_index: o.output.index_in_transaction(),
+                subaddress: o.output.subaddress().map(|s| s.address()),
+                height: o.height,
+                timestamp: o.timestamp,
+            })
+            .collect();
+        storage::OutputCache {
+            scan_height: self.scan_height,
+            outputs: cached_outputs,
+            spent: self.spent.iter().cloned().collect(),
+            frozen: self.frozen.iter().cloned().collect(),
+            sent: self.sent.clone(),
+            spends_checked_height: self.spends_checked,
+        }
+    }
+
+    /// A rescan from `from` re-checks spends from there (higher or lower than before).
+    /// View-only wallets keep their loaded marker: they never detect spends.
+    fn reset_spends_checked(&mut self, from: u64) {
+        if !self.view_only {
+            self.spends_checked = Some(from);
         }
     }
 }
@@ -699,6 +775,22 @@ impl WalletState {
         // held outputs, so a rescan that found none resumed from the wallet file's
         // stale height after a restart — ticket #8175618389.)
         inner.scan_height = resume_height(inner.scan_height, cache.scan_height);
+        // Blocks the background pool / a soft-locked session scanned without the spend
+        // key may hold sends of ours: resume the scan at the spend marker so they're
+        // re-scanned with it (outputs dedupe by id, sends by txid).
+        if view_only {
+            inner.spends_checked = cache.spends_checked_height;
+        } else {
+            let start = resume_with_spends(inner.scan_height, cache.spends_checked_height);
+            if start < inner.scan_height {
+                log::info!(
+                    "Checking {} blocks scanned without the spend key for sends",
+                    inner.scan_height - start
+                );
+            }
+            inner.scan_height = start;
+            inner.spends_checked = Some(start);
+        }
         inner.spent = cache.spent.into_iter().collect();
         inner.frozen = cache.frozen.into_iter().collect();
         inner.sent = cache.sent;
@@ -1398,19 +1490,27 @@ impl WalletState {
     /// shows withdrawals (incl. those made in other wallets). The recorded amount is
     /// net of change received in the same tx. Dedupes against existing sent entries
     /// (e.g. our own broadcasts). Returns the number of outputs newly marked spent.
+    ///
+    /// The batch [from, to] it covers advances the spend marker (`spends_checked`) —
+    /// only with the spend key present, checked under the same write lock as the
+    /// recording, and for every batch (also those with nothing to record).
     pub async fn detect_and_record_spends(
         &self,
         ki_to_tx: &HashMap<[u8; 32], ([u8; 32], u64)>,
         tip: u64,
+        from: u64,
+        to: u64,
+        generation: u64,
     ) -> usize {
+        let now = chrono::Utc::now().timestamp().max(0) as u64;
+        let mut inner = self.inner.write().await;
+        let current = self.scanner_generation.load(Ordering::SeqCst) == generation;
+        let Some(sk) = inner.begin_spend_batch(from, to, current) else {
+            return 0; // soft lock / view-only: these blocks stay unchecked for spends
+        };
         if ki_to_tx.is_empty() {
             return 0;
         }
-        let now = chrono::Utc::now().timestamp().max(0) as u64;
-        let mut inner = self.inner.write().await;
-        let Some(sk) = inner.spend_key.clone() else {
-            return 0;
-        };
 
         // Group spent owned outputs by their spending tx: txid -> (gross, ids, height).
         // NOTE: we do NOT skip outputs already in `spent`. The tip reconcile
@@ -1629,6 +1729,7 @@ impl WalletState {
         let mut inner = self.inner.write().await;
         self.next_scanner_generation();
         inner.scan_height = from_height;
+        inner.reset_spends_checked(from_height);
         inner.scanned_outputs.clear();
         // Spent/pending are rebuilt by the rescan; frozen + sent are user/history
         // state and survive. This also clears any stale spent over-count.
@@ -1872,28 +1973,7 @@ impl WalletState {
     pub async fn save_output_cache_checked(&self) -> Result<(), String> {
         let inner = self.inner.read().await;
         if let Some(identity_id) = &inner.active_identity {
-            let cached_outputs: Vec<storage::CachedOutput> = inner
-                .scanned_outputs
-                .iter()
-                .map(|o| storage::CachedOutput {
-                    data: o.output.serialize(),
-                    amount: o.output.commitment().amount,
-                    tx_hash: hex::encode(o.output.transaction()),
-                    tx_index: o.output.index_in_transaction(),
-                    subaddress: o.output.subaddress().map(|s| s.address()),
-                    height: o.height,
-                    timestamp: o.timestamp,
-                })
-                .collect();
-
-            let cache = storage::OutputCache {
-                scan_height: inner.scan_height,
-                outputs: cached_outputs,
-                spent: inner.spent.iter().cloned().collect(),
-                frozen: inner.frozen.iter().cloned().collect(),
-                sent: inner.sent.clone(),
-            };
-
+            let cache = inner.cache_snapshot();
             storage::save_output_cache(&inner.data_dir, identity_id, &cache)?;
             log::info!(
                 "Output cache saved: {} outputs at height {}",
@@ -2201,5 +2281,98 @@ mod key_reveal_tests {
         // Even if a spend key were somehow resident, view_only wins and nothing leaks.
         let k2 = keys_from_parts(&view_pair, &view_key, Some(&spend_key), true, Network::Mainnet, 0).unwrap();
         assert!(k2.private_spend_key.is_none() && k2.mnemonic.is_none());
+    }
+}
+
+#[cfg(test)]
+mod spend_marker_tests {
+    use super::*;
+
+    const H: u64 = 3_789_000;
+
+    fn inner(with_key: bool, view_only: bool) -> WalletInner {
+        let mut w = WalletInner::empty(PathBuf::from("."));
+        w.view_only = view_only;
+        if with_key {
+            w.spend_key = Some(Zeroizing::new(Scalar::from(curve25519_dalek::Scalar::from(7u64))));
+        }
+        w
+    }
+
+    #[test]
+    fn resume_catches_up_only_on_a_lagging_marker() {
+        assert_eq!(resume_with_spends(H + 500, Some(H)), H); // the pool / soft lock scanned past
+        assert_eq!(resume_with_spends(H + 500, None), H + 500); // legacy cache: unknown, no catch-up
+        assert_eq!(resume_with_spends(H, Some(H)), H);
+        assert_eq!(resume_with_spends(H, Some(H + 9)), H); // marker ahead → the scan height
+        assert_eq!(resume_with_spends(u64::MAX, Some(H)), u64::MAX); // new-wallet sentinel
+        assert_eq!(resume_with_spends(0, Some(H)), 0);
+        assert_eq!(resume_with_spends(H, Some(5)), H); // below the RingCT floor → ignored
+    }
+
+    #[test]
+    fn every_keyed_batch_advances_the_marker_contiguously() {
+        let mut w = inner(true, false);
+        w.spends_checked = Some(H);
+        // An ordinary batch with nothing of ours spent still counts as checked.
+        assert!(w.begin_spend_batch(H, H + 99, true).is_some());
+        assert_eq!(w.spends_checked, Some(H + 100));
+        // A re-scan (cursor revisit) of the same batch doesn't move it back.
+        w.begin_spend_batch(H, H + 99, true);
+        assert_eq!(w.spends_checked, Some(H + 100));
+        // A batch past a gap leaves it (those blocks were never checked).
+        w.begin_spend_batch(H + 200, H + 299, true);
+        assert_eq!(w.spends_checked, Some(H + 100));
+        // A superseded scanner's batch neither counts nor gets to record spends.
+        assert!(w.begin_spend_batch(H + 100, H + 199, false).is_none());
+        assert_eq!(w.spends_checked, Some(H + 100));
+    }
+
+    #[test]
+    fn without_the_spend_key_nothing_is_checked() {
+        // Soft lock: the scanner keeps going with the view key only.
+        let mut w = inner(false, false);
+        w.spends_checked = Some(H);
+        assert!(w.begin_spend_batch(H, H + 99, true).is_none());
+        assert_eq!(w.spends_checked, Some(H));
+    }
+
+    #[test]
+    fn saves_read_the_marker_and_never_move_it() {
+        let mut w = inner(true, false);
+        w.scan_height = H + 500; // the scan ran ahead without the key
+        w.spends_checked = Some(H);
+        w.spent.insert("ab:0".into()); // as the tip reconcile / mark_spent would
+        let c = w.cache_snapshot();
+        assert_eq!((c.scan_height, c.spends_checked_height), (H + 500, Some(H)));
+        assert_eq!(w.spends_checked, Some(H));
+    }
+
+    #[test]
+    fn a_rescan_rechecks_from_its_height_up_or_down() {
+        let mut w = inner(true, false);
+        w.spends_checked = Some(H);
+        w.reset_spends_checked(H + 1_000); // higher: the marker follows, else it'd stall behind
+        assert_eq!(w.spends_checked, Some(H + 1_000));
+        w.reset_spends_checked(H - 1_000);
+        assert_eq!(w.spends_checked, Some(H - 1_000));
+        let mut legacy = inner(true, false);
+        legacy.reset_spends_checked(H);
+        assert_eq!(legacy.spends_checked, Some(H));
+        // View-only wallets keep the loaded marker: they never detect spends.
+        let mut vo = inner(false, true);
+        vo.spends_checked = Some(H);
+        vo.reset_spends_checked(H + 1_000);
+        assert_eq!(vo.spends_checked, Some(H));
+    }
+
+    #[test]
+    fn the_cache_field_is_optional_on_disk() {
+        let legacy: storage::OutputCache =
+            serde_json::from_str(r#"{"scan_height":42,"outputs":[]}"#).unwrap();
+        assert_eq!(legacy.spends_checked_height, None);
+        let c = storage::OutputCache { scan_height: 9, spends_checked_height: Some(H), ..Default::default() };
+        let back: storage::OutputCache = serde_json::from_slice(&serde_json::to_vec(&c).unwrap()).unwrap();
+        assert_eq!(back.spends_checked_height, Some(H));
     }
 }

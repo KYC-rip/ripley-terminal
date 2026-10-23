@@ -289,6 +289,12 @@ pub struct OutputCache {
     /// Broadcast transactions, for outgoing history.
     #[serde(default)]
     pub sent: Vec<SentTx>,
+    /// First block NOT yet scanned with spend detection (the spend key). Lags
+    /// `scan_height` when the view-only background pool or a soft-locked session
+    /// scanned past a spend: those blocks are re-scanned with the key on the next
+    /// unlock so their sends reach the ledger. None = legacy cache (unknown).
+    #[serde(default)]
+    pub spends_checked_height: Option<u64>,
 }
 
 fn output_cache_path(data_dir: &Path, identity_id: &str) -> Result<PathBuf, String> {

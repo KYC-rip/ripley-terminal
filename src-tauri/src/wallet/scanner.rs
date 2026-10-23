@@ -1565,7 +1565,7 @@ async fn scan_loop<C: DaemonConnector>(
                     // Detect spends + record outgoing ledger entries for the spending
                     // txs. Requires the spend key (active wallet only).
                     let newly_spent = wallet_state
-                        .detect_and_record_spends(&ki_to_tx, daemon_height)
+                        .detect_and_record_spends(&ki_to_tx, daemon_height, scan_height, batch_end, generation)
                         .await;
                     if newly_spent > 0 {
                         emit_log(
