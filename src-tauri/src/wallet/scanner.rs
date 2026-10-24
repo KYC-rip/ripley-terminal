@@ -137,13 +137,7 @@ fn parse_nodes(parsed: &serde_json::Value, network: &str, section: &str) -> Vec<
                             // retired simple-request transport and it silently dropped
                             // the only nodes that survive DPI-filtered networks (plain
                             // HTTP on 18081/18089 gets reset; TLS on 443 passes).
-                            let url = if addr_str.starts_with("http://")
-                                || addr_str.starts_with("https://")
-                            {
-                                addr_str.to_string()
-                            } else {
-                                format!("http://{}", addr_str)
-                            };
+                            let url = super::fetch_health::clearnet_url(addr_str);
                             nodes.push((label.clone(), url));
                         } else {
                             // Tor / .onion: verbatim host:port (ArtiTransport parses it)
@@ -288,11 +282,8 @@ pub(crate) async fn load_nodes(app: &AppHandle, section: &str) -> Vec<(String, S
     let custom = read_config_str(app, "customNodeAddress").unwrap_or_default();
     let custom = custom.trim();
     if !custom.is_empty() {
-        let url = if custom.starts_with("http://") || custom.starts_with("https://") {
-            custom.to_string()
-        } else {
-            format!("http://{}", custom)
-        };
+        // A bare `host:443` is TLS — `http://host:443` was refused with HTTP 400.
+        let url = super::fetch_health::clearnet_url(custom);
         // Path redacted: authenticating proxies (mnr.network) carry the token there.
         log::info!(
             "Using manual node override: {}",
@@ -722,14 +713,16 @@ where
 /// already trust this node, so a single node keeps the trust model identical and
 /// avoids any cross-node tip/reorg mismatch in the reassembled stream. arti reuses
 /// circuits internally, so concurrent calls on clones spread across Tor streams.
-/// If ANY sub-range fails, the whole call errors → the caller's existing
-/// shrink-and-retry / per-block fallback handles it.
+/// Returns the contiguous run of sub-ranges that arrived, from the start, plus the
+/// first failure (fetch_health::ok_prefix) — so a node that turns down one stream
+/// (HTTP 429) doesn't cost the ones it served. Only an empty prefix is an error →
+/// the caller's shrink/narrow-and-retry / per-block fallback handles it.
 async fn bulk_parallel<T>(
     daemon: &MoneroDaemon<T>,
     range: RangeInclusive<usize>,
     sub_size: usize,
     streams: usize,
-) -> Result<Vec<ScannableBlock>, InterfaceError>
+) -> Result<(Vec<ScannableBlock>, Option<InterfaceError>), InterfaceError>
 where
     T: HttpTransport + Clone + Send + Sync + 'static,
 {
@@ -743,17 +736,18 @@ where
         subs.push(s..=e);
         s = e + 1;
     }
-    let chunks: Vec<Vec<ScannableBlock>> = futures::stream::iter(subs)
+    let results: Vec<Result<Vec<ScannableBlock>, InterfaceError>> = futures::stream::iter(subs)
         .map(|sub| {
             let d = daemon.clone();
             async move { d.bulk_scannable_blocks_trusting_node(sub).await }
         })
         .buffered(streams.max(1))
         .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(chunks.into_iter().flatten().collect())
+        .await;
+    match super::fetch_health::ok_prefix(results) {
+        (blocks, Some(e)) if blocks.is_empty() => Err(e),
+        (blocks, err) => Ok((blocks, err)),
+    }
 }
 
 /// Seconds of transfer one proxied batch may plan for at the measured rate — well
@@ -764,6 +758,8 @@ const PROXIED_BATCH_SECS: f64 = 30.0;
 /// and their floor.
 const PROXIED_PER_BLOCK_START: u64 = 20;
 const PROXIED_PER_BLOCK_MIN: u64 = 5;
+/// Clearnet per-block fallback slice (it used to take the whole bulk-sized batch).
+const PER_BLOCK_FALLBACK_MAX: u64 = 100;
 
 /// Blocks a proxied route can move in PROXIED_BATCH_SECS at `measured_bps`
 /// (at least 1). Callers clamp it to their own floors and ceilings.
@@ -852,6 +848,27 @@ async fn proxied_timeout_pause(app: &AppHandle, proxied: bool, err: &str) {
     }
 }
 
+/// Wait out a node's failure backoff (fetch_health), waking each second so a re-race
+/// or rescan isn't held up. Returns false when this scan loop was superseded.
+async fn backoff_wait(app: &AppHandle, node_label: &str, secs: u64, generation: u64, streams: usize) -> bool {
+    if secs == 0 {
+        return true;
+    }
+    emit_log(
+        app,
+        "Sync",
+        "warn",
+        &format!("⏸ {node_label} keeps failing — next try in {secs}s ({streams} stream(s) at once)"),
+    );
+    for _ in 0..secs {
+        if app.state::<WalletState>().current_scanner_generation() != generation {
+            return false;
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+    true
+}
+
 /// How far above the node's tip a start height must be before it is treated as
 /// impossible (not this chain's height) rather than a node that is merely behind.
 /// No usable node lags ~140 days; a mainnet height on stagenet is ~1.8M above.
@@ -873,9 +890,9 @@ const FETCH_DEADLINE: Duration = Duration::from_secs(75);
 /// lets the existing retry/shrink/re-race recover, so the app self-heals across
 /// flaky networks instead of freezing. Returns `String` errors so the caller's
 /// recovery is identical whether the cause was an RPC error or a stall.
-async fn with_deadline<F>(fut: F) -> Result<Vec<ScannableBlock>, String>
+async fn with_deadline<F, V>(fut: F) -> Result<V, String>
 where
-    F: Future<Output = Result<Vec<ScannableBlock>, InterfaceError>>,
+    F: Future<Output = Result<V, InterfaceError>>,
 {
     match tokio::time::timeout(FETCH_DEADLINE, fut).await {
         Ok(Ok(v)) => Ok(v),
@@ -1071,7 +1088,8 @@ async fn scan_loop<C: DaemonConnector>(
     // `bulk_batch` blocks concurrently against the trusted node and reassemble in
     // order — overlapping the round-trips the sequential path wasted. 4 matches the
     // Tor `fetch_concurrency` (wider hurts over Tor per arti's lazy circuit build).
-    const BULK_STREAMS: usize = 4;
+    // How many a node takes is learned per node (fetch_health): mnr.network starts
+    // at its Pro cap of 3, and every HTTP 429 drops one.
 
     // AIMD sizing to stop the batch from oscillating. A bulk timeout means K
     // concurrent responses of this size overwhelmed the circuit, so we remember the
@@ -1260,15 +1278,16 @@ async fn scan_loop<C: DaemonConnector>(
         // On a proxied route, once throughput is known, no batch may need more than
         // PROXIED_BATCH_SECS at that rate.
         let budget = (proxied && throughput_measured).then(|| proxied_batch_budget(measured_bps));
+        let bulk_streams = super::fetch_health::with(&node_url, |h| h.streams);
         // Sub-range size for this bulk batch (fast sync): the adaptive size, clamped
         // to the time budget split across the concurrent streams.
         let sub_size: u64 = match budget {
-            Some(b) => bulk_batch.min((b / BULK_STREAMS as u64).max(min_bulk)),
+            Some(b) => bulk_batch.min((b / bulk_streams as u64).max(min_bulk)),
             None => bulk_batch,
         };
         let batch_size: u64 = if fast_sync {
             // K sub-ranges of `sub_size`, fetched concurrently (see bulk_parallel).
-            (sub_size * BULK_STREAMS as u64).min(gap)
+            (sub_size * bulk_streams as u64).min(gap)
         } else if proxied {
             budget.unwrap_or(PROXIED_PER_BLOCK_START).clamp(PROXIED_PER_BLOCK_MIN, 100).min(gap.max(1))
         } else if gap > 1_000 {
@@ -1332,6 +1351,9 @@ async fn scan_loop<C: DaemonConnector>(
         // node couldn't bulk even at the minimum size — re-race afterward to find a
         // bulk-capable node instead of staying slow.
         let mut reraise_for_bulk = false;
+        // Set when only a prefix of a fast-sync batch arrived (fetch_health::partial
+        // already recorded it — it isn't a clean batch).
+        let mut partial_batch = false;
         // Fast sync: one bulk get_blocks.bin call for the whole batch (trusting the
         // node). Normal mode uses the validated per-block path across the pool.
         let parallel_result = if fast_sync {
@@ -1339,11 +1361,28 @@ async fn scan_loop<C: DaemonConnector>(
                 &daemon,
                 range.clone(),
                 sub_size as usize,
-                BULK_STREAMS,
+                bulk_streams,
             ))
             .await
             {
-                Ok(blocks) => {
+                Ok((blocks, Some(e))) => {
+                    // Some streams arrived, a later one didn't: scan what's contiguous,
+                    // fetch the rest next round. Progress, but not a clean batch: a 429
+                    // drops a stream, anything else halves the size; neither grows.
+                    let e = format!("{:?}", e);
+                    let rl = super::fetch_health::is_rate_limited(&e);
+                    super::fetch_health::with(&node_url, |h| h.partial(rl));
+                    partial_batch = true;
+                    if !rl {
+                        bulk_batch = (sub_size / 2).max(min_bulk);
+                        bulk_ceiling = bulk_batch;
+                    }
+                    bulk_streak = 0;
+                    batch_end = scan_height + blocks.len() as u64 - 1;
+                    emit_log(&app, "Sync", "warn", &format!("⚡ Kept blocks {}-{}; the rest of the batch failed ({}) — refetching it next", scan_height, batch_end, e));
+                    Ok(blocks)
+                }
+                Ok((blocks, None)) => {
                     // Grow the sub-range size after a clean fetch, but never straight
                     // back into a size that just timed out (see bulk_ceiling). Stay
                     // at/under the known-good ceiling; only probe above it after a
@@ -1359,6 +1398,16 @@ async fn scan_loop<C: DaemonConnector>(
                     }
                     Ok(blocks)
                 }
+                Err(e) if super::fetch_health::is_rate_limited(&e) => {
+                    // The node turned down a stream (429): smaller batches won't help —
+                    // fewer streams at once and a growing pause will.
+                    let (wait, streams) = super::fetch_health::with(&node_url, |h| (h.failed(true), h.streams));
+                    emit_log(&app, "Sync", "warn", &format!("⚡ {} is limiting us ({}) — {} stream(s) at once from now on", node_label, e, streams));
+                    if !backoff_wait(&app, &node_label, wait, generation, streams).await {
+                        return Ok(());
+                    }
+                    continue;
+                }
                 Err(e) if sub_size > min_bulk => {
                     // K concurrent responses of this size overwhelmed the circuit/timeout.
                     // HALVE and retry bulk (stay on the fast path), and remember the
@@ -1367,8 +1416,12 @@ async fn scan_loop<C: DaemonConnector>(
                     bulk_batch = (sub_size / 2).max(min_bulk);
                     bulk_ceiling = bulk_batch;
                     bulk_streak = 0;
-                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk fetch failed ({:?}) — shrinking to {} blocks per stream ({} per batch) and retrying bulk", e, bulk_batch, bulk_batch * BULK_STREAMS as u64));
+                    emit_log(&app, "Sync", "warn", &format!("⚡ Bulk fetch failed ({:?}) — shrinking to {} blocks per stream ({} per batch) and retrying bulk", e, bulk_batch, bulk_batch * bulk_streams as u64));
                     proxied_timeout_pause(&app, proxied, &e).await;
+                    let wait = super::fetch_health::with(&node_url, |h| h.failed(false));
+                    if !backoff_wait(&app, &node_label, wait, generation, bulk_streams).await {
+                        return Ok(());
+                    }
                     continue;
                 }
                 Err(e) => {
@@ -1402,10 +1455,11 @@ async fn scan_loop<C: DaemonConnector>(
                     // Per-block costs several round-trips per block; over Tor a whole
                     // bulk-sized range can't finish under the watchdog, so take a
                     // per-block-sized slice of it (the rest is the next batch's).
-                    if proxied {
-                        batch_end = batch_end.min(scan_height + PROXIED_PER_BLOCK_START - 1);
-                        emit_log(&app, "Sync", "info", &format!("📥 Per-block blocks {}-{} / {}", scan_height, batch_end, daemon_height));
-                    }
+                    // On clearnet too: 400 one-by-one blocks through a proxy can't
+                    // finish under the 75 s watchdog either (2026-10-23 loop).
+                    let per_block_max = if proxied { PROXIED_PER_BLOCK_START } else { PER_BLOCK_FALLBACK_MAX };
+                    batch_end = batch_end.min(scan_height + per_block_max - 1);
+                    emit_log(&app, "Sync", "info", &format!("📥 Per-block blocks {}-{} / {}", scan_height, batch_end, daemon_height));
                     // Time only the per-block fetch, not the failed bulk + pause.
                     fetch_start = std::time::Instant::now();
                     with_deadline(parallel_per_block(&pool, (scan_height as usize)..=(batch_end as usize))).await
@@ -1443,6 +1497,9 @@ async fn scan_loop<C: DaemonConnector>(
                 );
                 // A successful fetch means the node is healthy — reset the failure counter.
                 consecutive_failures = 0;
+                if !partial_batch {
+                    super::fetch_health::with(&node_url, |h| h.progress());
+                }
                 // Scan each block with the wallet's Scanner. This is CPU-bound and,
                 // for recent (dense) blocks, can dominate wall-clock — far exceeding
                 // the fetch time — so we time it separately to make the cost visible.
@@ -1647,6 +1704,11 @@ async fn scan_loop<C: DaemonConnector>(
                 );
                 if !paused_this_batch {
                     proxied_timeout_pause(&app, proxied, &e).await;
+                }
+                let rl = super::fetch_health::is_rate_limited(&e);
+                let (wait, streams) = super::fetch_health::with(&node_url, |h| (h.failed(rl), h.streams));
+                if !backoff_wait(&app, &node_label, wait, generation, streams).await {
+                    return Ok(());
                 }
                 sleep(Duration::from_millis(400)).await;
                 continue;

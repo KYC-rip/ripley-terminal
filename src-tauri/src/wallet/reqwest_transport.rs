@@ -141,13 +141,19 @@ impl ReqwestTransport {
             // would have said the same thing with a 200) — let monero-oxide read it.
             // Never buffer more than ENVELOPE_MAX of an error body: a hostile node
             // must not get to fill memory with a "404 page".
-            if let Some(bytes) = read_capped(resp, ENVELOPE_MAX).await {
-                if is_json_rpc_envelope(&bytes) {
-                    if let Some(summary) = refusal_summary(status.as_u16(), &bytes) {
-                        *last_refusal.lock().unwrap_or_else(|p| p.into_inner()) = Some(summary);
-                    }
-                    return Ok(bytes);
-                }
+            let bytes = read_capped(resp, ENVELOPE_MAX).await;
+            let summary = bytes
+                .as_deref()
+                .filter(|b| is_json_rpc_envelope(b))
+                .and_then(|b| refusal_summary(status.as_u16(), b));
+            if let Some(s) = &summary {
+                *last_refusal.lock().unwrap_or_else(|p| p.into_inner()) = Some(s.clone());
+            }
+            if let Some(e) = non_2xx_error(status.as_u16(), url, shown, summary.as_deref()) {
+                return Err(InterfaceError::InterfaceError(e));
+            }
+            if let Some(bytes) = bytes.filter(|b| is_json_rpc_envelope(b)) {
+                return Ok(bytes);
             }
             return Err(InterfaceError::InterfaceError(format!(
                 "{shown} returned HTTP {status}"
@@ -166,6 +172,25 @@ impl ReqwestTransport {
         })?;
         Ok(bytes.to_vec())
     }
+}
+
+/// A non-2xx that must surface as an error even when its body is a JSON-RPC envelope:
+/// a 429 (rate / concurrency limit — fetch_health backs off and narrows on it), and
+/// anything on a binary (`.bin`) endpoint, whose decoder would only report the JSON as
+/// `EpeeError::InvalidHeader` and hide the cause. None = today's behaviour.
+fn non_2xx_error(status: u16, url: &str, shown: &str, summary: Option<&str>) -> Option<String> {
+    let detail = summary.map(|s| format!(" ({s})")).unwrap_or_default();
+    if status == 429 {
+        return Some(format!(
+            "{}: {shown} returned HTTP 429 — too many requests or streams at once{detail}",
+            crate::wallet::fetch_health::RATE_LIMITED
+        ));
+    }
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    if path.ends_with(".bin") {
+        return Some(format!("{shown} returned HTTP {status}{detail}"));
+    }
+    None
 }
 
 /// Small bodies only: an envelope is a few hundred bytes; anything larger on a
@@ -254,6 +279,20 @@ impl HttpTransport for ReqwestTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_429_or_a_bin_refusal_is_an_error_not_an_answer() {
+        let rl = non_2xx_error(429, "https://rpc.mnr.network/v1/t/get_blocks.bin", "rpc.mnr.network", Some("HTTP 429 · error -32005")).unwrap();
+        assert!(crate::wallet::fetch_health::is_rate_limited(&rl));
+        assert!(rl.contains("429") && !rl.contains("/v1/t"));
+        // A 429 on json_rpc is still an error (back off), not an RPC answer.
+        assert!(non_2xx_error(429, "https://n/json_rpc", "n", None).is_some());
+        // Any non-2xx on a binary endpoint: the decoder would only say InvalidHeader.
+        let bin = non_2xx_error(403, "https://n/getblocks.bin?x=1", "n", None).unwrap();
+        assert!(bin.contains("HTTP 403") && !crate::wallet::fetch_health::is_rate_limited(&bin));
+        // A JSON-RPC envelope on another 4xx keeps flowing to monero-oxide as before.
+        assert_eq!(non_2xx_error(400, "https://n/json_rpc", "n", Some("HTTP 400 · x")), None);
+    }
 
     #[test]
     fn redact_drops_path_userinfo_and_query() {
