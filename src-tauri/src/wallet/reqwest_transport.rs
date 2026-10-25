@@ -142,6 +142,9 @@ impl ReqwestTransport {
             // Never buffer more than ENVELOPE_MAX of an error body: a hostile node
             // must not get to fill memory with a "404 page".
             let bytes = read_capped(resp, ENVELOPE_MAX).await;
+            if let Some(b) = &bytes {
+                crate::wallet::data_budget::record(b.len());
+            }
             let summary = bytes
                 .as_deref()
                 .filter(|b| is_json_rpc_envelope(b))
@@ -170,6 +173,7 @@ impl ReqwestTransport {
         let bytes = resp.bytes().await.map_err(|e| {
             InterfaceError::InterfaceError(format!("read body {shown} failed: {e}"))
         })?;
+        crate::wallet::data_budget::record(bytes.len());
         Ok(bytes.to_vec())
     }
 }
@@ -292,6 +296,34 @@ mod tests {
         assert!(bin.contains("HTTP 403") && !crate::wallet::fetch_health::is_rate_limited(&bin));
         // A JSON-RPC envelope on another 4xx keeps flowing to monero-oxide as before.
         assert_eq!(non_2xx_error(400, "https://n/json_rpc", "n", Some("HTTP 400 · x")), None);
+    }
+
+    #[tokio::test]
+    async fn received_bodies_count_toward_the_data_cap() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for status in ["200 OK", "429 Too Many Requests"] {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = sock.read(&mut buf).await;
+                let body = if status.starts_with("200") { vec![7u8; 50_000] } else { br#"{"jsonrpc":"2.0","id":"0","error":{"code":-32005,"message":"busy"}}"#.to_vec() };
+                let head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                sock.write_all(head.as_bytes()).await.unwrap();
+                sock.write_all(&body).await.unwrap();
+            }
+        });
+        let client = reqwest::Client::new();
+        let refusal = std::sync::Mutex::new(None);
+        let url = format!("http://{addr}/get_blocks.bin");
+        let before = crate::wallet::data_budget::used();
+        let ok = ReqwestTransport::do_post(&client, &url, "n", vec![], None, &refusal).await.unwrap();
+        assert_eq!(ok.len(), 50_000);
+        assert!(crate::wallet::data_budget::used() >= before + 50_000);
+        let mid = crate::wallet::data_budget::used();
+        assert!(ReqwestTransport::do_post(&client, &url, "n", vec![], None, &refusal).await.is_err());
+        assert!(crate::wallet::data_budget::used() > mid); // a refusal body counts too
     }
 
     #[test]

@@ -1,4 +1,5 @@
 pub mod base58_monero;
+pub mod data_budget;
 pub mod decoy_cache;
 pub mod device_key;
 pub mod fetch_health;

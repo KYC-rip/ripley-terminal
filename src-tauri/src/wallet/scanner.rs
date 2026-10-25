@@ -848,6 +848,36 @@ async fn proxied_timeout_pause(app: &AppHandle, proxied: bool, err: &str) {
     }
 }
 
+/// The one log line when the session data cap stops sync.
+fn cap_message() -> String {
+    format!(
+        "⏸ Sync paused — Terminal has downloaded {} since it opened (limit {}). Press Re-select node (↻) or Rescan to allow 5 GB more; the count starts over when Terminal restarts.",
+        super::data_budget::fmt_gb(super::data_budget::used()),
+        super::data_budget::fmt_gb(super::data_budget::limit()),
+    )
+}
+
+/// Background (pool) wallets further behind the tip than this don't scan in the
+/// background — ~2 weeks of blocks, ~110 MB. Open the wallet to sync it (visible, capped).
+const POOL_MAX_GAP: u64 = 10_000;
+
+/// Whether a background wallet at `scan` may catch up to `tip` in the background.
+/// Callers resolve the new-wallet sentinel (u64::MAX → near tip) first; a cache with
+/// no progress (0 → the RingCT fork) is millions of blocks behind → false.
+fn pool_gap_ok(scan: u64, tip: u64) -> bool {
+    tip.saturating_sub(scan) <= POOL_MAX_GAP
+}
+
+/// Whether a background wallet must hold off fetching right now: the active wallet is
+/// catching up (it owns the node's streams) or the session data cap is reached.
+fn pool_must_wait(active_busy: bool, cap_exhausted: bool) -> bool {
+    active_busy || cap_exhausted
+}
+
+/// One background-wallet fetch at a time across the whole pool: each pool task is
+/// otherwise one more concurrent stream to the same node (mnr: 3 per token).
+static POOL_FETCH: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+
 /// Wait out a node's failure backoff (fetch_health), waking each second so a re-race
 /// or rescan isn't held up. Returns false when this scan loop was superseded.
 async fn backoff_wait(app: &AppHandle, node_label: &str, secs: u64, generation: u64, streams: usize) -> bool {
@@ -1114,6 +1144,8 @@ async fn scan_loop<C: DaemonConnector>(
     // is_key_image_spent) which of our outputs are spent — authoritative, and it
     // works on an already-synced wallet without rescanning.
     let mut spend_reconciled = false;
+    // The session data cap (data_budget) was hit and said so; reset when sync resumes.
+    let mut cap_logged = false;
 
     loop {
         // Check if superseded
@@ -1122,6 +1154,23 @@ async fn scan_loop<C: DaemonConnector>(
             emit_log(&app, "Sync", "info", "🛑 Scan loop stopped (superseded)");
             return Ok(());
         }
+
+        // Session data cap: no node traffic at all until the user allows more
+        // (Re-select node / Rescan call data_budget::extend).
+        if super::data_budget::exhausted() {
+            if !cap_logged {
+                cap_logged = true;
+                emit_log(&app, "Sync", "warn", &cap_message());
+            }
+            for _ in 0..5 {
+                if ws.current_scanner_generation() != generation {
+                    return Ok(());
+                }
+                sleep(Duration::from_secs(1)).await;
+            }
+            continue;
+        }
+        cap_logged = false;
 
         // Get daemon height
         let daemon_height = match daemon.latest_block_number().await {
@@ -1273,8 +1322,11 @@ async fn scan_loop<C: DaemonConnector>(
         // Pause the background "Sync all wallets" pool during a heavy catch-up so
         // it doesn't compete with the active wallet for the node + CPU. Resumes
         // automatically once the gap is small (and in the SYNCED branch above).
+        // Any gap: background wallets fetch only while the active wallet is idle at
+        // the tip, so they never add streams on top of its catch-up (at the tip a new
+        // block is a 1-stream fetch, inside any node's concurrency limit).
         app.state::<crate::wallet::SyncPool>()
-            .set_active_busy(gap > 2_000);
+            .set_active_busy(gap > 0);
         // On a proxied route, once throughput is known, no batch may need more than
         // PROXIED_BATCH_SECS at that rate.
         let budget = (proxied && throughput_measured).then(|| proxied_batch_budget(measured_bps));
@@ -1845,6 +1897,10 @@ async fn pool_loop<C: DaemonConnector>(
     // PROXIED_BATCH_SECS at the throughput this loop has measured, like scan_loop.
     let proxied = connector.section() == "tor";
     let mut bg_bps: Option<f64> = None;
+    // Log once per state change, not per idle tick.
+    let mut announced_start = false;
+    let mut synced_logged = false;
+    let mut cap_logged = false;
 
     'outer: loop {
         if cancel.load(Ordering::SeqCst) {
@@ -1859,13 +1915,17 @@ async fn pool_loop<C: DaemonConnector>(
             return;
         }
 
-        let (_, _, daemon) = match race_nodes(&app, &connector).await.winner {
+        let (node_label, node_url, daemon) = match race_nodes(&app, &connector).await.winner {
             Some(r) => r,
             None => {
                 sleep(Duration::from_secs(15)).await;
                 continue;
             }
         };
+        let mut fails: u32 = 0;
+        // A new node: say where this wallet syncs from again.
+        announced_start = false;
+        synced_logged = false;
 
         loop {
             if cancel.load(Ordering::SeqCst)
@@ -1878,10 +1938,16 @@ async fn pool_loop<C: DaemonConnector>(
             }
             // Back off while the active wallet is doing a heavy catch-up, so we
             // don't compete for the node + CPU (resumes when it's caught up).
-            if app.state::<crate::wallet::SyncPool>().is_active_busy() {
+            let cap = super::data_budget::exhausted();
+            if pool_must_wait(app.state::<crate::wallet::SyncPool>().is_active_busy(), cap) {
+                if cap && !cap_logged {
+                    cap_logged = true;
+                    emit_log(&app, "Sync", "info", &format!("⏸ Background …{short}: paused by the session data limit"));
+                }
                 sleep(Duration::from_secs(5)).await;
                 continue;
             }
+            cap_logged = false;
             let daemon_height = match daemon.latest_block_number().await {
                 Ok(h) => h as u64,
                 Err(_) => continue 'outer, // re-race
@@ -1899,9 +1965,29 @@ async fn pool_loop<C: DaemonConnector>(
             if scan_height >= daemon_height {
                 cache.scan_height = scan_height;
                 let _ = storage::save_output_cache(&data_dir, &identity_id, &cache);
-                log::info!("[bg {short}] synced to {scan_height}");
+                if !synced_logged {
+                    synced_logged = true;
+                    emit_log(&app, "Sync", "info", &format!("✓ Background …{short}: caught up ({scan_height})"));
+                }
                 sleep(Duration::from_secs(30)).await;
                 continue;
+            }
+            synced_logged = false;
+            if !pool_gap_ok(scan_height, daemon_height) {
+                emit_log(
+                    &app,
+                    "Sync",
+                    "info",
+                    &format!(
+                        "Background sync skipped …{short}: {} blocks behind — open that wallet to sync it",
+                        daemon_height - scan_height
+                    ),
+                );
+                return;
+            }
+            if !announced_start {
+                announced_start = true;
+                emit_log(&app, "Sync", "info", &format!("🔄 Background …{short}: syncing from {scan_height} via {node_label}"));
             }
 
             let batch_step: u64 = match (proxied, fast_sync) {
@@ -1911,6 +1997,17 @@ async fn pool_loop<C: DaemonConnector>(
                 (true, false) => bg_bps.map(proxied_batch_budget).unwrap_or(PROXIED_PER_BLOCK_START).clamp(PROXIED_PER_BLOCK_MIN, 100),
             };
             let batch_end = (scan_height + batch_step).min(daemon_height);
+            // One pool fetch at a time across all background wallets.
+            let permit = match POOL_FETCH.acquire().await {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+            // Re-check after the wait for the permit: the cap or the active wallet's
+            // catch-up may have started meanwhile.
+            if pool_must_wait(app.state::<crate::wallet::SyncPool>().is_active_busy(), super::data_budget::exhausted()) {
+                drop(permit);
+                continue;
+            }
             let fetch_start = std::time::Instant::now();
             let range = (scan_height as usize)..=(batch_end as usize);
             let per_block = || async {
@@ -1923,22 +2020,41 @@ async fn pool_loop<C: DaemonConnector>(
                     .collect();
                 r
             };
-            // Fast sync: one bulk get_blocks.bin call (trusting node); fall back to
-            // the validated per-block path on any error.
+            // Fast sync: one bulk get_blocks.bin call (trusting node). No per-block
+            // fallback here — re-fetching a failed 1000-block range block by block
+            // multiplied the waste (2026-10-24); back off and retry instead.
             let fetched = if fast_sync {
-                match daemon
-                    .bulk_scannable_blocks_trusting_node(range.clone())
-                    .await
-                {
-                    Ok(b) => Ok(b),
-                    Err(_) => per_block().await,
-                }
+                daemon.bulk_scannable_blocks_trusting_node(range.clone()).await
             } else {
                 per_block().await
             };
+            drop(permit);
             let blocks = match fetched {
-                Ok(b) => b,
-                Err(_) => continue 'outer, // re-race
+                Ok(b) => {
+                    fails = 0;
+                    super::fetch_health::with(&node_url, |h| h.progress());
+                    b
+                }
+                Err(e) => {
+                    // Same per-node health as the active loop: one node, one budget —
+                    // a pool failure also slows the active wallet's next try, and vice versa.
+                    let rl = super::fetch_health::is_rate_limited(&format!("{e:?}"));
+                    let wait = super::fetch_health::with(&node_url, |h| h.failed(rl));
+                    fails += 1;
+                    if wait > 0 {
+                        emit_log(&app, "Sync", "warn", &format!("⏸ Background …{short}: {node_label} failing — next try in {wait}s"));
+                        for _ in 0..wait {
+                            if cancel.load(Ordering::SeqCst) {
+                                return;
+                            }
+                            sleep(Duration::from_secs(1)).await;
+                        }
+                    }
+                    if fails >= 3 {
+                        continue 'outer; // re-race (the node's backoff persists)
+                    }
+                    continue;
+                }
             };
             let secs = fetch_start.elapsed().as_secs_f64();
             if secs > 0.0 && !blocks.is_empty() {
@@ -2071,6 +2187,38 @@ mod discovery_cursor_tests {
         let (found, visits) = run(&blocks);
         assert_eq!(found.len(), 40);
         assert!(visits <= 40 + 2, "visits = {visits}");
+    }
+}
+
+#[cfg(test)]
+mod pool_gate_tests {
+    use super::{pool_gap_ok, pool_must_wait, POOL_FETCH, POOL_MAX_GAP, RINGCT_FORK_HEIGHT};
+
+    #[test]
+    fn far_behind_background_wallets_dont_scan() {
+        let tip = 3_790_500;
+        assert!(pool_gap_ok(tip, tip)); // at the tip
+        assert!(pool_gap_ok(tip + 1, tip)); // synced (one past)
+        assert!(pool_gap_ok(tip - POOL_MAX_GAP, tip));
+        assert!(!pool_gap_ok(tip - POOL_MAX_GAP - 1, tip));
+        assert!(!pool_gap_ok(RINGCT_FORK_HEIGHT, tip)); // a cache with no progress
+        assert!(!pool_gap_ok(0, tip));
+    }
+
+    #[test]
+    fn background_wallets_wait_for_the_active_wallet_and_the_cap() {
+        assert!(!pool_must_wait(false, false));
+        assert!(pool_must_wait(true, false));
+        assert!(pool_must_wait(false, true));
+        assert!(pool_must_wait(true, true));
+    }
+
+    #[tokio::test]
+    async fn one_background_fetch_at_a_time() {
+        let held = POOL_FETCH.acquire().await.unwrap();
+        assert!(POOL_FETCH.try_acquire().is_err());
+        drop(held);
+        assert!(POOL_FETCH.try_acquire().is_ok());
     }
 }
 

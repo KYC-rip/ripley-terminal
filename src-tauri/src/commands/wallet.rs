@@ -289,6 +289,19 @@ pub async fn get_height(state: State<'_, WalletState>) -> Result<u64, String> {
     Ok(status.height)
 }
 
+/// An explicit sync action (Re-select node, Rescan) allows one more step of the session
+/// data cap — the only way it goes up — and says so, so repeated presses stay visible.
+fn allow_more_data(app: &AppHandle) {
+    use crate::wallet::data_budget::{extend, fmt_gb};
+    let (used, limit) = extend();
+    emit_log(
+        app,
+        "Sync",
+        "info",
+        &format!("Data limit: {} downloaded since Terminal opened — sync may use up to {} now", fmt_gb(used), fmt_gb(limit)),
+    );
+}
+
 /// Re-race the node pool and reconnect the scanner, without touching routing/config.
 /// For when the current node is slow/unresponsive: bumps the scanner generation (the
 /// old scan loop sees the mismatch and stops) and starts a fresh node race from the
@@ -296,6 +309,7 @@ pub async fn get_height(state: State<'_, WalletState>) -> Result<u64, String> {
 #[tauri::command]
 pub async fn reselect_node(app: AppHandle, state: State<'_, WalletState>) -> Result<(), String> {
     let height = state.get_sync_status().await.height;
+    allow_more_data(&app);
     emit_log(
         &app,
         "Network",
@@ -2215,6 +2229,7 @@ pub async fn rescan(
         "info",
         &format!("🔄 Rescan requested from height {}...", height),
     );
+    allow_more_data(&app);
 
     // Reset scan height and clear cached outputs. The reset is saved before the
     // scanner restarts; if the save fails, the rescan still runs now but a restart

@@ -109,7 +109,10 @@ impl HttpTransport for ArtiTransport {
                 )
                 .await
                 {
-                    Ok(bytes) => return Ok(bytes),
+                    Ok(bytes) => {
+                        crate::wallet::data_budget::record(bytes.len());
+                        return Ok(bytes);
+                    }
                     Err(e) => {
                         last_err = e;
                         if attempt < TOR_POST_ATTEMPTS {
@@ -180,6 +183,7 @@ impl HttpTransport for SocksTransport {
                 response_size_limit,
             )
             .await
+            .inspect(|bytes| crate::wallet::data_budget::record(bytes.len()))
             .map_err(InterfaceError::InterfaceError)
         }
     }
