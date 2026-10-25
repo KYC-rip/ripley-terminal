@@ -1146,8 +1146,25 @@ async fn scan_loop<C: DaemonConnector>(
     let mut spend_reconciled = false;
     // The session data cap (data_budget) was hit and said so; reset when sync resumes.
     let mut cap_logged = false;
+    let mut data_logged_at = std::time::Instant::now();
 
     loop {
+        // Every 10 min: what wallet sync (all wallets, all transports) has downloaded, so
+        // its share of the app's traffic is visible.
+        if data_logged_at.elapsed() >= Duration::from_secs(600) {
+            data_logged_at = std::time::Instant::now();
+            emit_log(
+                &app,
+                "Sync",
+                "info",
+                &format!(
+                    "📶 Wallet sync has downloaded {} since Terminal opened (limit {})",
+                    super::data_budget::fmt_gb(super::data_budget::used()),
+                    super::data_budget::fmt_gb(super::data_budget::limit()),
+                ),
+            );
+        }
+
         // Check if superseded
         let ws = app.state::<WalletState>();
         if ws.current_scanner_generation() != generation {
@@ -1565,7 +1582,7 @@ async fn scan_loop<C: DaemonConnector>(
                     // spends made in other wallets) AND to record the outgoing tx.
                     // block.transactions[k] is the hash of the k-th parsed tx, which we
                     // use as the txid (we can't recompute pruned-tx hashes ourselves).
-                    let mut ki_to_tx: HashMap<[u8; 32], ([u8; 32], u64)> = HashMap::new();
+                    let mut ki_to_tx: HashMap<[u8; 32], ([u8; 32], u64, u64)> = HashMap::new();
 
                     // Discovery can widen the watched subaddress window mid-batch (an
                     // output at a new index → add_outputs registers the next 200). The
@@ -1618,7 +1635,7 @@ async fn scan_loop<C: DaemonConnector>(
                                     key_image, ..
                                 } = input
                                 {
-                                    ki_to_tx.insert(key_image.to_bytes(), (txid, block_height));
+                                    ki_to_tx.insert(key_image.to_bytes(), (txid, block_height, block.block.header.timestamp));
                                 }
                             }
                         }

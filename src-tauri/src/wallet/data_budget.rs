@@ -48,9 +48,13 @@ fn extended_limit(used: u64) -> u64 {
     used.saturating_add(STEP_BYTES)
 }
 
-/// Bytes as "1.2 GB" (GiB, one decimal).
+/// Bytes as "1.2 GB" (GiB, one decimal), or "340.5 MB" below 1 GiB.
 pub fn fmt_gb(bytes: u64) -> String {
-    format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
+    if (bytes as f64) < GIB {
+        return format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0));
+    }
+    format!("{:.1} GB", bytes as f64 / GIB)
 }
 
 #[cfg(test)]
@@ -77,7 +81,9 @@ mod tests {
 
     #[test]
     fn gb_format() {
-        assert_eq!(fmt_gb(0), "0.0 GB");
+        assert_eq!(fmt_gb(0), "0.0 MB");
+        assert_eq!(fmt_gb(340 * 1024 * 1024), "340.0 MB");
+        assert_eq!(fmt_gb(300 * 1024), "0.3 MB");
         assert_eq!(fmt_gb(STEP_BYTES), "5.0 GB");
         assert_eq!(fmt_gb(3 * 1024 * 1024 * 1024 / 2), "1.5 GB");
     }

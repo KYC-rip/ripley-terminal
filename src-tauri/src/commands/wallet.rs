@@ -1561,6 +1561,16 @@ pub(crate) fn estimate_block_time(height: u64) -> u64 {
     }
 }
 
+/// When a send detected on chain happened: its block's header time, else (no header
+/// time known) the anchor estimate, never in the future.
+pub(crate) fn sent_time(block_ts: u64, height: u64, now: u64) -> u64 {
+    if block_ts > 0 {
+        block_ts.min(now)
+    } else {
+        estimate_block_time(height).min(now)
+    }
+}
+
 /// Returns transaction history in the Monero-RPC `get_transfers` shape the
 /// renderer's walletService expects: `{ in, out, pending }`, amounts ATOMIC,
 /// timestamps in SECONDS. Incoming txs are reconstructed from owned outputs
@@ -1589,9 +1599,15 @@ pub async fn get_transactions(
     // Incoming: group owned outputs (incl. spent) by txid, skipping our own
     // change outputs.
     let mut incoming: HashMap<String, (u64, u64, u32, u64)> = HashMap::new(); // txid -> (amount, min_height, account, block_ts)
+    // Block time of our change in each of our sends — the real time of a send recorded
+    // from the chain before it carried its block's time (those used a drifting estimate).
+    let mut change_ts: HashMap<String, u64> = HashMap::new();
     for (owned, _spent, _frozen) in state.list_owned().await {
         let txid = hex::encode(owned.output.transaction());
         if sent_txids.contains(&txid) {
+            if owned.timestamp > 0 {
+                change_ts.insert(txid, owned.timestamp);
+            }
             continue; // change from our own send, not an incoming payment
         }
         let amt = owned.output.commitment().amount;
@@ -1650,7 +1666,7 @@ pub async fn get_transactions(
         let entry = json!({
             "txid": sent.tx_hash,
             "amount": sent.amount,
-            "timestamp": sent.timestamp,
+            "timestamp": shown_sent_time(&sent, change_ts.get(&sent.tx_hash).copied()),
             "height": sent.height,
             "confirmations": confirmations,
             "fee": sent.fee,
@@ -1666,6 +1682,16 @@ pub async fn get_transactions(
     }
 
     Ok(json!({ "in": in_txs, "out": out_txs, "pending": pending_txs }))
+}
+
+/// A send's ledger time. Sends from this app keep their broadcast time; a send recorded
+/// from the chain (no tx key) shows its change output's block time when there is one —
+/// older records hold the drifting height estimate.
+fn shown_sent_time(sent: &crate::wallet::storage::SentTx, change_ts: Option<u64>) -> u64 {
+    match change_ts {
+        Some(ts) if sent.tx_key.is_empty() && ts > 0 => ts,
+        _ => sent.timestamp,
+    }
 }
 
 /// Returns unspent outputs in the Monero-RPC `incoming_transfers` shape:
@@ -2884,5 +2910,29 @@ mod view_only_tests {
         )
         .to_string();
         assert!(check_view_only_pair(Network::Mainnet, &integrated, &view).unwrap_err().contains("integrated"));
+    }
+}
+
+#[cfg(test)]
+mod sent_time_tests {
+    use super::{estimate_block_time, sent_time, shown_sent_time};
+    use crate::wallet::storage::SentTx;
+
+    #[test]
+    fn a_chain_detected_send_uses_its_block_time() {
+        let now = 1_792_900_000;
+        assert_eq!(sent_time(1_792_890_000, 3_791_916, now), 1_792_890_000);
+        assert_eq!(sent_time(now + 50, 3_791_916, now), now); // a node clock ahead: never future
+        assert_eq!(sent_time(0, 3_791_916, now), estimate_block_time(3_791_916).min(now));
+    }
+
+    #[test]
+    fn older_chain_records_show_their_change_block_time() {
+        let chain = SentTx { tx_hash: "aa".into(), timestamp: 100, ..Default::default() };
+        assert_eq!(shown_sent_time(&chain, Some(5_000)), 5_000);
+        assert_eq!(shown_sent_time(&chain, None), 100); // a sweep: no change to read
+        // Sent from this app: the broadcast time stays.
+        let ours = SentTx { tx_key: "k".into(), ..chain.clone() };
+        assert_eq!(shown_sent_time(&ours, Some(5_000)), 100);
     }
 }

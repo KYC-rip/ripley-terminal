@@ -1484,7 +1484,7 @@ impl WalletState {
     }
 
     /// Detect spends from a batch and record them as outgoing ledger entries.
-    /// `ki_to_tx` maps each on-chain input key image to (spending txid, height).
+    /// `ki_to_tx` maps each on-chain input key image to (spending txid, height, block time).
     /// For every owned output whose key image appears, the output is marked spent
     /// and — grouped by spending tx — an outgoing `SentTx` is recorded so the ledger
     /// shows withdrawals (incl. those made in other wallets). The recorded amount is
@@ -1496,7 +1496,7 @@ impl WalletState {
     /// recording, and for every batch (also those with nothing to record).
     pub async fn detect_and_record_spends(
         &self,
-        ki_to_tx: &HashMap<[u8; 32], ([u8; 32], u64)>,
+        ki_to_tx: &HashMap<[u8; 32], ([u8; 32], u64, u64)>,
         tip: u64,
         from: u64,
         to: u64,
@@ -1512,18 +1512,18 @@ impl WalletState {
             return 0;
         }
 
-        // Group spent owned outputs by their spending tx: txid -> (gross, ids, height).
+        // Group spent owned outputs by their spending tx: txid -> (gross, ids, height, block time).
         // NOTE: we do NOT skip outputs already in `spent`. The tip reconcile
         // (is_key_image_spent) marks inputs spent as soon as a tx hits the mempool —
         // before its block is scanned — but it can't record an outgoing ledger entry
         // (it only learns spent/unspent, not the txid). So a spend made in ANOTHER
         // client would drop the balance but never show as DISPATCHED. Recording here
         // regardless (deduped by txid via `existing`) closes that gap.
-        let mut by_tx: HashMap<[u8; 32], (u64, Vec<String>, u64)> = HashMap::new();
+        let mut by_tx: HashMap<[u8; 32], (u64, Vec<String>, u64, u64)> = HashMap::new();
         for o in &inner.scanned_outputs {
             let id = output_id(&o.output);
-            if let Some((txid, height)) = ki_to_tx.get(&output_key_image(&sk, &o.output)) {
-                let e = by_tx.entry(*txid).or_insert((0, Vec::new(), *height));
+            if let Some((txid, height, block_ts)) = ki_to_tx.get(&output_key_image(&sk, &o.output)) {
+                let e = by_tx.entry(*txid).or_insert((0, Vec::new(), *height, *block_ts));
                 e.0 = e.0.saturating_add(o.output.commitment().amount);
                 e.1.push(id);
             }
@@ -1542,13 +1542,13 @@ impl WalletState {
         let existing: HashSet<String> = inner.sent.iter().map(|s| s.tx_hash.clone()).collect();
         let mut to_mark: Vec<String> = Vec::new();
         let mut to_record: Vec<storage::SentTx> = Vec::new();
-        for (txid, (gross, ids, height)) in by_tx {
+        for (txid, (gross, ids, height, block_ts)) in by_tx {
             let txid_hex = hex::encode(txid);
             let change = received_by_tx.get(&txid_hex).copied().unwrap_or(0);
             let net = gross.saturating_sub(change);
-            // Tip-independent anchor estimate (see commands::wallet::estimate_block_time) —
-            // the old now−(tip−height) form collapsed reconciled sends to "now" mid-restore.
-            let timestamp = crate::commands::wallet::estimate_block_time(height).min(now);
+            // The spending block's header time. The anchor estimate (2 min per block
+            // since July) ran ~15 h early by 2026-10-25 — blocks come a little faster.
+            let timestamp = crate::commands::wallet::sent_time(block_ts, height, now);
             to_mark.extend(ids);
             if !existing.contains(&txid_hex) {
                 to_record.push(storage::SentTx {
