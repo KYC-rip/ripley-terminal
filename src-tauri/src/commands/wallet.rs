@@ -1810,13 +1810,25 @@ pub async fn sign_message(
     state: State<'_, WalletState>,
     address: String,
     message: String,
+    version: Option<u8>,
 ) -> Result<SignedMessage, String> {
     let network = state.get_network().await;
     let target = MoneroAddress::from_str(network, &address)
         .map_err(|e| format!("Invalid address: {:?}", e))?;
 
     let (spend_sec, spend_pub) = state.message_signing_key_for_address(&target).await?;
-    let signature = crate::wallet::msg_sign::sign_message_v1(&message, &spend_sec, &spend_pub);
+    // SigV2 (what monero-wallet-rpc `sign` makes; NKIP-0003 SHOULD) unless the caller asks
+    // for SigV1 — the frontend picks, so a verifier that only knew SigV1 is a web fix.
+    let addr_spend: curve25519_dalek::EdwardsPoint = target.spend().into();
+    let addr_view: curve25519_dalek::EdwardsPoint = target.view().into();
+    if addr_spend != spend_pub {
+        return Err("Signing key does not match the address".into());
+    }
+    let signature = match version.unwrap_or(2) {
+        1 => crate::wallet::msg_sign::sign_message_v1(&message, &spend_sec, &spend_pub),
+        2 => crate::wallet::msg_sign::sign_message_v2(&message, &spend_sec, &addr_spend, &addr_view),
+        v => return Err(format!("Unsupported signature version {v}")),
+    };
     Ok(SignedMessage {
         signature,
         signer_address: target.to_string(),

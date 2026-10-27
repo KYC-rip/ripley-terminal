@@ -1003,7 +1003,7 @@ pub async fn browser_embed_open(
                 // CANCEL the navigation so the webview stays on the current page.
                 if matches!(
                     url.scheme(),
-                    "monero" | "bitcoin" | "lightning" | "solana" | "ethereum" | "xmr402" | "ripley"
+                    "monero" | "bitcoin" | "lightning" | "solana" | "ethereum" | "xmr402" | "ripley" | "monero-signin"
                 ) {
                     crate::emit_log(&app_nav, "BROWSER_URI", "info", url.as_str());
                     return false;
