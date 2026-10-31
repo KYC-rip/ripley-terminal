@@ -125,6 +125,25 @@ pub fn read_ui_mode(app: &AppHandle) -> String {
     }
 }
 
+/// A first launch (no config.json yet) boots RipleyOS: write `{"ui_mode":"ros"}` (temp file, then rename) before the
+/// window is built. Returns the mode to boot when it decided one; an existing file is never touched. A failed write is
+/// logged and this launch still boots ROS (the next launch decides again).
+pub fn seed_first_launch_ui_mode(app: &AppHandle) -> Option<String> {
+    let path = config_path(app);
+    let mode = crate::boot::first_launch_ui_mode(path.exists())?;
+    let write = || -> std::io::Result<()> {
+        std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new(".")))?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, serde_json::json!({ "ui_mode": mode }).to_string())?;
+        std::fs::rename(&tmp, &path)
+    };
+    match write() {
+        Ok(()) => println!("[UI] first launch — booting RipleyOS (ui_mode=ros saved)"),
+        Err(e) => println!("[UI/warn] first launch — booting RipleyOS, but config.json could not be written ({e})"),
+    }
+    Some(mode.to_string())
+}
+
 /// Where a `ui_mode=ros` window sources its UI from:
 /// - `"beta"` → remote `https://app.ros.rip` (fast iteration; the current default),
 /// - `"ota"`  → the on-device verified `ros://local` bundle (signed OTA — the stable path).

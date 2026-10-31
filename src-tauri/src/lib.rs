@@ -5,6 +5,7 @@
 #![recursion_limit = "512"]
 
 mod agent;
+mod boot;
 mod commands;
 mod dns_filter;
 mod tor;
@@ -260,7 +261,8 @@ pub fn run() {
             // remote RipleyOS, which the URL-scoped `ros_remote` capability limits
             // to the wallet invoke surface (no fs/shell/dialog/core:default).
             // Built AFTER every manage() above so an early IPC call finds its state.
-            let ui_mode = commands::config::read_ui_mode(app.handle());
+            let ui_mode = commands::config::seed_first_launch_ui_mode(app.handle())
+                .unwrap_or_else(|| commands::config::read_ui_mode(app.handle()));
             // Within ros mode, `ros_source` selects WHERE the UI comes from: "beta" =
             // remote app.ros.rip (fast iteration), "ota" = the on-device verified
             // ros://local bundle (the stable signed path). Default beta so a bad OTA
@@ -289,14 +291,25 @@ pub fn run() {
             // bundle (verified empirically). Only the actually-loaded ros:// window is
             // "ros"; any fallback to the classic renderer stays "main" (it needs default).
             let mut window_label: &str = "main";
-            let window_url = if ui_mode == "ros" && ros_source == "ota" {
+            // Beta mode in a release build with no override: is app.ros.rip reachable right now? If not (offline
+            // first run), the verified on-device bundle boots instead of a dead window (boot.rs).
+            let remote_ok = !(ui_mode == "ros"
+                && ros_source != "ota"
+                && ros_override.is_none()
+                && !cfg!(debug_assertions))
+                || boot::remote_reachable(ROS_REMOTE_URL);
+            if ui_mode == "ros" && ros_source != "ota" && !remote_ok {
+                println!("[UI/warn] {ROS_REMOTE_URL} unreachable at launch — booting the on-device RipleyOS bundle");
+            }
+            let window_url = if boot::wants_bundle(&ui_mode, &ros_source, remote_ok) {
                 // Stable path: serve the on-device VERIFIED bundle over ros://. The bundle
                 // is loaded + re-verified here (cache, else the pinned bundled fallback)
                 // and managed so the ros:// protocol handler can serve it. A None return
                 // means even the fallback failed its pinned hash (binary integrity gone) —
                 // fail closed to classic rather than load anything unverified.
-                match updater::load_bundle_at_launch(app.handle()) {
-                    Some(bundle) => {
+                let bundle = updater::load_bundle_at_launch(app.handle());
+                match (boot::ros_boot_target(&ui_mode, &ros_source, remote_ok, bundle.is_some()), bundle) {
+                    (boot::BootTarget::Bundle, Some(bundle)) => {
                         app.manage(bundle);
                         match "ros://local/index.html".parse::<tauri::Url>() {
                             Ok(u) => {
@@ -309,7 +322,7 @@ pub fn run() {
                             }
                         }
                     }
-                    None => {
+                    _ => {
                         println!("[ota] no loadable ROS bundle — booting classic");
                         classic_url()
                     }
