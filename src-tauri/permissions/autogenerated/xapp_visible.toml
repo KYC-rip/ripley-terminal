@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-visible"
+description = "Enables the xapp_visible command without any pre-configured scope."
+commands.allow = ["xapp_visible"]
+
+[[permission]]
+identifier = "deny-xapp-visible"
+description = "Denies the xapp_visible command without any pre-configured scope."
+commands.deny = ["xapp_visible"]

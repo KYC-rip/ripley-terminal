@@ -8,9 +8,7 @@
       "https://app.ros.rip"
     ]
   },
-  "windows": [
-    "main"
-  ],
+  "webviews": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -35,6 +33,13 @@
     "allow-browser-embed-visible",
     "allow-browser-embed-close",
     "allow-browser-embed-deliver-xmr402",
+    "allow-xapp-open",
+    "allow-xapp-bounds",
+    "allow-xapp-navigate",
+    "allow-xapp-visible",
+    "allow-xapp-zoom",
+    "allow-xapp-history",
+    "allow-xapp-close",
     "allow-create-wallet",
     "allow-import-watch-only",
     "allow-export-watch-only",

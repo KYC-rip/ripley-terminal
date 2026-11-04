@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-close"
+description = "Enables the xapp_close command without any pre-configured scope."
+commands.allow = ["xapp_close"]
+
+[[permission]]
+identifier = "deny-xapp-close"
+description = "Denies the xapp_close command without any pre-configured scope."
+commands.deny = ["xapp_close"]

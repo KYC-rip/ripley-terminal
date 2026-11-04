@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-history"
+description = "Enables the xapp_history command without any pre-configured scope."
+commands.allow = ["xapp_history"]
+
+[[permission]]
+identifier = "deny-xapp-history"
+description = "Denies the xapp_history command without any pre-configured scope."
+commands.deny = ["xapp_history"]

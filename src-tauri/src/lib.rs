@@ -556,6 +556,13 @@ pub fn run() {
             commands::system::browser_embed_visible,
             commands::system::browser_embed_close,
             commands::system::browser_embed_deliver_xmr402,
+            commands::xapp::xapp_open,
+            commands::xapp::xapp_bounds,
+            commands::xapp::xapp_navigate,
+            commands::xapp::xapp_visible,
+            commands::xapp::xapp_zoom,
+            commands::xapp::xapp_history,
+            commands::xapp::xapp_close,
             // Identity
             commands::identity::get_identities,
             commands::identity::save_identities,
@@ -704,5 +711,38 @@ mod ipc_manifest_tests {
         }
         let classic = include_str!("../capabilities/default.json");
         assert!(ros_only.iter().all(|p| !classic.contains(p)), "classic window granted a RipleyOS-only command");
+    }
+
+    /// Tauri applies a `windows`-scoped capability to EVERY webview in that window, child views
+    /// included — the Browser's `ros-embed` and the X app's `xapp` are children of the ROS window.
+    /// So the ROS capabilities name the window's own webview (`webviews`), never `windows`, and no
+    /// capability grants anything to the child views (plans/x-app-xmradar.md R7).
+    #[test]
+    fn ros_capabilities_reach_only_the_ros_webview_never_its_child_views() {
+        for (raw, own) in [
+            (include_str!("../capabilities/default.json"), "main"),
+            (include_str!("../capabilities/ros_local.json"), "ros"),
+            (include_str!("../capabilities/ros_remote.json"), "main"),
+        ] {
+            let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+            assert!(v.get("windows").is_none(), "a ROS capability is window-scoped (reaches child webviews)");
+            assert_eq!(v["webviews"], serde_json::json!([own]));
+        }
+        for raw in [
+            include_str!("../capabilities/default.json"), include_str!("../capabilities/ros_local.json"),
+            include_str!("../capabilities/ros_remote.json"), include_str!("../capabilities/vpn_control.json"),
+        ] {
+            assert!(!raw.contains("\"xapp\"") && !raw.contains("\"ros-embed\""), "a capability names a child webview");
+        }
+    }
+
+    /// The X app's shell commands: every ROS view (classic + both RipleyOS) can drive it.
+    #[test]
+    fn xapp_commands_are_granted_to_the_ros_views() {
+        for cap in [include_str!("../capabilities/default.json"), include_str!("../capabilities/ros_local.json"), include_str!("../capabilities/ros_remote.json")] {
+            for perm in ["allow-xapp-open", "allow-xapp-bounds", "allow-xapp-navigate", "allow-xapp-visible", "allow-xapp-zoom", "allow-xapp-history", "allow-xapp-close"] {
+                assert!(cap.contains(&format!("\"{perm}\"")), "{perm} missing from a capability");
+            }
+        }
     }
 }

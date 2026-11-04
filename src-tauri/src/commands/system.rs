@@ -805,7 +805,7 @@ static EMBED_URL: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None)
 ///      onion can't resolve without Tor; a direct/custom webview would DNS-leak the
 ///      onion address instead of failing cleanly.
 /// Ok(None) means an intentional direct clearnet connection.
-fn resolve_browser_proxy(
+pub(crate) fn resolve_browser_proxy(
     url: &tauri::Url,
     mode: &Option<String>,
     proxy: &Option<String>,
@@ -888,7 +888,7 @@ fn guard_browser_target(app: &AppHandle, url: &tauri::Url) -> Result<(), String>
 
 /// Parse "r,g,b" (from the ROS theme's computed bg) into a webview background color,
 /// so the embed matches the theme instead of flashing white before the page paints.
-fn parse_rgb(s: &str) -> Option<tauri::webview::Color> {
+pub(crate) fn parse_rgb(s: &str) -> Option<tauri::webview::Color> {
     let p: Vec<u8> = s.split(',').filter_map(|v| v.trim().parse().ok()).collect();
     if p.len() >= 3 {
         Some(tauri::webview::Color(p[0], p[1], p[2], 255))
@@ -905,7 +905,7 @@ fn parse_rgb(s: &str) -> Option<tauri::webview::Color> {
 /// WKWebView: read both, log anything off (evidence in the core log), then pin
 /// magnification=1 and pageZoom=z.
 #[cfg(target_os = "macos")]
-fn embed_pin_zoom(app: &AppHandle, wv: &tauri::Webview, z: f64) {
+pub(crate) fn embed_pin_zoom(app: &AppHandle, wv: &tauri::Webview, z: f64) {
     let app2 = app.clone();
     let _ = wv.with_webview(move |pw| {
         let view = unsafe { &*(pw.inner() as *const objc2_web_kit::WKWebView) };
@@ -927,7 +927,7 @@ fn embed_pin_zoom(app: &AppHandle, wv: &tauri::Webview, z: f64) {
     });
 }
 #[cfg(not(target_os = "macos"))]
-fn embed_pin_zoom(_app: &AppHandle, wv: &tauri::Webview, z: f64) {
+pub(crate) fn embed_pin_zoom(_app: &AppHandle, wv: &tauri::Webview, z: f64) {
     let _ = wv.set_zoom(z);
 }
 
@@ -997,6 +997,12 @@ pub async fn browser_embed_open(
                 "document.addEventListener('contextmenu',function(e){e.preventDefault();},true);",
             )
             .on_navigation(move |url| {
+                // Ripley's own and local schemes never load in the Browser view: a ros:// page
+                // there would run with local-context permissions (plans/x-app-xmradar.md R7).
+                if matches!(url.scheme(), "ros" | "tauri" | "ipc" | "asset" | "file") {
+                    crate::emit_log(&app_nav, "BROWSER", "warn", &format!("navigation refused ({})", url.scheme()));
+                    return false;
+                }
                 // Wallet/payment URIs can't render as a web page — an in-page anchor like
                 // <a href="monero:8B…?tx_amount=1.5"> would just dead-end in the webview.
                 // Forward them to ROS (which routes monero: → the wallet Send flow) and

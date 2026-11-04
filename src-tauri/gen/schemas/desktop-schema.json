@@ -2967,6 +2967,48 @@
           "markdownDescription": "Enables the watch_sync_set command without any pre-configured scope."
         },
         {
+          "description": "Enables the xapp_bounds command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-bounds",
+          "markdownDescription": "Enables the xapp_bounds command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-close",
+          "markdownDescription": "Enables the xapp_close command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-history",
+          "markdownDescription": "Enables the xapp_history command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_navigate command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-navigate",
+          "markdownDescription": "Enables the xapp_navigate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_open command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-open",
+          "markdownDescription": "Enables the xapp_open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_visible command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-visible",
+          "markdownDescription": "Enables the xapp_visible command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-zoom",
+          "markdownDescription": "Enables the xapp_zoom command without any pre-configured scope."
+        },
+        {
           "description": "Denies the agent_gateway_rotate_key command without any pre-configured scope.",
           "type": "string",
           "const": "deny-agent-gateway-rotate-key",
@@ -3745,6 +3787,48 @@
           "type": "string",
           "const": "deny-watch-sync-set",
           "markdownDescription": "Denies the watch_sync_set command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_bounds command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-bounds",
+          "markdownDescription": "Denies the xapp_bounds command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-close",
+          "markdownDescription": "Denies the xapp_close command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-history",
+          "markdownDescription": "Denies the xapp_history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_navigate command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-navigate",
+          "markdownDescription": "Denies the xapp_navigate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_open command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-open",
+          "markdownDescription": "Denies the xapp_open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_visible command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-visible",
+          "markdownDescription": "Denies the xapp_visible command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-zoom",
+          "markdownDescription": "Denies the xapp_zoom command without any pre-configured scope."
         },
         {
           "description": "No features are enabled by default, as we believe\nthe clipboard can be inherently dangerous and it is \napplication specific if read and/or write access is needed.\n\nClipboard interaction needs to be explicitly enabled.\n",

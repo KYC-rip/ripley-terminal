@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Full permissions for the LOCAL classic renderer only. Local-context (no `remote`), so a remote page loaded into the main window inherits none of this \u2014 remote RipleyOS gets the narrow ros_remote capability instead.",
-  "windows": [
-    "main"
-  ],
+  "webviews": ["main"],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -92,6 +90,13 @@
     "allow-browser-embed-visible",
     "allow-browser-embed-close",
     "allow-browser-embed-deliver-xmr402",
+    "allow-xapp-open",
+    "allow-xapp-bounds",
+    "allow-xapp-navigate",
+    "allow-xapp-visible",
+    "allow-xapp-zoom",
+    "allow-xapp-history",
+    "allow-xapp-close",
     "allow-get-identities",
     "allow-save-identities",
     "allow-detect-legacy-wallets",

@@ -11,3 +11,4 @@ pub mod vigil;
 pub mod vpn;
 pub mod wallet;
 pub mod wallpaper;
+pub mod xapp;

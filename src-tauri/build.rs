@@ -98,6 +98,13 @@ const APP_COMMANDS: &[&str] = &[
     "browser_embed_visible",
     "browser_embed_close",
     "browser_embed_deliver_xmr402",
+    "xapp_open",
+    "xapp_bounds",
+    "xapp_navigate",
+    "xapp_visible",
+    "xapp_zoom",
+    "xapp_history",
+    "xapp_close",
     // Identity
     "get_identities",
     "save_identities",

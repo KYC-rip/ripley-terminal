@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-navigate"
+description = "Enables the xapp_navigate command without any pre-configured scope."
+commands.allow = ["xapp_navigate"]
+
+[[permission]]
+identifier = "deny-xapp-navigate"
+description = "Denies the xapp_navigate command without any pre-configured scope."
+commands.deny = ["xapp_navigate"]

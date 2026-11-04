@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-bounds"
+description = "Enables the xapp_bounds command without any pre-configured scope."
+commands.allow = ["xapp_bounds"]
+
+[[permission]]
+identifier = "deny-xapp-bounds"
+description = "Denies the xapp_bounds command without any pre-configured scope."
+commands.deny = ["xapp_bounds"]

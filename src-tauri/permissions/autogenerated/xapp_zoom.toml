@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-xapp-zoom"
+description = "Enables the xapp_zoom command without any pre-configured scope."
+commands.allow = ["xapp_zoom"]
+
+[[permission]]
+identifier = "deny-xapp-zoom"
+description = "Denies the xapp_zoom command without any pre-configured scope."
+commands.deny = ["xapp_zoom"]
