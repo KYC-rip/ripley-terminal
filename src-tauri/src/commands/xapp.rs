@@ -396,7 +396,8 @@ pub async fn xapp_open(
         });
     if let Some(s) = script.filter(|s| !s.is_empty()) {
         // R11: what went into X's page, by fingerprint (RipleyOS supplies it; its own bundle is signed + verified)
-        crate::emit_log(&app, "XAPP", "info", &format!("injected script {}", script_fingerprint(&s)));
+        // the whole script (RipleyOS's state + XMRadar's bundle); RipleyOS logs the bundle's own pinned sha
+        crate::emit_log(&app, "XAPP", "info", &format!("injected script (state + XMRadar) {}", script_fingerprint(&s)));
         b = b.initialization_script(&s);
     }
     #[cfg(target_os = "macos")]
