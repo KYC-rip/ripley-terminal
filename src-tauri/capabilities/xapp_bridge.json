@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "xapp-bridge",
+  "description": "XMRadar inside the X app (plans/x-app-xmradar.md R4/R16 in ripley-os): the X view (webview 'xapp'), and only while it is on an X page, may call ONE command, xapp_bridge, which hands a read request to RipleyOS (badges, xap totals, a price, an xmr.bio lookup) and returns RipleyOS's answer. X's own scripts share that page and can call it too, so RipleyOS answers only public data and takes no writes from it. Nothing else: no wallet, no files, no events, no window control. The command checks the caller's label and page again.",
+  "local": false,
+  "remote": {
+    "urls": ["https://x.com/*", "https://*.x.com/*", "https://twitter.com/*", "https://*.twitter.com/*"]
+  },
+  "webviews": ["xapp"],
+  "permissions": ["allow-xapp-bridge"]
+}

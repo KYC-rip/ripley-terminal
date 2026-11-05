@@ -30,6 +30,18 @@ static XAPP_NONCE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None
 /// The last X page loaded at the top level — where a top-level move off X is sent back to.
 static XAPP_LAST_X: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
+// XMRadar in X's page asks RipleyOS through `xapp_bridge` (plans/x-app-xmradar.md R4/R13/R16): requests
+// waiting for RipleyOS's answer, by id. Bounded: request size, answer size, how many at once, how long.
+const BRIDGE_MAX_REQUEST: usize = 16 * 1024;
+const BRIDGE_MAX_ANSWER: usize = 64 * 1024;
+const BRIDGE_MAX_IN_FLIGHT: usize = 8;
+const BRIDGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+/// Ripley's settings pushed into X's page (`xapp_push`).
+const PUSH_MAX: usize = 64 * 1024;
+static BRIDGE_NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+static BRIDGE_PENDING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<u64, tokio::sync::oneshot::Sender<String>>>> =
+    std::sync::LazyLock::new(Default::default);
+
 fn normalize_proxy(raw: &str) -> String {
     let folded = crate::wallet::scanner::fold_fullwidth(raw);
     let t = folded.trim();
@@ -181,9 +193,12 @@ fn percent_decode(s: &str) -> Option<String> {
 const LINK_SCRIPT: &str = r#"(function(){ var NONCE = '__RIPLEY_NONCE__';
   if (window.top !== window || window.__ripleyXLinks) return; window.__ripleyXLinks = true;
   var isX = function(h){ h = (h||'').toLowerCase(); return h==='x.com'||h==='twitter.com'||/\.(x|twitter)\.com$/.test(h); };
+  // the link may sit in a shadow root (XMRadar's tip popup): composedPath sees into open ones.
+  // Only real clicks count: a click made by the page's own script (a.click()) is not the user's.
   document.addEventListener('click', function(e){
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!e.isTrusted || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var path = e.composedPath ? e.composedPath() : [e.target], a = null;
+    for (var i = 0; i < path.length && !a; i++) { var n = path[i]; if (n && n.tagName === 'A' && n.hasAttribute('href')) a = n; }
     if (!a) return;
     var u; try { u = new URL(a.href, location.href); } catch (_) { return; }
     // a payment link in X's own page → the wallet (raw payment URIs from frames are refused)
@@ -475,6 +490,97 @@ pub fn xapp_close(app: AppHandle) -> Result<(), String> {
     if let Ok(mut g) = XAPP_NONCE.lock() {
         *g = None;
     }
+    // the page that asked is gone: its waiting requests end now, not after the timeout
+    if let Ok(mut p) = BRIDGE_PENDING.lock() {
+        p.clear();
+    }
+    Ok(())
+}
+
+/// The RipleyOS view: the window's own webview (the X view and the Browser's are children of it).
+fn ros_label(app: &AppHandle) -> Option<&'static str> {
+    if app.get_webview("main").is_some() {
+        Some("main")
+    } else if app.get_webview("ros").is_some() {
+        Some("ros")
+    } else {
+        None
+    }
+}
+
+/// Only the X view, on an X page, may use the bridge (the capability says the same; this is the second lock).
+pub fn bridge_caller_ok(label: &str, url: &tauri::Url) -> bool {
+    label == XAPP_LABEL && url.scheme() == "https" && url.host_str().is_some_and(is_x_host)
+}
+
+/// A request from XMRadar in X's page, answered by RipleyOS (`xapp_bridge_reply`). Every answer is
+/// public data (badges, totals, a price); RipleyOS decides what it answers — this only carries it.
+#[tauri::command]
+pub async fn xapp_bridge(app: AppHandle, webview: tauri::Webview, request: String) -> Result<String, String> {
+    let url = webview.url().map_err(|e| e.to_string())?;
+    if !bridge_caller_ok(webview.label(), &url) {
+        return Err("not allowed".into());
+    }
+    if request.len() > BRIDGE_MAX_REQUEST {
+        return Err("request too large".into());
+    }
+    let ros = ros_label(&app).ok_or("RipleyOS isn't open")?;
+    let id = BRIDGE_NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    {
+        let mut pending = BRIDGE_PENDING.lock().map_err(|_| "bridge unavailable")?;
+        if pending.len() >= BRIDGE_MAX_IN_FLIGHT {
+            return Err("busy".into());
+        }
+        pending.insert(id, tx);
+    }
+    use tauri::Emitter;
+    if let Err(e) = app.emit_to(tauri::EventTarget::webview(ros), "xapp-bridge", serde_json::json!({ "id": id, "request": request })) {
+        BRIDGE_PENDING.lock().map(|mut p| p.remove(&id)).ok();
+        return Err(e.to_string());
+    }
+    match tokio::time::timeout(BRIDGE_TIMEOUT, rx).await {
+        Ok(Ok(answer)) => Ok(answer),
+        _ => {
+            BRIDGE_PENDING.lock().map(|mut p| p.remove(&id)).ok();
+            Err("RipleyOS didn't answer".into())
+        }
+    }
+}
+
+/// RipleyOS's answer to a bridge request (JSON text, as the extension's background answers).
+#[tauri::command]
+pub fn xapp_bridge_reply(id: u64, answer: String) -> Result<(), String> {
+    let tx = BRIDGE_PENDING.lock().map_err(|_| "bridge unavailable")?.remove(&id);
+    let Some(tx) = tx else { return Ok(()) }; // timed out or the view closed meanwhile
+    let answer = if answer.len() > BRIDGE_MAX_ANSWER { r#"{"ok":false,"error":"answer too large"}"#.to_string() } else { answer };
+    let _ = tx.send(answer);
+    Ok(())
+}
+
+/// The script that hands RipleyOS's state to XMRadar in X's page: the JSON travels as a JS string
+/// literal and is parsed there — it is never spliced in as code.
+pub fn push_script(state: &str) -> Result<String, String> {
+    if state.len() > PUSH_MAX {
+        return Err("state too large".into());
+    }
+    let v: serde_json::Value = serde_json::from_str(state).map_err(|_| "state isn't JSON")?;
+    if !v.is_object() {
+        return Err("state must be an object".into());
+    }
+    let lit = serde_json::to_string(state).map_err(|e| e.to_string())?;
+    Ok(format!("window.dispatchEvent(new CustomEvent('xmradar:state',{{detail:JSON.parse({lit})}}))"))
+}
+
+/// RipleyOS's settings for XMRadar changed: tell the open X page (dropped when X isn't open or is off X).
+#[tauri::command]
+pub fn xapp_push(app: AppHandle, state: String) -> Result<(), String> {
+    let js = push_script(&state)?;
+    if let Some(wv) = app.get_webview(XAPP_LABEL) {
+        if wv.url().is_ok_and(|u| bridge_caller_ok(XAPP_LABEL, &u)) {
+            wv.eval(&js).map_err(|e| e.to_string())?;
+        }
+    }
     Ok(())
 }
 
@@ -543,6 +649,44 @@ mod tests {
         assert_eq!(route_fingerprint("clearnet", "x"), "clearnet");
         assert_eq!(route_fingerprint("custom", "socks5://127.0.0.1：9050/"), "custom|127.0.0.1:9050");
         assert_ne!(route_fingerprint("custom", "127.0.0.1:9050"), route_fingerprint("custom", "127.0.0.1:9150"));
+    }
+
+    #[test]
+    fn bridge_only_from_the_x_view_on_x() {
+        assert!(bridge_caller_ok("xapp", &u("https://x.com/home")));
+        assert!(bridge_caller_ok("xapp", &u("https://mobile.twitter.com/a")));
+        for (label, url) in [("xapp", "https://example.org/"), ("xapp", "http://x.com/"), ("xapp", "https://accounts.google.com/"), ("ros-embed", "https://x.com/"), ("main", "https://x.com/"), ("xapp", "about:blank")] {
+            assert!(!bridge_caller_ok(label, &u(url)), "{label} {url}");
+        }
+    }
+
+    #[test]
+    fn push_is_data_never_code() {
+        let js = push_script(r#"{"sync:xmrSettings":{"badgesX":true},"x":"</script><script>alert(1)</script>','\u2028"}"#).unwrap();
+        assert!(js.starts_with("window.dispatchEvent(new CustomEvent('xmradar:state',{detail:JSON.parse(\""));
+        assert!(js.ends_with("\")}))"));
+        // the payload sits inside one JS string literal: every quote in it is escaped
+        let inner = &js["window.dispatchEvent(new CustomEvent('xmradar:state',{detail:JSON.parse(".len()..js.len() - ")}))".len()];
+        let back: String = serde_json::from_str(inner).unwrap();
+        assert!(back.contains("</script>"));
+        assert!(push_script("[1,2]").is_err());
+        assert!(push_script("alert(1)").is_err());
+        assert!(push_script(&format!("{{\"a\":\"{}\"}}", "x".repeat(PUSH_MAX))).is_err());
+    }
+
+    #[test]
+    fn bridge_reply_for_an_unknown_id_is_harmless_and_large_answers_are_refused() {
+        assert!(xapp_bridge_reply(u64::MAX, "{}".into()).is_ok());
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        BRIDGE_PENDING.lock().unwrap().insert(u64::MAX - 1, tx);
+        xapp_bridge_reply(u64::MAX - 1, "x".repeat(BRIDGE_MAX_ANSWER + 1)).unwrap();
+        assert_eq!(rx.try_recv().unwrap(), r#"{"ok":false,"error":"answer too large"}"#);
+    }
+
+    #[test]
+    fn link_script_sees_into_shadow_roots_and_takes_only_real_clicks() {
+        assert!(LINK_SCRIPT.contains("e.composedPath") && LINK_SCRIPT.contains("!e.isTrusted"));
+        assert!(!LINK_SCRIPT.contains("closest('a[href]')"));
     }
 
     #[test]

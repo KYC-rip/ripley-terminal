@@ -2973,6 +2973,18 @@
           "markdownDescription": "Enables the xapp_bounds command without any pre-configured scope."
         },
         {
+          "description": "Enables the xapp_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-bridge",
+          "markdownDescription": "Enables the xapp_bridge command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_bridge_reply command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-bridge-reply",
+          "markdownDescription": "Enables the xapp_bridge_reply command without any pre-configured scope."
+        },
+        {
           "description": "Enables the xapp_close command without any pre-configured scope.",
           "type": "string",
           "const": "allow-xapp-close",
@@ -2995,6 +3007,12 @@
           "type": "string",
           "const": "allow-xapp-open",
           "markdownDescription": "Enables the xapp_open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the xapp_push command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-xapp-push",
+          "markdownDescription": "Enables the xapp_push command without any pre-configured scope."
         },
         {
           "description": "Enables the xapp_visible command without any pre-configured scope.",
@@ -3795,6 +3813,18 @@
           "markdownDescription": "Denies the xapp_bounds command without any pre-configured scope."
         },
         {
+          "description": "Denies the xapp_bridge command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-bridge",
+          "markdownDescription": "Denies the xapp_bridge command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_bridge_reply command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-bridge-reply",
+          "markdownDescription": "Denies the xapp_bridge_reply command without any pre-configured scope."
+        },
+        {
           "description": "Denies the xapp_close command without any pre-configured scope.",
           "type": "string",
           "const": "deny-xapp-close",
@@ -3817,6 +3847,12 @@
           "type": "string",
           "const": "deny-xapp-open",
           "markdownDescription": "Denies the xapp_open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the xapp_push command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-xapp-push",
+          "markdownDescription": "Denies the xapp_push command without any pre-configured scope."
         },
         {
           "description": "Denies the xapp_visible command without any pre-configured scope.",

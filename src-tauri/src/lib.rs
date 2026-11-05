@@ -563,6 +563,9 @@ pub fn run() {
             commands::xapp::xapp_zoom,
             commands::xapp::xapp_history,
             commands::xapp::xapp_close,
+            commands::xapp::xapp_bridge,
+            commands::xapp::xapp_bridge_reply,
+            commands::xapp::xapp_push,
             // Identity
             commands::identity::get_identities,
             commands::identity::save_identities,
@@ -734,6 +737,25 @@ mod ipc_manifest_tests {
         ] {
             assert!(!raw.contains("\"xapp\"") && !raw.contains("\"ros-embed\""), "a capability names a child webview");
         }
+        // the one exception: the X view gets the XMRadar bridge — that command alone, on X pages alone
+        let v: serde_json::Value = serde_json::from_str(include_str!("../capabilities/xapp_bridge.json")).unwrap();
+        assert!(v.get("windows").is_none());
+        assert_eq!(v["webviews"], serde_json::json!(["xapp"]));
+        assert_eq!(v["permissions"], serde_json::json!(["allow-xapp-bridge"]));
+        assert_eq!(v["local"], serde_json::json!(false));
+        assert_eq!(v["remote"]["urls"], serde_json::json!(["https://x.com/*", "https://*.x.com/*", "https://twitter.com/*", "https://*.twitter.com/*"]));
+    }
+
+    /// The bridge's answers and the settings push come from RipleyOS only; the X view never gets them,
+    /// and no RipleyOS view gets the page-side bridge call.
+    #[test]
+    fn xmradar_bridge_permissions_are_split_by_side() {
+        for cap in [include_str!("../capabilities/default.json"), include_str!("../capabilities/ros_local.json"), include_str!("../capabilities/ros_remote.json")] {
+            assert!(cap.contains("\"allow-xapp-bridge-reply\"") && cap.contains("\"allow-xapp-push\""));
+            assert!(!cap.contains("\"allow-xapp-bridge\""), "a RipleyOS view can call the page-side bridge");
+        }
+        let x = include_str!("../capabilities/xapp_bridge.json");
+        assert!(!x.contains("allow-xapp-bridge-reply") && !x.contains("allow-xapp-push"));
     }
 
     /// The X app's shell commands: every ROS view (classic + both RipleyOS) can drive it.

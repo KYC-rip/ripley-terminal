@@ -105,6 +105,9 @@ const APP_COMMANDS: &[&str] = &[
     "xapp_zoom",
     "xapp_history",
     "xapp_close",
+    "xapp_bridge",
+    "xapp_bridge_reply",
+    "xapp_push",
     // Identity
     "get_identities",
     "save_identities",

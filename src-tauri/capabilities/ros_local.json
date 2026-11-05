@@ -34,6 +34,8 @@
     "allow-xapp-zoom",
     "allow-xapp-history",
     "allow-xapp-close",
+    "allow-xapp-bridge-reply",
+    "allow-xapp-push",
     "allow-create-wallet",
     "allow-import-watch-only",
     "allow-export-watch-only",

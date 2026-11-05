@@ -97,6 +97,8 @@
     "allow-xapp-zoom",
     "allow-xapp-history",
     "allow-xapp-close",
+    "allow-xapp-bridge-reply",
+    "allow-xapp-push",
     "allow-get-identities",
     "allow-save-identities",
     "allow-detect-legacy-wallets",
