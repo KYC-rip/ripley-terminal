@@ -395,6 +395,8 @@ pub async fn xapp_open(
             crate::emit_log(&app_load, "XAPP_LOAD", "info", &format!("{}|{}", phase, payload.url()));
         });
     if let Some(s) = script.filter(|s| !s.is_empty()) {
+        // R11: what went into X's page, by fingerprint (RipleyOS supplies it; its own bundle is signed + verified)
+        crate::emit_log(&app, "XAPP", "info", &format!("injected script {}", script_fingerprint(&s)));
         b = b.initialization_script(&s);
     }
     #[cfg(target_os = "macos")]
@@ -495,6 +497,13 @@ pub fn xapp_close(app: AppHandle) -> Result<(), String> {
         p.clear();
     }
     Ok(())
+}
+
+/// `sha256:<first 12 hex> (<bytes> bytes)` — the log line's fingerprint of an injected script.
+pub fn script_fingerprint(script: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let h = hex::encode(Sha256::digest(script.as_bytes()));
+    format!("sha256:{} ({} bytes)", &h[..12], script.len())
 }
 
 /// The RipleyOS view: the window's own webview (the X view and the Browser's are children of it).
@@ -649,6 +658,12 @@ mod tests {
         assert_eq!(route_fingerprint("clearnet", "x"), "clearnet");
         assert_eq!(route_fingerprint("custom", "socks5://127.0.0.1：9050/"), "custom|127.0.0.1:9050");
         assert_ne!(route_fingerprint("custom", "127.0.0.1:9050"), route_fingerprint("custom", "127.0.0.1:9150"));
+    }
+
+    #[test]
+    fn injected_script_fingerprint() {
+        // sha256("abc") = ba7816bf8f01…
+        assert_eq!(script_fingerprint("abc"), "sha256:ba7816bf8f01 (3 bytes)");
     }
 
     #[test]
