@@ -15,13 +15,17 @@ use hickory_proto::rr::{Name, RData, RecordType};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use monero_address::MoneroAddress;
 
-/// Default DoH resolver for OpenAlias (RFC 8484 binary wire format). Mullvad —
-/// privacy-focused, no-logging, DNSSEC-validating. MUST speak HTTP/1.1: our Tor
-/// transport (`http_over_stream`) is hyper http1-only, and Quad9's DoH is
-/// HTTP/2-only (returns 505 over HTTP/1.1) so it can't be used over Tor here.
-/// Resolver-agnostic: any RFC 8484 HTTP/1.1-capable DoH endpoint works, so
-/// promoting this to a user setting later is a one-line change.
-const OPENALIAS_DOH_ENDPOINT: &str = "https://dns.mullvad.net/dns-query";
+/// DoH resolvers for OpenAlias (RFC 8484 binary wire format), tried in order.
+/// Mullvad first — privacy-focused, no-logging, DNSSEC-validating. Since late 2026
+/// Mullvad's DoH answers HTTP/2 only and drops HTTP/1.1, which our Tor / SOCKS
+/// transport (`http_over_stream`, hyper http1-only) speaks; so DNS.SB — no-logging,
+/// DNSSEC-validating, HTTP/1.1-capable — is the fallback. Quad9 is out: HTTP/2-only
+/// too (505 over HTTP/1.1). A resolver is skipped only when it can't be reached or
+/// its answer can't be parsed; a parsed answer (no record, AD=0, …) is final.
+const OPENALIAS_DOH_ENDPOINTS: &[&str] = &[
+    "https://dns.mullvad.net/dns-query",
+    "https://doh.dns.sb/dns-query",
+];
 
 const RELEASES_LATEST: &str =
     "https://api.github.com/repos/KYC-rip/ripley-terminal/releases/latest";
@@ -1000,7 +1004,12 @@ pub async fn browser_embed_open(
                 // Ripley's own and local schemes never load in the Browser view: a ros:// page
                 // there would run with local-context permissions (plans/x-app-xmradar.md R7).
                 if matches!(url.scheme(), "ros" | "tauri" | "ipc" | "asset" | "file") {
-                    crate::emit_log(&app_nav, "BROWSER", "warn", &format!("navigation refused ({})", url.scheme()));
+                    crate::emit_log(
+                        &app_nav,
+                        "BROWSER",
+                        "warn",
+                        &format!("navigation refused ({})", url.scheme()),
+                    );
                     return false;
                 }
                 // Wallet/payment URIs can't render as a web page — an in-page anchor like
@@ -1009,7 +1018,14 @@ pub async fn browser_embed_open(
                 // CANCEL the navigation so the webview stays on the current page.
                 if matches!(
                     url.scheme(),
-                    "monero" | "bitcoin" | "lightning" | "solana" | "ethereum" | "xmr402" | "ripley" | "monero-signin"
+                    "monero"
+                        | "bitcoin"
+                        | "lightning"
+                        | "solana"
+                        | "ethereum"
+                        | "xmr402"
+                        | "ripley"
+                        | "monero-signin"
                 ) {
                     crate::emit_log(&app_nav, "BROWSER_URI", "info", url.as_str());
                     return false;
@@ -1484,6 +1500,66 @@ fn extract_txt_records(msg: &Message) -> Vec<String> {
         .collect()
 }
 
+enum DohError {
+    /// The route itself isn't usable (Tor not connected, no proxy set)
+    Route(String),
+    /// This resolver failed (connect, HTTP, timeout): the next one may work
+    Endpoint(String),
+}
+
+/// One RFC 8484 GET over the configured route.
+async fn doh_get(
+    app: &AppHandle,
+    mode: &str,
+    endpoint: &str,
+    query: &str,
+) -> Result<Vec<u8>, DohError> {
+    let url = format!("{endpoint}?dns={query}");
+    let headers: &[(&str, &str)] = &[("Accept", "application/dns-message")];
+    match mode {
+        "tor" => match app.state::<crate::tor::TorState>().get_client().await {
+            Some(tor) => crate::tor::tor_get_with_headers(&tor, &url, headers)
+                .await
+                .map_err(DohError::Endpoint),
+            None => Err(DohError::Route(
+                "Tor is not connected yet (required for OpenAlias resolution)".into(),
+            )),
+        },
+        "custom" => {
+            let proxy = crate::wallet::scanner::read_proxy_address(app);
+            if proxy.trim().is_empty() {
+                return Err(DohError::Route(
+                    "Custom routing selected but no proxy address is set".into(),
+                ));
+            }
+            crate::tor::socks_get_with_headers(&proxy, &url, headers)
+                .await
+                .map_err(DohError::Endpoint)
+        }
+        _ => {
+            let resp = reqwest::Client::new()
+                .get(&url)
+                .header("Accept", "application/dns-message")
+                .header(
+                    "User-Agent",
+                    concat!("ripley-terminal/", env!("CARGO_PKG_VERSION")),
+                )
+                .timeout(Duration::from_secs(15))
+                .send()
+                .await
+                .map_err(|e| DohError::Endpoint(e.to_string()))?;
+            if !resp.status().is_success() {
+                return Err(DohError::Endpoint(format!("HTTP {}", resp.status())));
+            }
+            Ok(resp
+                .bytes()
+                .await
+                .map_err(|e| DohError::Endpoint(e.to_string()))?
+                .to_vec())
+        }
+    }
+}
+
 /// Resolve an OpenAlias name to a crypto address for `ticker`. Routed over the
 /// configured transport; DNSSEC-gated; XMR addresses re-validated natively.
 #[tauri::command]
@@ -1498,58 +1574,49 @@ pub async fn resolve_openalias(
     }
     let fqdn = normalize_openalias_name(&name)?;
     let query = build_doh_query(&fqdn)?;
-    let url = format!("{OPENALIAS_DOH_ENDPOINT}?dns={query}");
-    let headers: &[(&str, &str)] = &[("Accept", "application/dns-message")];
-
     let mode = crate::wallet::scanner::read_routing_mode(&app);
-    crate::emit_log(
-        &app,
-        "OPENALIAS",
-        "process",
-        &format!("resolving \"{fqdn}\" ({ticker}) via {mode} → {OPENALIAS_DOH_ENDPOINT}"),
-    );
-    let bytes: Vec<u8> = match mode.as_str() {
-        "tor" => match app.state::<crate::tor::TorState>().get_client().await {
-            Some(tor) => crate::tor::tor_get_with_headers(&tor, &url, headers).await?,
-            None => {
-                return Err("Tor is not connected yet (required for OpenAlias resolution)".into())
-            }
-        },
-        "custom" => {
-            let proxy = crate::wallet::scanner::read_proxy_address(&app);
-            if proxy.trim().is_empty() {
-                return Err("Custom routing selected but no proxy address is set".into());
-            }
-            crate::tor::socks_get_with_headers(&proxy, &url, headers).await?
-        }
-        _ => {
-            let resp = reqwest::Client::new()
-                .get(&url)
-                .header("Accept", "application/dns-message")
-                .header(
-                    "User-Agent",
-                    concat!("ripley-terminal/", env!("CARGO_PKG_VERSION")),
-                )
-                .timeout(Duration::from_secs(15))
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
-            resp.bytes().await.map_err(|e| e.to_string())?.to_vec()
-        }
-    };
 
-    crate::emit_log(
-        &app,
-        "OPENALIAS",
-        "info",
-        &format!("DoH response: {} bytes", bytes.len()),
-    );
-    let msg = Message::from_vec(&bytes).map_err(|e| {
-        format!(
-            "failed to parse DNS response ({} bytes — is the resolver HTTP/1.1-capable?): {e}",
-            bytes.len()
-        )
-    })?;
+    // The first resolver that answers with a parseable DNS message decides.
+    let mut last_err = String::new();
+    let mut answer: Option<Message> = None;
+    for endpoint in OPENALIAS_DOH_ENDPOINTS {
+        crate::emit_log(
+            &app,
+            "OPENALIAS",
+            "process",
+            &format!("resolving \"{fqdn}\" ({ticker}) via {mode} → {endpoint}"),
+        );
+        match doh_get(&app, &mode, endpoint, &query).await {
+            Ok(bytes) => match Message::from_vec(&bytes) {
+                Ok(msg) => {
+                    crate::emit_log(
+                        &app,
+                        "OPENALIAS",
+                        "info",
+                        &format!("DoH response: {} bytes", bytes.len()),
+                    );
+                    answer = Some(msg);
+                    break;
+                }
+                Err(e) => {
+                    last_err = format!(
+                        "{endpoint}: unreadable DNS response ({} bytes): {e}",
+                        bytes.len()
+                    )
+                }
+            },
+            // Tor not up / no proxy set: no resolver can do better — stop here
+            Err(DohError::Route(e)) => return Err(e),
+            Err(DohError::Endpoint(e)) => last_err = format!("{endpoint}: {e}"),
+        }
+        crate::emit_log(
+            &app,
+            "OPENALIAS",
+            "warn",
+            &format!("{last_err} — trying the next resolver"),
+        );
+    }
+    let msg = answer.ok_or_else(|| format!("no DoH resolver answered ({last_err})"))?;
     let noerror = msg.response_code() == ResponseCode::NoError;
     let txts = extract_txt_records(&msg);
     crate::emit_log(
@@ -1594,6 +1661,18 @@ pub async fn resolve_openalias(
 #[cfg(test)]
 mod openalias_tests {
     use super::*;
+
+    #[test]
+    fn mullvad_first_then_an_http1_capable_fallback() {
+        assert_eq!(
+            OPENALIAS_DOH_ENDPOINTS[0],
+            "https://dns.mullvad.net/dns-query"
+        );
+        assert!(OPENALIAS_DOH_ENDPOINTS.len() >= 2);
+        assert!(OPENALIAS_DOH_ENDPOINTS
+            .iter()
+            .all(|e| e.starts_with("https://")));
+    }
 
     #[test]
     fn normalize_email_form() {
