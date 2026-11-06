@@ -594,6 +594,25 @@ pub struct NativeChatMessage {
     content: String,
 }
 
+/// Per-request sampling from ROS (`LocalAiSampling`). Absent → the agent's defaults (temperature 0.2,
+/// frequency penalty 0.3 against JSON loops); the translator sends ~0.1 and no penalty, because a penalty
+/// pushes the model off words a faithful translation must repeat. Clamped to sane ranges.
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSampling {
+    temperature: f32,
+    frequency_penalty: f32,
+}
+
+impl NativeSampling {
+    const AGENT: NativeSampling = NativeSampling { temperature: 0.2, frequency_penalty: 0.3 };
+    fn clamped(self) -> (f32, f32) {
+        let t = if self.temperature.is_finite() { self.temperature.clamp(0.0, 1.0) } else { 0.2 };
+        let p = if self.frequency_penalty.is_finite() { self.frequency_penalty.clamp(0.0, 1.0) } else { 0.3 };
+        (t, p)
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeCompletion {
@@ -644,6 +663,7 @@ fn generate(
     model: &ModelSpec,
     messages: Vec<NativeChatMessage>,
     max_tokens: u32,
+    sampling: NativeSampling,
 ) -> Result<NativeCompletion, String> {
     ensure_loaded(app, runtime, model)?;
     let loaded = runtime.model.as_ref().ok_or("native model is not loaded")?;
@@ -694,11 +714,12 @@ fn generate(
         .map_err(|e| format!("prefill native prompt: {e}"))?;
     let prefill_seconds = prefill_started.elapsed().as_secs_f64().max(0.000_001);
 
+    let (temperature, frequency_penalty) = sampling.clamped();
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.0, 0.3, 0.0),
+        LlamaSampler::penalties(64, 1.0, frequency_penalty, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::temp(0.2),
+        LlamaSampler::temp(temperature),
         LlamaSampler::dist(u32::MAX),
     ]);
     let mut decoder = UTF_8.new_decoder();
@@ -750,15 +771,17 @@ pub async fn local_ai_complete(
     model_id: String,
     messages: Vec<NativeChatMessage>,
     max_tokens: u32,
+    sampling: Option<NativeSampling>,
 ) -> Result<NativeCompletion, String> {
     let model = spec(&model_id)?;
+    let sampling = sampling.unwrap_or(NativeSampling::AGENT);
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<NativeLocalAiState>();
         let mut runtime = state
             .runtime
             .lock()
             .map_err(|_| "Local AI runtime lock poisoned".to_string())?;
-        generate(&app, &mut runtime, model, messages, max_tokens)
+        generate(&app, &mut runtime, model, messages, max_tokens, sampling)
     })
     .await
     .map_err(|e| format!("native inference task failed: {e}"))?
@@ -843,6 +866,14 @@ mod tests {
             assert_eq!(model.sha256.len(), 64);
             assert!(model.bytes > 1_000_000_000);
         }
+    }
+
+    #[test]
+    fn sampling_is_clamped_and_defaults_to_the_agent() {
+        assert_eq!(NativeSampling::AGENT.clamped(), (0.2, 0.3));
+        assert_eq!(NativeSampling { temperature: 0.1, frequency_penalty: 0.0 }.clamped(), (0.1, 0.0));
+        assert_eq!(NativeSampling { temperature: 9.0, frequency_penalty: -1.0 }.clamped(), (1.0, 0.0));
+        assert_eq!(NativeSampling { temperature: f32::NAN, frequency_penalty: f32::INFINITY }.clamped(), (0.2, 0.3));
     }
 
     #[test]
