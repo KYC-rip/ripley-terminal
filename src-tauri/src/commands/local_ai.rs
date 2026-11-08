@@ -787,6 +787,27 @@ pub async fn local_ai_complete(
     .map_err(|e| format!("native inference task failed: {e}"))?
 }
 
+impl NativeLocalAiState {
+    /// Quit: drop the loaded model (its Metal buffers) before the process exits. Otherwise llama.cpp's
+    /// Metal device is freed by a C++ static destructor during exit() while the model's residency sets
+    /// are still registered, and ggml aborts (SIGABRT in ggml_metal_rsets_free) — a crash on every
+    /// quit with a model loaded. Returns false if a generation still held the model after `wait`.
+    pub fn shutdown(&self, wait: std::time::Duration) -> bool {
+        let until = std::time::Instant::now() + wait;
+        loop {
+            match self.runtime.try_lock() {
+                Ok(mut runtime) => { unload(&mut runtime, None); return true; }
+                // a panicked generation left it poisoned: the model can still be dropped
+                Err(std::sync::TryLockError::Poisoned(p)) => { unload(&mut p.into_inner(), None); return true; }
+                Err(std::sync::TryLockError::WouldBlock) => {
+                    if std::time::Instant::now() >= until { return false; }
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+            }
+        }
+    }
+}
+
 fn unload(runtime: &mut NativeRuntime, id: Option<&str>) {
     if id.is_none() || runtime.model_id.as_deref() == id {
         runtime.model = None;

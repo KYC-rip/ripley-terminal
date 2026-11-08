@@ -624,6 +624,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
     app.run(|app, event| {
+        // Quit with a Local AI model loaded used to end in SIGABRT (see NativeLocalAiState::shutdown).
+        if let tauri::RunEvent::Exit = event {
+            if let Some(state) = app.try_state::<commands::local_ai::NativeLocalAiState>() {
+                let _unloaded = state.shutdown(std::time::Duration::from_secs(2));
+                // Still generating after 2 s: skip ALL remaining process cleanup (atexit handlers, C++ static
+                // destructors) rather than abort in ggml's. Last resort only — nothing else in the app needs that
+                // cleanup: ros-kv writes are write+rename inside each command, so they are on disk already.
+                #[cfg(unix)]
+                if !_unloaded { unsafe { libc::_exit(0) }; }
+            }
+        }
         // macOS Dock click / app activation while the main window is hidden (see
         // on_window_event above): show it again and bring it to the front.
         #[cfg(target_os = "macos")]
