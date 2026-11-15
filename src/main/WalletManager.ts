@@ -1,7 +1,6 @@
 // src/main/WalletManager.ts
 import { net } from 'electron';
-
-const RPC_URL = 'http://127.0.0.1:18082/json_rpc';
+import { WalletRpcClient, type WalletRpcEndpoint } from './walletRpc';
 
 // Monero base58: 8-byte chunks → 11 chars (last chunk shorter), big-endian per chunk.
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -24,20 +23,29 @@ function moneroBase58Decode(str: string): Uint8Array {
 }
 
 export class WalletManager {
+  private static client: WalletRpcClient | null = null;
+
   /**
-   * Core RPC communication: Uses native net.fetch to bypass Node.js proxy pitfalls
+   * Point the wallet calls at the live loopback RPC (random port + per-launch credentials from
+   * DaemonManager, B1 2026-11-15). Uses native net.fetch to bypass Node.js proxy pitfalls.
    */
+  public static configure(endpoint: () => WalletRpcEndpoint | null): void {
+    this.client = new WalletRpcClient(endpoint, ((input: any, init?: any) => net.fetch(input, init)) as typeof fetch);
+  }
+
+  /** JSON-RPC over the authenticated loopback channel (also used by index.ts's proxy-request). */
+  public static async rpc(method: string, params: any = {}): Promise<any> {
+    return this.callRpc(method, params);
+  }
+
   private static async callRpc(method: string, params: any = {}): Promise<any> {
     try {
-      const response = await net.fetch(RPC_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: '0',
-          method,
-          params
-        })
+      if (!this.client) throw new Error('wallet RPC is not configured');
+      const response = await this.client.post({
+        jsonrpc: '2.0',
+        id: '0',
+        method,
+        params
       });
 
       if (!response.ok) {
