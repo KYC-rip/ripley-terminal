@@ -5,7 +5,7 @@ import path from 'path';
 import { app, net } from 'electron';
 import {
   randomLogin, configFileContents, configFileName, isOwnedConfigName, freeLoopbackPort,
-  assertRpcRequiresAuth, type RpcLogin, type WalletRpcEndpoint,
+  assertRpcRequiresAuth, LEGACY_WALLET_RPC_PORT, type RpcLogin, type WalletRpcEndpoint,
 } from './walletRpc';
 
 export class DaemonManager {
@@ -190,6 +190,17 @@ export class DaemonManager {
   /** Rejects the in-flight start when killAll() stops it (otherwise its caller waits forever). */
   private pendingReject: ((err: Error) => void) | null = null;
 
+  /**
+   * B1 reviewer follow-up: the legacy fixed port must never come back, even if a platform allocator hands
+   * it to us — old tooling and any stale config still target 18082. Allocate again rather than bind it.
+   */
+  private async allocateRpcPort(cancelled: Promise<never>): Promise<number> {
+    let port = await Promise.race([freeLoopbackPort(), cancelled]);
+    if (port === LEGACY_WALLET_RPC_PORT) port = await Promise.race([freeLoopbackPort(), cancelled]);
+    if (port === LEGACY_WALLET_RPC_PORT) throw new Error(`wallet RPC could not allocate a port other than the legacy ${LEGACY_WALLET_RPC_PORT}`);
+    return port;
+  }
+
   public startMoneroRpc(
     targetNode: string,
     useTor: boolean,
@@ -235,7 +246,7 @@ export class DaemonManager {
 
       // Race the allocation against cancellation so killAll() settles this launch promptly (its
       // caller and the in-flight slot must not stay busy until the OS answers).
-      const port = await Promise.race([freeLoopbackPort(), cancelled]);
+      const port = await this.allocateRpcPort(cancelled);
       if (aborted()) throw new Error('wallet RPC stopped');
 
       const login = randomLogin();

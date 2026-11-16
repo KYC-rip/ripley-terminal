@@ -68,6 +68,17 @@ async function startAndReady(dm: DaemonManager): Promise<void> {
 }
 
 describe('DaemonManager wallet-RPC lifecycle', () => {
+  it('never binds the legacy fixed port, even when the allocator returns it', async () => {
+    const ports = [18082, 28123];
+    h.portProvider = () => Promise.resolve(ports.shift() ?? 28123);
+    const dm = new DaemonManager();
+    await startAndReady(dm);
+    const live = dm.getWalletRpc();
+    expect(live).not.toBeNull();
+    expect(live!.url).toContain(':28123/');
+    expect(live!.url).not.toContain('18082');
+  });
+
   it('sweeps credential files left by a previous crash', () => {
     fs.writeFileSync(path.join(h.userData, 'wallet-rpc-1-abc.conf'), 'rpc-login=a:b\n', { mode: 0o600 });
     fs.writeFileSync(path.join(h.userData, 'wallet.conf'), 'keep me');
