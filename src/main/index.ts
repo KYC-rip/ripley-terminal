@@ -231,6 +231,9 @@ app.whenReady().then(async () => {
   });
 
   daemonEngine = new DaemonManager();
+  // All wallet RPC traffic goes through the live endpoint (random port + digest credentials); there is
+  // no fixed URL anywhere in the app (B1, 2026-11-15).
+  WalletManager.configure(() => daemonEngine.getWalletRpc());
   nodeManager = new NodeManager();
   watcher = new SyncWatcher(mainWindow, emitAppLog);
 
@@ -567,13 +570,23 @@ app.whenReady().then(async () => {
   ipcMain.handle('proxy-request', async (_, payload: { method: string; params: any }) => {
     try {
       const isDaemonMethod = ['get_fee_estimate', 'get_info', 'get_last_block_header'].includes(payload.method);
-      let targetUrl = 'http://127.0.0.1:18082/json_rpc';
 
-      if (isDaemonMethod && NodeManager.activeNodeStr) {
-        const address = NodeManager.activeNodeStr;
-        const protocol = address.includes('://') ? '' : 'http://';
-        targetUrl = `${protocol}${address}/json_rpc`;
+      if (!isDaemonMethod) {
+        // Wallet methods: authenticated loopback RPC through the shared client (digest auth).
+        try {
+          const result = await WalletManager.rpc(payload.method, payload.params);
+          return { success: true, result };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
       }
+
+      if (!NodeManager.activeNodeStr) {
+        return { success: false, error: 'no daemon node is active' };
+      }
+      const address = NodeManager.activeNodeStr;
+      const protocol = address.includes('://') ? '' : 'http://';
+      const targetUrl = `${protocol}${address}/json_rpc`;
 
       const response = await net.fetch(targetUrl, {
         method: 'POST',

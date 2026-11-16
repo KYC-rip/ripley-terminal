@@ -2,7 +2,11 @@
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
+import { app, net } from 'electron';
+import {
+  randomLogin, configFileContents, configFileName, isOwnedConfigName, freeLoopbackPort,
+  assertRpcRequiresAuth, type RpcLogin, type WalletRpcEndpoint,
+} from './walletRpc';
 
 export class DaemonManager {
   private binPath: string;
@@ -14,7 +18,16 @@ export class DaemonManager {
   private rpcProcess: ChildProcess | null = null;
 
   public readonly torSocksPort = 9052;
-  public readonly rpcPort = 18082;
+
+  // B1 (2026-11-15): the wallet RPC is authenticated + on a per-launch random port. The credentials and
+  // endpoint stay in the MAIN process (every caller lives here); nothing is exposed to the renderer.
+  private rpcEndpoint: WalletRpcEndpoint | null = null;
+  private rpcConfigPath: string | null = null;
+
+  /** The live endpoint, or null while the RPC is not up. */
+  public getWalletRpc(): WalletRpcEndpoint | null {
+    return this.rpcEndpoint;
+  }
 
   private onLog?: (source: string, level: 'info' | 'error', message: string) => void;
 
@@ -37,6 +50,36 @@ export class DaemonManager {
 
     this.walletDir = path.join(app.getPath('userData'), 'wallets');
     if (!fs.existsSync(this.walletDir)) fs.mkdirSync(this.walletDir, { recursive: true });
+
+    // A crash between writing the config file and its removal leaves credentials on disk; any file
+    // this module owns from a previous run is deleted before a new launch.
+    this.sweepStaleConfigs();
+  }
+
+  private sweepStaleConfigs(): void {
+    try {
+      for (const name of fs.readdirSync(app.getPath('userData'))) {
+        if (isOwnedConfigName(name)) {
+          try { fs.rmSync(path.join(app.getPath('userData'), name), { force: true }); } catch { /* best effort */ }
+        }
+      }
+    } catch { /* userData not readable yet — nothing to sweep */ }
+  }
+
+  /** Write the 0600 config file; returns its path. */
+  private writeRpcConfig(login: RpcLogin): string {
+    const file = path.join(app.getPath('userData'), configFileName());
+    fs.writeFileSync(file, configFileContents(login), { mode: 0o600 });
+    try { fs.chmodSync(file, 0o600); } catch { /* umask already applied 0600 */ }
+    this.rpcConfigPath = file;
+    return file;
+  }
+
+  private removeRpcConfig(): void {
+    if (this.rpcConfigPath) {
+      try { fs.rmSync(this.rpcConfigPath, { force: true }); } catch { /* best effort */ }
+      this.rpcConfigPath = null;
+    }
   }
 
   public async startTor(systemProxy?: string): Promise<void> {
@@ -141,29 +184,72 @@ export class DaemonManager {
     });
   }
 
-  public async startMoneroRpc(
+  private rpcStarting: Promise<void> | null = null;
+  /** The launch that has not yet published an endpoint; killAll() cancels it at ANY stage. */
+  private pendingLaunch: { cancelled: boolean } | null = null;
+  /** Rejects the in-flight start when killAll() stops it (otherwise its caller waits forever). */
+  private pendingReject: ((err: Error) => void) | null = null;
+
+  public startMoneroRpc(
     targetNode: string,
     useTor: boolean,
     useSystemProxy: boolean,
     systemProxyAddress: string,
     network: string
   ): Promise<void> {
-    if (process.platform !== 'win32') {
-      try {
-        fs.chmodSync(this.rpcPath, 0o755);
-      } catch (chmodErr) {
-        console.warn('[RPC] Warning: Failed to grant execution permissions:', chmodErr);
-      }
-    }
+    if (this.rpcEndpoint && this.rpcProcess) return Promise.resolve();
+    if (this.rpcStarting) return this.rpcStarting;   // concurrent callers share one launch
+    const run: Promise<void> = this.spawnMoneroRpc(targetNode, useTor, useSystemProxy, systemProxyAddress, network)
+      .finally(() => { if (this.rpcStarting === run) this.rpcStarting = null; });
+    this.rpcStarting = run;
+    return run;
+  }
 
-    return new Promise((resolve, reject) => {
-      if (this.rpcProcess) return resolve();
+  private async spawnMoneroRpc(
+    targetNode: string,
+    useTor: boolean,
+    useSystemProxy: boolean,
+    systemProxyAddress: string,
+    network: string
+  ): Promise<void> {
+    // Cancellation state exists BEFORE any await: killAll() can arrive while the port is being
+    // allocated and must still stop the launch (review round 4).
+    const launch = { cancelled: false };
+    this.pendingLaunch = launch;
+    const aborted = () => launch.cancelled;
+    let rejectCancelled!: (err: Error) => void;
+    const cancelled = new Promise<never>((_resolve, reject) => { rejectCancelled = reject; });
+    // killAll() may reject this before the race below is even built (port allocation still pending);
+    // keep that from surfacing as an unhandled rejection without swallowing it for the race.
+    void cancelled.catch(() => {});
+    this.pendingReject = rejectCancelled;
+
+    try {
+      if (process.platform !== 'win32') {
+        try {
+          fs.chmodSync(this.rpcPath, 0o755);
+        } catch (chmodErr) {
+          console.warn('[RPC] Warning: Failed to grant execution permissions:', chmodErr);
+        }
+      }
+
+      // Race the allocation against cancellation so killAll() settles this launch promptly (its
+      // caller and the in-flight slot must not stay busy until the OS answers).
+      const port = await Promise.race([freeLoopbackPort(), cancelled]);
+      if (aborted()) throw new Error('wallet RPC stopped');
+
+      const login = randomLogin();
+      const configFile = this.writeRpcConfig(login);
+      if (aborted()) throw new Error('wallet RPC stopped');
 
       console.log(`[RPC] Mounting stealth core. Target: ${targetNode} | Tor: ${useTor}`);
       const rpcArgs = [
         '--wallet-dir', this.walletDir,
-        '--rpc-bind-port', `${this.rpcPort}`,
-        '--disable-rpc-login',
+        '--rpc-bind-port', `${port}`,
+        '--rpc-bind-ip', '127.0.0.1',
+        // Credentials come from the 0600 config file (deleted on ready), NOT from the command line,
+        // which every local user can read via `ps`.
+        '--config-file', configFile,
         '--daemon-address', targetNode,
         '--max-concurrency', '4',
         '--no-initial-sync'
@@ -193,25 +279,78 @@ export class DaemonManager {
         console.log(`[RPC] Direct Clearnet Connection -> ${targetNode}`);
       }
 
-      this.rpcProcess = spawn(this.rpcPath, rpcArgs, {
-        env,
-        stdio: 'pipe'
-      });
+      if (aborted()) throw new Error('wallet RPC stopped');
+      await Promise.race([this.launchChild(launch, port, login, rpcArgs, env), cancelled]);
+    } catch (err) {
+      this.rpcEndpoint = null;
+      this.removeRpcConfig();
+      if (this.rpcProcess) {
+        try { this.rpcProcess.kill(); } catch { /* already gone */ }
+        this.rpcProcess = null;
+      }
+      throw err instanceof Error ? err : new Error(String(err));
+    } finally {
+      if (this.pendingLaunch === launch) this.pendingLaunch = null;
+      if (this.pendingReject === rejectCancelled) this.pendingReject = null;
+    }
+  }
 
-      this.rpcProcess.stdout?.on('data', (data: Buffer) => {
+  /** Spawn the authenticated RPC and resolve only when the auth gate has passed. */
+  private launchChild(
+    launch: { cancelled: boolean },
+    port: number,
+    login: RpcLogin,
+    rpcArgs: string[],
+    env: NodeJS.ProcessEnv,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const aborted = () => launch.cancelled;
+      let settled = false;
+      let probeStarted = false;   // duplicate readiness lines must not start a second probe
+      const clearLive = () => { this.rpcEndpoint = null; this.removeRpcConfig(); };
+      const fail = (err: Error) => {
+        // Shutdown or a newer launch already owns the state: settle without touching anything.
+        if (aborted() || this.rpcProcess !== proc) { resolve(); return; }
+        clearLive();
+        try { proc.kill(); } catch { /* already gone */ }
+        this.rpcProcess = null;
+        if (settled) { console.error('[RPC-FATAL]', err.message); return; }
+        settled = true;
+        console.error(`[RPC-FATAL] ${err.message}`);
+        this.emitLog('RPC', 'error', err.message);
+        reject(err);
+      };
+
+      const proc = spawn(this.rpcPath, rpcArgs, { env, stdio: 'pipe' });
+      this.rpcProcess = proc;
+
+      const readyPattern = (text: string) => /Starting wallet RPC server/i.test(text) || /Binding on 127\.0\.0\.1/i.test(text);
+
+      proc.stdout?.on('data', (data: Buffer) => {
         const log = data.toString().trim();
         if (!log) return;
-
         console.log(`[RPC-CORE] ${log}`);
         this.emitLog('RPC', 'info', log);
-
-        if (/Starting wallet RPC server/i.test(log) || /Binding on 127.0.0.1/i.test(log)) {
-          console.log('[RPC] Daemon confirmed ready.');
-          resolve();
+        if (!settled && !probeStarted && !aborted() && this.rpcProcess === proc && readyPattern(log)) {
+          probeStarted = true;
+          // The RPC parsed its config; the credentials no longer need to exist on disk. Prove the
+          // server both demands auth and accepts them before anyone is allowed to call the wallet.
+          this.removeRpcConfig();
+          const url = `http://127.0.0.1:${port}/json_rpc`;
+          assertRpcRequiresAuth(url, login, ((input: any, init?: any) => net.fetch(input, init)) as typeof fetch)
+            .then(() => {
+              // killAll() or a newer launch may have happened while the probe was in flight.
+              if (settled || aborted() || this.rpcProcess !== proc) { resolve(); return; }
+              settled = true;
+              this.rpcEndpoint = { url, login };
+              console.log('[RPC] Daemon confirmed ready (authenticated, loopback).');
+              resolve();
+            })
+            .catch((err) => fail(err instanceof Error ? err : new Error(String(err))));
         }
       });
 
-      this.rpcProcess.stderr?.on('data', (data: Buffer) => {
+      proc.stderr?.on('data', (data: Buffer) => {
         const errLog = data.toString().trim();
         if (errLog) {
           console.error(`[RPC-ERR] ${errLog}`);
@@ -219,30 +358,46 @@ export class DaemonManager {
         }
       });
 
-      this.rpcProcess.on('close', (code) => {
-        if (code !== 0 && code !== null) {
-          const msg = `RPC Process exited unexpectedly (Code: ${code}).`;
-          console.error(`[RPC-FATAL] ${msg}`);
+      proc.on('close', (code) => {
+        if (aborted() || this.rpcProcess !== proc) { resolve(); return; }   // stale process
+        this.rpcProcess = null;
+        clearLive();
+        if (!settled) {
+          settled = true;
+          const msg = `RPC Process exited before it was ready (Code: ${code ?? 'signal'}).`;
           this.emitLog('RPC', 'error', msg);
-          this.rpcProcess = null;
           reject(new Error(msg));
+        } else {
+          // A post-ready exit (crash, kill) must not leave a dead endpoint marked live; the next
+          // startMoneroRpc launches a fresh process on a fresh port.
+          const msg = `RPC Process exited (Code: ${code ?? 'signal'}).`;
+          console.error(`[RPC] ${msg}`);
+          this.emitLog('RPC', 'error', msg);
         }
       });
 
-      this.rpcProcess.on('error', (err) => {
-        console.error(`[RPC-ERROR] ${err.message}`);
-        this.emitLog('RPC', 'error', err.message);
-        reject(err);
-      });
+      proc.on('error', (err) => fail(err));
     });
   }
 
   public killAll(): void {
     console.log('[DaemonManager] Executing physical disconnect and memory wipe...');
+    // Invalidate any in-flight launch BEFORE killing: its probe/close callbacks must not publish an
+    // endpoint after shutdown, and its caller must not be left waiting.
+    if (this.pendingLaunch) this.pendingLaunch.cancelled = true;
+    this.pendingLaunch = null;
+    // Free the in-flight slot NOW: an immediate restart must launch fresh instead of inheriting the
+    // cancelled promise (the old launch still aborts on its cancellation flag).
+    this.rpcStarting = null;
+    const pending = this.pendingReject;
+    this.pendingReject = null;
     if (this.rpcProcess) {
       this.rpcProcess.kill();
       this.rpcProcess = null;
     }
+    this.rpcEndpoint = null;
+    this.removeRpcConfig();
+    if (pending) pending(new Error('wallet RPC stopped'));
     if (this.torProcess) {
       this.torProcess.kill();
       this.torProcess = null;

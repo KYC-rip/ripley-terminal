@@ -738,11 +738,16 @@ pub async fn open_native_browser(
     Ok(())
 }
 
-/// Open a URL in the OS default browser / handler (not the in-app ROS browser).
-/// Used for deep-links that need a real client — Telegram (t.me), mailto, etc.
-/// Only http(s) are allowed so a compromised ROS page can't hand `file:`/`cmd:` to open.
-#[tauri::command]
-pub async fn open_external_url(url: String) -> Result<(), String> {
+/// Validate a URL before handing it to the OS (B2, 2026-11-15): http(s) only, no embedded
+/// credentials, no control characters, bounded length. The parsed value is what gets opened —
+/// never the raw string.
+fn validate_external_url(url: &str) -> Result<tauri::Url, String> {
+    if url.is_empty() || url.len() > 2048 {
+        return Err("refusing empty or oversized url".into());
+    }
+    if url.chars().any(|c| c.is_control()) {
+        return Err("refusing url with control characters".into());
+    }
     let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
     let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
@@ -752,30 +757,55 @@ pub async fn open_external_url(url: String) -> Result<(), String> {
     if !parsed.username().is_empty() || parsed.password().is_some() {
         return Err("refusing url with embedded credentials".into());
     }
+    Ok(parsed)
+}
 
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to open external url: {e}"))?;
+/// Open a URL in the OS default browser / handler (not the in-app ROS browser).
+/// Used for deep-links that need a real client — Telegram (t.me), mailto, etc.
+///
+/// B2 (2026-11-15): this used to run `cmd /C start "" <url>` on Windows. `cmd.exe` re-parses its
+/// arguments, so an `&`/`^`/`%` in a URL was a command separator — an injection reachable from a
+/// compromised page in the app. Now the `open` crate talks to the platform API directly
+/// (ShellExecuteW / `open` / `xdg-open`) with the URL as one literal argument: no shell anywhere.
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = validate_external_url(&url)?;
+    open::that(parsed.as_str()).map_err(|e| format!("Failed to open external url: {e}"))
+}
+
+#[cfg(test)]
+mod external_url_tests {
+    use super::validate_external_url;
+
+    #[test]
+    fn accepts_plain_http_and_percent_encoded_metacharacters() {
+        for url in [
+            "https://example.com/",
+            "http://example.com/a?b=1&c=2",
+            "https://example.com/?q=%22%26calc.exe%22",
+            "https://example.com/path%20with%20space",
+            // shell metacharacters are just data now: the parser percent-encodes them and `open`
+            // receives one literal argument (there is no shell in the path any more)
+            "https://example.com/?q=\"&calc\"",
+            "https://example.com/<script>|^%",
+        ] {
+            assert!(validate_external_url(url).is_ok(), "{url} should be accepted");
+        }
     }
-    #[cfg(target_os = "windows")]
-    {
-        // `start` is a cmd builtin; empty title arg so URLs with & aren't mangled.
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &url])
-            .spawn()
-            .map_err(|e| format!("Failed to open external url: {e}"))?;
+
+    #[test]
+    fn refuses_other_schemes_credentials_controls_and_shell_metacharacters() {
+        for url in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "cmd:calc",
+            "mailto:x@example.com",
+            "https://user:pass@example.com/",
+            "https://example.com/\nnext",
+        ] {
+            assert!(validate_external_url(url).is_err(), "{url} should be refused");
+        }
     }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("Failed to open external url: {e}"))?;
-    }
-    Ok(())
 }
 
 // ---- Embedded browser (child webview positioned over the ROS Browser frame) ----
