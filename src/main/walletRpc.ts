@@ -17,6 +17,9 @@ import net from 'node:net';
 /** 32 random bytes each, hex-encoded (the plan's random user/pass). */
 export interface RpcLogin { user: string; pass: string }
 
+/** The old fixed wallet-RPC port. B1 removed it; the guard below keeps it from ever coming back. */
+export const LEGACY_WALLET_RPC_PORT = 18082;
+
 export function randomLogin(): RpcLogin {
   return {
     user: crypto.randomBytes(32).toString('hex'),
@@ -163,7 +166,17 @@ export class WalletRpcClient {
     private readonly fetchImpl: typeof fetch,
   ) {}
 
-  async post(body: unknown): Promise<Response> {
+  /** Requests are serialized: the challenge and nonce counter are shared state, and monero-wallet-rpc is
+   *  single-threaded — overlapping posts could race the first-challenge handshake or the nonce count. */
+  private tail: Promise<unknown> = Promise.resolve();
+
+  post(body: unknown): Promise<Response> {
+    const next = this.tail.then(() => this.postOnce(body));
+    this.tail = next.catch(() => { /* a failed request must not poison the queue */ });
+    return next;
+  }
+
+  private async postOnce(body: unknown): Promise<Response> {
     const ep = this.endpoint();
     if (!ep) throw new WalletRpcError('wallet RPC is not running');
     if (ep.url !== this.lastUrl) { this.lastUrl = ep.url; this.challenge = null; this.nc = 0; }

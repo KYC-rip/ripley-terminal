@@ -85,6 +85,31 @@ describe('WalletRpcClient', () => {
     return { impl, calls };
   }
 
+  it('serializes posts so the shared challenge/nonce state cannot race', async () => {
+    let inFlight = 0, peak = 0;
+    const impl = (async (_u: any, init?: any) => {
+      inFlight += 1; peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      const authed = Boolean((init?.headers as any)?.Authorization);
+      return new Response(authed ? '{"result":1}' : '', {
+        status: authed ? 200 : 401,
+        headers: authed ? {} : { 'WWW-Authenticate': challenge },
+      });
+    }) as unknown as typeof fetch;
+    const client = new WalletRpcClient(() => ({ url, login }), impl);
+    const results = await Promise.all([client.post({ a: 1 }), client.post({ b: 2 }), client.post({ c: 3 })]);
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(peak).toBe(1);                     // one request at a time, even under Promise.all
+  });
+
+  it('a failed post does not poison the queue', async () => {
+    const { impl } = fakeFetch([{ status: 401, challenge }, { status: 401, challenge }, { status: 200 }, { status: 200 }]);
+    const client = new WalletRpcClient(() => ({ url, login }), impl);
+    await expect(client.post({ first: true })).rejects.toBeInstanceOf(WalletRpcError);
+    expect((await client.post({ second: true })).status).toBe(200);
+  });
+
   it('learns the challenge from the first 401, then reuses the nonce', async () => {
     const { impl, calls } = fakeFetch([{ status: 401, challenge }, { status: 200 }, { status: 200 }]);
     const client = new WalletRpcClient(() => ({ url, login }), impl);
