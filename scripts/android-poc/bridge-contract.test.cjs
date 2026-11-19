@@ -1,0 +1,16 @@
+// Adapter unit tests; these do NOT substitute for Android/actual ROS UI tests.
+const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
+const source=fs.readFileSync('src-tauri/src/android/boot.js','utf8');
+function boot({debug=false,frame=false}={}){
+ const calls=[];const answers={get_balance:{total:'7',unlocked:'3'},get_subaddresses:[{index:0,address:'PUBLIC_TEST_ADDRESS',label:'Primary',balance:'7',unlockedBalance:'3'}],get_identities:[]};
+ const window={__ANDROID_STAGENET_DEBUG__:debug,__TAURI__:{core:{invoke:async(cmd,args)=>{calls.push({cmd,args});return answers[cmd]??null;}},event:{listen:async()=>()=>{}}},fetch:async()=>{},addEventListener:()=>{}};window.top=frame?{}:window;
+ class BlobURL{static createObjectURL(){return 'blob:unit';}static revokeObjectURL(){}}
+ const context={btoa:s=>Buffer.from(s,"binary").toString("base64"),alert:()=>{},URL:BlobURL,Blob,Map,window,document:{addEventListener:()=>{}},HTMLAnchorElement:class{click(){}},console:{info(){}},Error,Uint8Array,Math,Date};vm.createContext(context);vm.runInContext(source,context);return{bridge:window.__rosNative,calls,context};
+}
+test('release remains keyless; DEBUG marker alone selects native stagenet capability',()=>{assert.equal(boot().bridge.caps.monero,false);assert.equal(boot({debug:true}).bridge.caps.monero,true);assert.equal(boot().bridge.caps.tor,false);});
+test('iframe receives no native bridge',()=>assert.equal(boot({frame:true}).bridge,undefined));
+test('ordinary balance RPC maps to the desktop command and exact frontend schema',async()=>{const b=boot();const r=await b.bridge.wallet.rpc('get_balance',{account_index:2});assert.equal(r.total_balance,'7');assert.equal(r.unlocked_balance,'3');assert.equal(b.calls[0].cmd,'get_balance');assert.equal(b.calls[0].args.accountIndex,2);});
+test('create uses ordinary native creation/identities/open contract, not diagnostics',async()=>{const b=boot();const r=await b.bridge.wallet.action('create',{name:'Public fixture',pwd:'ANDROID-STAGENET-TEST-ONLY'});assert.equal(r.success,true);assert.deepEqual(b.calls.map(c=>c.cmd),['create_wallet','get_identities','save_identities','switch_identity','open_wallet']);assert.equal(b.calls[0].args.seed,null);});
+test('unknown wallet action rejects explicitly',async()=>{const b=boot();const r=await b.bridge.wallet.action('unknown');assert.equal(r.success,false);assert.match(r.error,/UNSUPPORTED_ANDROID/);});
+test('secret and spend commands are absent from granted Android permission',()=>{const p=fs.readFileSync('src-tauri/permissions/android-terminal.toml','utf8');for(const command of ['get_wallet_keys','get_mnemonic','prepare_transfer','relay_transfer'])assert.ok(!p.includes('"'+command+'"'));});
+test('download retains Blob before immediate URL revocation',async()=>{const b=boot();const c=b.context;const blob=new Blob(['PUBLIC_ANDROID_EXPORT_TEST'],{type:'text/plain'});const url=c.URL.createObjectURL(blob);const a=new c.HTMLAnchorElement();a.href=url;a.download='public.txt';a.click();c.URL.revokeObjectURL(url);await new Promise(resolve=>setImmediate(resolve));const saved=b.calls.find(x=>x.cmd==='android_save_export');assert.ok(saved);assert.equal(Buffer.from(saved.args.base64,'base64').toString(),'PUBLIC_ANDROID_EXPORT_TEST');});

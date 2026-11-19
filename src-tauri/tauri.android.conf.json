@@ -2,6 +2,18 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ROS Android POC",
   "identifier": "run.ripley.androidpoc",
-  "build": { "beforeBuildCommand": "", "beforeDevCommand": "", "frontendDist": "android-assets" },
-  "app": { "security": { "capabilities": ["android-ros", "android-diagnostics"] } }
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "frontendDist": "android-assets"
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "android-ros",
+        "android-diagnostics",
+        "android-terminal"
+      ]
+    }
+  }
 }

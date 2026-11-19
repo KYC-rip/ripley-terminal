@@ -1,6 +1,15 @@
 // Experimental Android host. Desktop remains in desktop.rs. No production wallet
 // or raw-secret IPC is registered here; diagnostics are DEBUG-only and stagenet-only.
 mod wallet {
+    pub mod base58_monero;
+    pub mod msg_sign;
+    pub mod offline;
+    pub mod owner;
+    pub mod state;
+    pub mod time;
+    pub mod transfer_ledger;
+    pub mod types;
+    pub use state::WalletState;
     pub mod data_budget;
     pub mod fetch_health;
     pub mod keys;
@@ -33,8 +42,16 @@ use std::sync::{
 use tauri::{Manager, WebviewWindow};
 
 mod android_policy;
+mod android_terminal;
+mod commands {
+    pub mod wallet {
+        pub(crate) use crate::wallet::time::sent_time;
+    }
+}
+static ANDROID_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static ANDROID_APP: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
 use android_policy::{DIAGNOSTICS, ORIGIN as ROS_ORIGIN};
-const MOBILE_CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const MOBILE_CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: ipc: http://ipc.localhost; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const ARCHIVE: &[u8] = include_bytes!("../resources/ros-fallback.tar.zst");
 struct PocSession {
     wallet_unlocked: Mutex<bool>,
@@ -46,11 +63,26 @@ static POC_SESSION: PocSession = PocSession {
 };
 // Called from this app's Kotlin Activity only. No JS wallet/key access.
 #[no_mangle]
+pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeResume(
+    _: *mut std::ffi::c_void,
+    _: *mut std::ffi::c_void,
+) {
+    ANDROID_FOREGROUND.store(true, Ordering::SeqCst);
+}
+#[no_mangle]
 pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeLock(
     _: *mut std::ffi::c_void,
     _: *mut std::ffi::c_void,
 ) {
+    ANDROID_FOREGROUND.store(false, Ordering::SeqCst);
     POC_SESSION.epoch.fetch_add(1, Ordering::SeqCst);
+    if let Some(app) = ANDROID_APP.get().cloned() {
+        tauri::async_runtime::spawn(async move {
+            if let Some(state) = app.try_state::<wallet::WalletState>() {
+                state.lock().await;
+            }
+        });
+    }
     if let Ok(mut unlocked) = POC_SESSION.wallet_unlocked.lock() {
         *unlocked = false;
     }
@@ -100,10 +132,17 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
         abi: std::env::consts::ARCH,
         app_version: env!("CARGO_PKG_VERSION"),
         debug_poc: cfg!(debug_assertions),
-        custody: "keyless",
+        custody: if cfg!(debug_assertions) {
+            "debug-stagenet-test-only"
+        } else {
+            "keyless"
+        },
         capabilities: json!({"bundledRos":true,"productionSigning":false,"remoteBridge":false,
           "arbitraryNetwork":false,"keystore":false,"backgroundSync":false,
-          "stagenetDiagnostics": cfg!(debug_assertions)}),
+          "stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
+          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":false,
+          "publicHttpsGet":true,"networkPost":false,"torRouting":false,
+          "nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
     })
 }
 fn save_report(app: &tauri::AppHandle, name: &str, value: &Value) -> Result<(), String> {
@@ -344,7 +383,17 @@ fn android_poc_attacks(webview: WebviewWindow) -> Result<Value, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+    let diagnostics: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+        android_runtime_status,
+        android_poc_wallet,
+        android_poc_scan,
+        android_poc_tor,
+        android_poc_confirmation,
+        android_poc_lock,
+        android_poc_attacks
+    ];
     tauri::Builder::default()
+        .plugin(android_terminal::io_plugin())
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("ros", |ctx, request| {
             let uri = request.uri().to_string();
@@ -401,24 +450,25 @@ pub fn run() {
                 return Err("Bundled ROS hash mismatch".into());
             }
             app.manage(updater::protocol::RosBundle::from_archive(ARCHIVE)?);
-            tauri::WebviewWindowBuilder::new(
+            let _=ANDROID_APP.set(app.handle().clone());
+            app.manage(wallet::WalletState::new_android_stagenet(app.handle().clone(), app.path().app_data_dir()?.join("android-terminal-debug-stagenet")));
+            app.manage(android_terminal::TerminalState::default());
+            let window=tauri::WebviewWindowBuilder::new(
                 app,
                 "ros-android",
                 tauri::WebviewUrl::CustomProtocol("ros://localhost/index.html".parse()?),
             )
-            .on_navigation(|url| local_url(url))
-            .build()?;
+            .on_navigation(|url| local_url(url));
+            // Explicit DEBUG desktop-layout trial. Runtime status still says Android.
+            #[cfg(debug_assertions)]
+            let window=window.user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 RipleyRuntimeDebugDesktop/1").initialization_script("Object.defineProperty(window,'__ANDROID_STAGENET_DEBUG__',{value:true}); const actualMatchMedia=window.matchMedia.bind(window); Object.defineProperty(window,'__ANDROID_ACTUAL_COARSE_POINTER__',{value:actualMatchMedia('(pointer: coarse)').matches}); window.matchMedia=q=>actualMatchMedia(String(q).replace(/\\(pointer:\\s*coarse\\)/g,'(max-width: 0px)'));");
+            window.build()?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            android_runtime_status,
-            android_poc_wallet,
-            android_poc_scan,
-            android_poc_tor,
-            android_poc_confirmation,
-            android_poc_lock,
-            android_poc_attacks
-        ])
+        .invoke_handler(move |invoke| {
+            if invoke.message.command().starts_with("android_poc_") || invoke.message.command()=="android_runtime_status" {diagnostics(invoke)}
+            else {android_terminal::handle(invoke)}
+        })
         .run(tauri::generate_context!())
         .expect("Android POC startup failed");
 }

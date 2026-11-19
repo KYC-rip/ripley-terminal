@@ -1,0 +1,15 @@
+{
+  "identifier": "android-terminal",
+  "platforms": [
+    "android"
+  ],
+  "description": "Local bundle only; native URL guard independently enforces origin and debug test custody",
+  "webviews": [
+    "ros-android"
+  ],
+  "permissions": [
+    "android-terminal",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

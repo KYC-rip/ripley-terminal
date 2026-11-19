@@ -1550,26 +1550,7 @@ async fn run_sweep(
 /// populated mid-restore); a rescan replaces it with the exact value. Unlike the old
 /// now−(tip−height) form it never collapses to "now" when the sync tip lags the output.
 /// Anchor: mainnet block 3,709,104 ≈ 2026-07-02 (observed from real ledger data).
-pub(crate) fn estimate_block_time(height: u64) -> u64 {
-    const ANCHOR_HEIGHT: u64 = 3_709_104;
-    const ANCHOR_TS: u64 = 1_782_950_400;
-    const BLOCK_SECS: u64 = 120;
-    if height >= ANCHOR_HEIGHT {
-        ANCHOR_TS + (height - ANCHOR_HEIGHT) * BLOCK_SECS
-    } else {
-        ANCHOR_TS.saturating_sub((ANCHOR_HEIGHT - height) * BLOCK_SECS)
-    }
-}
-
-/// When a send detected on chain happened: its block's header time, else (no header
-/// time known) the anchor estimate, never in the future.
-pub(crate) fn sent_time(block_ts: u64, height: u64, now: u64) -> u64 {
-    if block_ts > 0 {
-        block_ts.min(now)
-    } else {
-        estimate_block_time(height).min(now)
-    }
-}
+pub(crate) use crate::wallet::time::{estimate_block_time, sent_time};
 
 /// Returns transaction history in the Monero-RPC `get_transfers` shape the
 /// renderer's walletService expects: `{ in, out, pending }`, amounts ATOMIC,

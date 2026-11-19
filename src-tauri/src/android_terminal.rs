@@ -1,0 +1,651 @@
+//! Android's ordinary Terminal-compatible backend. Wallet APIs are DEBUG/stagenet
+//! only, use the SAME WalletState/keys/storage/scanner as desktop, and never export
+//! secrets or sign. No test results or network successes are fabricated.
+use super::*;
+use serde::Serialize;
+use std::collections::BTreeMap;
+use tauri::{
+    ipc::{Invoke, InvokeBody, InvokeError},
+    plugin::{Builder, PluginHandle, TauriPlugin},
+    Emitter,
+};
+
+pub const TEST_PASSWORD: &str = "ANDROID-STAGENET-TEST-ONLY";
+pub const PUBLIC_RESTORE:&str="avidly chlorine gave yeti ramped certain hybrid comb governing amply hinder pamphlet offend geometry narrate unopened robot epoxy annoyed glide ingested ascend were austere unopened";
+const NODE: &str = "http://stagenet.tools.rino.io:38081";
+#[derive(Default)]
+pub struct TerminalState {
+    last_error: Mutex<Option<String>>,
+    unlocked_epoch: AtomicU64,
+    scanning: std::sync::atomic::AtomicBool,
+}
+pub struct NativeIo(PluginHandle<tauri::Wry>);
+pub fn io_plugin() -> TauriPlugin<tauri::Wry> {
+    Builder::new("android-io")
+        .setup(|app, api| {
+            app.manage(NativeIo(api.register_android_plugin(
+                "run.ripley.androidpoc",
+                "NativeIoPlugin",
+            )?));
+            Ok(())
+        })
+        .build()
+}
+#[derive(Debug, Serialize)]
+pub struct Error {
+    code: &'static str,
+    message: String,
+    command: String,
+    platform: &'static str,
+}
+type ResultValue = Result<Value, Error>;
+fn err(c: &str, code: &'static str, m: impl Into<String>) -> Error {
+    Error {
+        code,
+        message: m.into(),
+        command: c.into(),
+        platform: "android",
+    }
+}
+fn unsupported(c: &str) -> Error {
+    err(
+        c,
+        "UNSUPPORTED_ANDROID",
+        format!("{c} is not implemented on Android; no operation was performed"),
+    )
+}
+fn strarg<'a>(v: &'a Value, k: &str) -> Result<&'a str, Error> {
+    v[k].as_str()
+        .ok_or_else(|| err(k, "INVALID_ARGUMENT", format!("Missing {k}")))
+}
+fn num(v: &Value, k: &str) -> u32 {
+    v[k].as_u64().unwrap_or(0) as u32
+}
+fn wallet_error(c: &str, e: String) -> Error {
+    err(c, "WALLET_ERROR", e)
+}
+fn valid_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() < 120
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+fn root(app: &tauri::AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_data_dir()
+        .expect("private directory")
+        .join("android-terminal-debug-stagenet")
+}
+fn read_json(p: std::path::PathBuf) -> Value {
+    std::fs::read(p)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or(json!([]))
+}
+fn write_json(p: std::path::PathBuf, v: &Value) -> Result<(), Error> {
+    if let Some(d) = p.parent() {
+        std::fs::create_dir_all(d).map_err(|e| err("storage", "STORAGE_ERROR", e.to_string()))?;
+    }
+    std::fs::write(p, serde_json::to_vec(v).unwrap())
+        .map_err(|e| err("storage", "STORAGE_ERROR", e.to_string()))
+}
+fn identities(app: &tauri::AppHandle) -> Value {
+    read_json(root(app).join("identities.json"))
+}
+fn config() -> Value {
+    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity"})
+}
+fn emit(app: &tauri::AppHandle, source: &str, level: &str, message: &str) {
+    let _ = app.emit(
+        "core-log",
+        json!({"source":source,"level":level,"message":message}),
+    );
+}
+fn check_wallet(c: &str) -> Result<(), Error> {
+    if !ANDROID_FOREGROUND.load(Ordering::SeqCst) {
+        return Err(err(
+            c,
+            "APP_BACKGROUND",
+            "Native wallet operations require the foreground Activity",
+        ));
+    }
+    if cfg!(debug_assertions) {
+        Ok(())
+    } else {
+        Err(err(
+            c,
+            "TEST_MODE_REQUIRED",
+            "Android native wallets are DEBUG stagenet only; production custody remains disabled",
+        ))
+    }
+}
+fn check_password(c: &str, p: &str) -> Result<(), Error> {
+    check_wallet(c)?;
+    if p != TEST_PASSWORD {
+        return Err(err(c,"PUBLIC_TEST_PASSWORD_REQUIRED",format!("Stagenet test only. Use public test password: {TEST_PASSWORD}. Never use real funds or keys.")));
+    }
+    Ok(())
+}
+fn check_network(c: &str, v: &Value) -> Result<(), Error> {
+    if v["network"].as_str().is_some_and(|n| n != "stagenet") {
+        return Err(err(c, "STAGENET_ONLY", "Mainnet is disabled"));
+    }
+    if v["routingMode"].as_str().is_some_and(|n| n != "clearnet") {
+        return Err(err(c,"UNSUPPORTED_TRANSPORT","Android bridge currently supports explicit clearnet only; Tor is not silently bypassed"));
+    }
+    Ok(())
+}
+pub fn handle(invoke: Invoke) -> bool {
+    let command = invoke.message.command().to_string();
+    let webview = invoke.message.webview();
+    let app = webview.app_handle().clone();
+    let trusted = webview.label() == "ros-android"
+        && webview
+            .url()
+            .ok()
+            .is_some_and(|u| super::local_url(&u) && u.path() != "/__android_poc.html");
+    if !trusted {
+        invoke.resolver.reject(err(
+            &command,
+            "UNTRUSTED_ORIGIN",
+            "Native Terminal bridge denied for this origin/page",
+        ));
+        return true;
+    }
+    let payload = match invoke.message.payload() {
+        InvokeBody::Json(v) => v.clone(),
+        _ => json!({}),
+    };
+    // Command names only. Never log arguments, passwords, seeds or response bodies.
+    eprintln!("ANDROID_TERMINAL_INVOKE {}", command);
+    invoke.resolver.respond_async(async move {
+        dispatch(&app, &command, payload).await.map_err(|e| {
+            // The shipped frontend's direct AI/Gateway adapters use String(error),
+            // matching desktop's Result<_, String>; keep their failure readable.
+            if command.starts_with("local_ai_") || command.starts_with("agent_gateway_") {
+                InvokeError::from(format!("[{}] {}", e.code, e.message))
+            } else {
+                InvokeError::from(e)
+            }
+        })
+    });
+    true
+}
+async fn unlocked(app: &tauri::AppHandle, c: &str) -> Result<(), Error> {
+    check_wallet(c)?;
+    if app
+        .state::<TerminalState>()
+        .unlocked_epoch
+        .load(Ordering::SeqCst)
+        != POC_SESSION.epoch.load(Ordering::SeqCst)
+        || app.state::<wallet::WalletState>().is_locked().await
+    {
+        return Err(err(
+            c,
+            "WALLET_LOCKED",
+            "Native wallet is locked; unlock again after backgrounding",
+        ));
+    }
+    Ok(())
+}
+async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
+    use monero_daemon_rpc::prelude::*;
+    let c = "reselect_node";
+    unlocked(&app, c).await?;
+    let terminal = app.state::<TerminalState>();
+    if terminal.scanning.swap(true, Ordering::SeqCst) {
+        return Err(err(c, "BUSY", "A bounded node request is already running"));
+    }
+    let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
+    let outcome = tokio::time::timeout(std::time::Duration::from_secs(35), async {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| err(c, "NETWORK_ERROR", e.to_string()))?;
+        let r = client
+            .get(format!("{NODE}/get_info"))
+            .send()
+            .await
+            .map_err(|e| err(c, "NETWORK_UNAVAILABLE", e.to_string()))?;
+        if !r.status().is_success() {
+            return Err(err(
+                c,
+                "NODE_HTTP_ERROR",
+                format!("Stagenet node HTTP {}", r.status().as_u16()),
+            ));
+        }
+        let info: Value = r
+            .json()
+            .await
+            .map_err(|e| err(c, "INVALID_NODE_RESPONSE", e.to_string()))?;
+        if info["nettype"] != "stagenet" {
+            return Err(err(c, "STAGENET_ONLY", "Node did not attest stagenet"));
+        }
+        let state = app.state::<wallet::WalletState>();
+        let generation = state.current_scanner_generation();
+        let daemon = wallet::reqwest_transport::ReqwestTransport::connect(
+            NODE.into(),
+            std::time::Duration::from_secs(10),
+        )
+        .await
+        .map_err(|e| err(c, "NETWORK_ERROR", format!("{e:?}")))?;
+        let height = daemon
+            .latest_block_number()
+            .await
+            .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))?;
+        let height = height as u64;
+        if height == 0 {
+            return Err(err(c, "NODE_RPC_ERROR", "Empty chain"));
+        }
+        let mut scanner = state
+            .get_scanner()
+            .await
+            .ok_or_else(|| err(c, "WALLET_LOCKED", "No scanner"))?;
+        let cursor = state.get_scan_height().await;
+        let from = if cursor == u64::MAX {
+            height - 1
+        } else {
+            cursor.min(height - 1)
+        };
+        let block = ProvidesScannableBlocks::scannable_block_by_number(&daemon, from as usize)
+            .await
+            .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))?;
+        if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
+            return Err(err(c, "WALLET_LOCKED", "Locked during node request"));
+        }
+        let outputs = scanner
+            .scan(block)
+            .map_err(|e| err(c, "SCAN_ERROR", format!("{e:?}")))?
+            .not_additionally_locked();
+        state.add_outputs(outputs, from, 0, generation).await;
+        // This is ONE real block, not a claim of full-chain synchronization.
+        let _ = state
+            .update_sync_status_for(generation, from + 1, height)
+            .await;
+        state.set_daemon_url(NODE).await;
+        emit(
+            &app,
+            "NETWORK",
+            "info",
+            &format!("Scanned one stagenet block at {from}; full-chain sync is not implemented"),
+        );
+        Ok(())
+    })
+    .await
+    .unwrap_or_else(|_| {
+        Err(err(
+            c,
+            "NETWORK_TIMEOUT",
+            "Stagenet request timed out after 35 seconds",
+        ))
+    });
+    terminal.scanning.store(false, Ordering::SeqCst);
+    *terminal.last_error.lock().unwrap() = outcome.as_ref().err().map(|e| e.message.clone());
+    if let Err(e) = &outcome {
+        emit(
+            &app,
+            "NETWORK",
+            "error",
+            &format!("{}: {}", e.code, e.message),
+        );
+    }
+    outcome
+}
+async fn native_io(app: &tauri::AppHandle, c: &str, method: &str, args: Value) -> ResultValue {
+    let handle = app.state::<NativeIo>().0.clone();
+    let cmd = c.to_string();
+    let m = method.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        handle
+            .run_mobile_plugin::<Value>(&m, args)
+            .map_err(|e| err(&cmd, "ANDROID_IO_ERROR", e.to_string()))
+    })
+    .await
+    .map_err(|_| err(c, "ANDROID_IO_ERROR", "Native IO worker failed"))?
+}
+async fn fetch(app: &tauri::AppHandle, c: &str, args: &Value) -> ResultValue {
+    let req = &args["req"];
+    let u = strarg(req, "url")?;
+    let url: tauri::Url = u
+        .parse()
+        .map_err(|_| err(c, "INVALID_URL", "Invalid URL"))?;
+    if req["method"].as_str().is_some_and(|m| m != "GET") {
+        return Err(err(
+            c,
+            "UNSUPPORTED_METHOD",
+            "Only public HTTPS GET is enabled; no transaction or arbitrary POST relay",
+        ));
+    }
+    let host = url.host_str().unwrap_or("");
+    if url.scheme() != "https"
+        || host.is_empty()
+        || url.port().is_some_and(|p| p != 443)
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(err(
+            c,
+            "NETWORK_POLICY",
+            "Only public HTTPS URLs without credentials are accepted",
+        ));
+    }
+    let addresses = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::net::lookup_host((host, 443)),
+    )
+    .await
+    .map_err(|_| err(c, "NETWORK_TIMEOUT", "DNS lookup exceeded five seconds"))?
+    .map_err(|_| err(c, "NETWORK_UNAVAILABLE", "DNS lookup failed"))?
+    .collect::<Vec<_>>();
+    if addresses.is_empty()
+        || addresses
+            .iter()
+            .any(|a| !super::android_policy::public_ip(a.ip()))
+    {
+        return Err(err(
+            c,
+            "NETWORK_POLICY",
+            "Private/loopback destinations are not allowed",
+        ));
+    }
+    let client = reqwest::Client::builder()
+        .resolve_to_addrs(host, &addresses)
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|_| err(c, "NETWORK_ERROR", "HTTP initialization failed"))?;
+    let mut r = client
+        .get(url)
+        .header("User-Agent", "RipleyAndroidTest/1")
+        .send()
+        .await
+        .map_err(|e| err(c, "NETWORK_UNAVAILABLE", e.to_string()))?;
+    let status = r.status().as_u16();
+    let headers: BTreeMap<_, _> = r
+        .headers()
+        .iter()
+        .filter_map(|(k, v)| v.to_str().ok().map(|s| (k.to_string(), s.to_string())))
+        .collect();
+    let mut body = vec![];
+    while let Some(chunk) = r
+        .chunk()
+        .await
+        .map_err(|_| err(c, "NETWORK_ERROR", "Response read failed"))?
+    {
+        if body.len() + chunk.len() > 2 * 1024 * 1024 {
+            return Err(err(c, "RESPONSE_TOO_LARGE", "Response exceeds 2 MiB"));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let _ = app;
+    if c.ends_with("_bytes") {
+        if !(200..300).contains(&status) {
+            return Err(err(c, "HTTP_ERROR", format!("HTTP {status}")));
+        }
+        return Ok(json!(body));
+    }
+    Ok(
+        json!({"status":status,"ok":(200..300).contains(&status),"headers":headers,"body":String::from_utf8_lossy(&body)}),
+    )
+}
+async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
+    let state = app.state::<wallet::WalletState>();
+    match c {
+        "get_config" => Ok(config()),
+        "save_config" | "save_config_and_reload" => {
+            check_network(c, &a["config"])?;
+            let current = config();
+            if let Some(o) = a["config"].as_object() {
+                if let Some((k, _)) = o.iter().find(|(k, v)| current.get(*k) != Some(*v)) {
+                    return Err(err(
+                        c,
+                        "UNSUPPORTED_CONFIG",
+                        format!("Changing {k} is not yet supported on Android"),
+                    ));
+                }
+            }
+            Ok(current)
+        }
+        "get_tor_status" => Ok(
+            json!({"Disconnected":null,"supported":false,"reason":"Tor routing not implemented in Android bridge; clearnet is explicit"}),
+        ),
+        "get_identities" => Ok(identities(app)),
+        "save_identities" => {
+            check_wallet(c)?;
+            let ids = a["ids"]
+                .as_array()
+                .ok_or_else(|| err(c, "INVALID_ARGUMENT", "ids must be an array"))?;
+            if ids.iter().any(|i| {
+                !i["id"].as_str().is_some_and(valid_id)
+                    || i["name"].as_str().unwrap_or("").len() > 120
+            }) {
+                return Err(err(c, "INVALID_ARGUMENT", "Invalid identity metadata"));
+            }
+            let metadata: Vec<Value> = ids
+                .iter()
+                .map(|i| json!({"id":i["id"],"name":i["name"],"created":i["created"]}))
+                .collect();
+            write_json(root(app).join("identities.json"), &json!(metadata))?;
+            Ok(Value::Null)
+        }
+        "switch_identity" => {
+            check_wallet(c)?;
+            let id = strarg(&a, "id")?;
+            if !valid_id(id) {
+                return Err(err(c, "INVALID_ARGUMENT", "Invalid wallet id"));
+            }
+            write_json(root(app).join("active.json"), &json!(id))?;
+            Ok(Value::Null)
+        }
+        "create_wallet" => {
+            let name = strarg(&a, "name")?;
+            let password = strarg(&a, "password")?;
+            check_password(c, password)?;
+            if !valid_id(name) {
+                return Err(err(c, "INVALID_ARGUMENT", "Invalid wallet id"));
+            }
+            let seed = a["seed"].as_str().filter(|s| !s.trim().is_empty());
+            if seed.is_some_and(|s| s.trim() != PUBLIC_RESTORE) {
+                return Err(err(c,"PUBLIC_TEST_SEED_REQUIRED","Restore accepts ONLY the published Cake test vector in this debug host. Never import real keys."));
+            }
+            use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+            if !app.dialog().message("DEBUG STAGENET TEST WALLET ONLY. Public test password; no real funds, mainnet, seed export or signing. Approve this native create/restore?").title("Android stagenet test custody").buttons(MessageDialogButtons::OkCancelCustom("Approve test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Native wallet creation denied"));}
+            let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
+            let mnemonic = zeroize::Zeroizing::new(
+                state
+                    .create_wallet(name, password, seed, a["restoreHeight"].as_u64())
+                    .await
+                    .map_err(|e| wallet_error(c, e))?,
+            );
+            drop(mnemonic);
+            if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
+                return Err(err(c, "WALLET_LOCKED", "Backgrounded during creation"));
+            }
+            Ok(json!({"success":true,"network":"stagenet","secretExport":false}))
+        }
+        "open_wallet" => {
+            let name = strarg(&a, "name")?;
+            let password = strarg(&a, "password")?;
+            check_password(c, password)?;
+            if !valid_id(name) {
+                return Err(err(c, "INVALID_ARGUMENT", "Invalid id"));
+            }
+            let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
+            state
+                .unlock(name, password)
+                .await
+                .map_err(|e| wallet_error(c, e))?;
+            if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
+                state.lock().await;
+                return Err(err(c, "WALLET_LOCKED", "Backgrounded during unlock"));
+            }
+            app.state::<TerminalState>()
+                .unlocked_epoch
+                .store(epoch, Ordering::SeqCst);
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = scan(handle).await;
+            });
+            Ok(json!({"success":true,"network":"stagenet","signing":false}))
+        }
+        "close_wallet" => {
+            state.lock().await;
+            Ok(Value::Null)
+        }
+        "verify_password" => {
+            check_wallet(c)?;
+            let id = strarg(&a, "identityId")?;
+            if !valid_id(id) {
+                return Err(err(c, "INVALID_ARGUMENT", "Invalid id"));
+            }
+            Ok(json!(state
+                .verify_password(id, strarg(&a, "password")?)
+                .await
+                .is_ok()))
+        }
+        "get_accounts" => {
+            unlocked(app, c).await?;
+            Ok(json!(state.get_accounts().await))
+        }
+        "get_balance" => {
+            unlocked(app, c).await?;
+            let (total, unlocked) = state
+                .balances_for_account(num(&a, "accountIndex"), state.tip_height().await)
+                .await;
+            Ok(
+                json!({"total":total.to_string(),"unlocked":unlocked.to_string(),"viewOnly":false,"network":"stagenet","verifiedSync":false}),
+            )
+        }
+        "get_height" => Ok(json!(state.get_sync_status().await.height)),
+        "get_sync_status" => {
+            let mut s = json!(state.get_sync_status().await);
+            if app
+                .state::<TerminalState>()
+                .last_error
+                .lock()
+                .unwrap()
+                .is_some()
+            {
+                s["status"] = json!("OFFLINE");
+            }
+            s["network"] = json!("stagenet");
+            s["locked"] = json!(
+                !ANDROID_FOREGROUND.load(Ordering::SeqCst)
+                    || app
+                        .state::<TerminalState>()
+                        .unlocked_epoch
+                        .load(Ordering::SeqCst)
+                        != POC_SESSION.epoch.load(Ordering::SeqCst)
+                    || state.is_locked().await
+            );
+            s["scanning"] = json!(app.state::<TerminalState>().scanning.load(Ordering::SeqCst));
+            s["fullSyncVerified"] = json!(false);
+            s["lastError"] = json!(app
+                .state::<TerminalState>()
+                .last_error
+                .lock()
+                .unwrap()
+                .clone());
+            Ok(s)
+        }
+        "get_subaddresses" => {
+            unlocked(app, c).await?;
+            Ok(json!(
+                state
+                    .get_subaddresses(num(&a, "accountIndex"), state.tip_height().await)
+                    .await
+            ))
+        }
+        "create_subaddress" => {
+            unlocked(app, c).await?;
+            Ok(json!(
+                state
+                    .create_subaddress(num(&a, "accountIndex"), strarg(&a, "label")?)
+                    .await
+                    .map_err(|e| wallet_error(c, e))?
+                    .address
+            ))
+        }
+        "set_subaddress_label" => {
+            unlocked(app, c).await?;
+            state
+                .set_subaddress_label(
+                    num(&a, "accountIndex"),
+                    num(&a, "index"),
+                    strarg(&a, "label")?,
+                )
+                .await;
+            Ok(Value::Null)
+        }
+        "create_account" => {
+            unlocked(app, c).await?;
+            let ac = state
+                .create_account(strarg(&a, "label")?)
+                .await
+                .map_err(|e| wallet_error(c, e))?;
+            Ok(json!({"index":ac.index,"address":ac.base_address}))
+        }
+        "rename_account" => {
+            unlocked(app, c).await?;
+            state
+                .rename_account(
+                    num(&a, "accountIndex"),
+                    strarg(&a, "newLabel").or_else(|_| strarg(&a, "new_label"))?,
+                )
+                .await
+                .map_err(|e| wallet_error(c, e))?;
+            Ok(Value::Null)
+        }
+        "get_transactions" => {
+            unlocked(app, c).await?;
+            if state.output_count().await != 0 {
+                return Err(unsupported(c));
+            }
+            Ok(json!({"in":[],"out":[],"pending":[]}))
+        }
+        "get_outputs" => {
+            unlocked(app, c).await?;
+            if state.output_count().await != 0 {
+                return Err(unsupported(c));
+            }
+            Ok(json!({"transfers":[]}))
+        }
+        "reselect_node" => {
+            scan(app.clone()).await?;
+            Ok(json!({"oneBlockOnly":true,"network":"stagenet"}))
+        }
+        "ros_native_fetch" | "ros_native_fetch_bytes" => fetch(app, c, &a).await,
+        "open_native_browser"
+        | "open_external_url"
+        | "browser_embed_open"
+        | "browser_embed_navigate" => {
+            native_io(app, c, "openBrowser", json!({"url":strarg(&a,"url")?})).await
+        }
+        "browser_embed_bounds" | "browser_embed_visible" | "browser_embed_zoom" => {
+            Ok(json!({"mode":"isolated-activity","embedded":false,"layoutApplied":false}))
+        }
+        "browser_embed_close" => native_io(app, c, "closeBrowser", json!({})).await,
+        "android_save_export" => native_io(app, c, "saveExport", a).await,
+        "agent_gateway_status" => Ok(
+            json!({"enabled":false,"running":false,"supported":false,"available":false,"reason":"UNSUPPORTED_ANDROID: gateway listener and spend grants are disabled","port":0,"apiKeyMasked":"UNAVAILABLE","boundGrantId":null,"accountIndex":0,"address":null,"walletId":null,"walletName":null}),
+        ),
+        "local_ai_status" => Ok(
+            json!({"modelId":a["modelId"],"installed":false,"loaded":false,"bytes":0,"downloadedBytes":0,"downloading":false,"runtime":"UNSUPPORTED_ANDROID — no native inference engine","accelerated":false,"supported":false}),
+        ),
+        "vpn_status" => Ok(
+            json!({"supported":false,"connected":false,"phase":"unsupported","reason":"Android VPN not implemented"}),
+        ),
+        "get_mnemonic"
+        | "get_wallet_keys"
+        | "prepare_transfer"
+        | "relay_transfer"
+        | "sign_message"
+        | "sign_offline_transfer" => Err(err(
+            c,
+            "CUSTODY_POLICY",
+            "Secret exports and spending are disabled in Android stagenet POC",
+        )),
+        _ => Err(unsupported(c)),
+    }
+}

@@ -553,6 +553,16 @@ impl WalletState {
         }
     }
 
+    /// Isolated DEBUG Android test host. Cannot share desktop/mainnet wallet files.
+    #[cfg(target_os = "android")]
+    pub fn new_android_stagenet(app: AppHandle, data_dir: PathBuf) -> Self {
+        let mut inner=WalletInner::empty(data_dir.clone());
+        inner.network=Network::Stagenet;
+        Self {app,scanner_generation:AtomicU64::new(0),vigil_hot:AtomicBool::new(false),
+            transfer_grants:tokio::sync::Mutex::new(super::transfer_ledger::GrantLedger::load(data_dir.join("transfer_grants.json"))),
+            inner:Arc::new(RwLock::new(inner))}
+    }
+
     /// True if the resident wallet is a watch-only vault (no spend key exists).
     pub async fn is_view_only(&self) -> bool {
         self.inner.read().await.view_only

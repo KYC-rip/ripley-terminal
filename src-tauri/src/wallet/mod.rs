@@ -16,6 +16,7 @@ pub mod transact;
 pub mod transfer_ledger;
 pub mod tx_proof;
 pub mod types;
+pub mod time;
 
 pub use sync_pool::SyncPool;
 
