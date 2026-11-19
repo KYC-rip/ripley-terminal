@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">"ROS Android POC"</string>
+    <string name="main_activity_title">"ROS Android POC"</string>
+</resources>

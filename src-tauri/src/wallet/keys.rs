@@ -242,11 +242,7 @@ pub fn keys_from_entropy(
     let dalek_view = curve25519_dalek::Scalar::from_bytes_mod_order(view_bytes);
     let view_key = Scalar::from(dalek_view);
 
-    log::info!(
-        "Key derivation: spend={}, view={}",
-        hex::encode(spend_bytes),
-        hex::encode(view_bytes)
-    );
+    // Never log derived spend/view keys (including in debug builds).
 
     Ok((Zeroizing::new(spend_key), Zeroizing::new(view_key)))
 }

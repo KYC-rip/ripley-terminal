@@ -1,0 +1,5 @@
+{
+  "identifier": "android-ros", "platforms": ["android"],
+  "description": "Bundled Android ROS: status only, no wallet/shell/filesystem/network IPC.",
+  "webviews": ["ros-android"], "permissions": ["allow-android-runtime-status"]
+}

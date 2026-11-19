@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-poc-wallet"
+description = "Enables the android_poc_wallet command without any pre-configured scope."
+commands.allow = ["android_poc_wallet"]
+
+[[permission]]
+identifier = "deny-android-poc-wallet"
+description = "Denies the android_poc_wallet command without any pre-configured scope."
+commands.deny = ["android_poc_wallet"]

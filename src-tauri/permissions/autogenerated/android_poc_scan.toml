@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-poc-scan"
+description = "Enables the android_poc_scan command without any pre-configured scope."
+commands.allow = ["android_poc_scan"]
+
+[[permission]]
+identifier = "deny-android-poc-scan"
+description = "Denies the android_poc_scan command without any pre-configured scope."
+commands.deny = ["android_poc_scan"]

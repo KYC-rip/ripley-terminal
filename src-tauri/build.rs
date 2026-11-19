@@ -174,10 +174,28 @@ const APP_COMMANDS: &[&str] = &[
     "local_ai_clear_all",
 ];
 
+const ANDROID_COMMANDS: &[&str] = &[
+    "android_runtime_status",
+    "android_poc_wallet",
+    "android_poc_scan",
+    "android_poc_tor",
+    "android_poc_confirmation",
+    "android_poc_lock",
+    "android_poc_attacks",
+];
+
 fn main() {
-    tauri_build::try_build(
-        tauri_build::Attributes::new()
-            .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS)),
-    )
-    .expect("failed to run tauri-build");
+    let commands = if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        ANDROID_COMMANDS
+    } else {
+        APP_COMMANDS
+    };
+    let mut attributes = tauri_build::Attributes::new()
+        .app_manifest(tauri_build::AppManifest::new().commands(commands));
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        // Validate only the selected mobile capability files. Desktop plugins are
+        // intentionally not linked on Android, so their permission sets do not exist.
+        attributes = attributes.capabilities_path_pattern("capabilities/android-*.json");
+    }
+    tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }

@@ -1,0 +1,77 @@
+{
+  "actualRosLaunch": "PASS",
+  "walletCreateRestoreEncryption": {
+    "ciphertextNotPlaintext": true,
+    "created": true,
+    "encryptedReopen": true,
+    "keystore": false,
+    "mnemonicRestore": true,
+    "network": "stagenet",
+    "reopened": false,
+    "signing": "NOT_VERIFIED_NO_TEST_FUNDS",
+    "stablePublicAddress": true,
+    "tamperRejected": true,
+    "wrongPasswordRejected": true
+  },
+  "hostileNavigationBlocked": "PASS",
+  "nativeConfirmationDenied": "PASS",
+  "explicitLockRefusesScan": "PASS",
+  "walletReopen": {
+    "ciphertextNotPlaintext": true,
+    "created": false,
+    "encryptedReopen": true,
+    "keystore": false,
+    "mnemonicRestore": "NOT_RERUN",
+    "network": "stagenet",
+    "reopened": true,
+    "signing": "NOT_VERIFIED_NO_TEST_FUNDS",
+    "stablePublicAddress": true,
+    "tamperRejected": true,
+    "wrongPasswordRejected": true
+  },
+  "nativeStagenetScan": {
+    "reason": "stagenet node HTTP 500",
+    "status": "NOT_VERIFIED"
+  },
+  "tor": {
+    "allAppTor": false,
+    "bootstrap": true,
+    "reason": "stagenet onion unreachable",
+    "stagenetOnionReachable": false,
+    "status": "NOT_VERIFIED"
+  },
+  "backgroundLockObserved": true,
+  "offlineForceStopRelaunch": "PASS",
+  "processDeathStartsLocked": "PASS",
+  "offlineEncryptedReopen": "PASS",
+  "networkReenabled": "PASS",
+  "nativeStagenetScanAfterNetworkRestore": {
+    "reason": "stagenet node unreachable",
+    "status": "NOT_VERIFIED"
+  },
+  "uiDiagnosticGuard": [
+    "ANDROID_POC_UI_GUARD Android POC diagnostic access denied"
+  ],
+  "actualBoundaryChecks": [
+    "ANDROID_POC_RESULT attacks \"RUNNING\"",
+    "ANDROID_POC_RESULT attacks {\"hostileOriginsRejected\":true,\"releaseDiagnosticsDenied\":true,\"wrongLabelDenied\":true,\"get_wallet_keys\":\"DENIED\",\"create_wallet\":\"DENIED\",\"unknown_capability_test\":\"DENIED\",\"iframeBlocked\":true}"
+  ],
+  "typedRuntime": {
+    "bridgeVersion": 1,
+    "platform": "android",
+    "abi": "x86_64",
+    "appVersion": "2.1.0",
+    "debugPoc": true,
+    "custody": "keyless",
+    "capabilities": {
+      "arbitraryNetwork": false,
+      "backgroundSync": false,
+      "bundledRos": true,
+      "keystore": false,
+      "productionSigning": false,
+      "remoteBridge": false,
+      "stagenetDiagnostics": true
+    }
+  },
+  "status": "PASS_WITH_EXPLICIT_NETWORK_LIMITATIONS"
+}
