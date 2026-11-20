@@ -239,6 +239,42 @@ const ANDROID_COMMANDS: &[&str] = &[
 ];
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(android_offline_stagenet)");
+    for key in [
+        "ROS_ANDROID_DEBUG_BUNDLE",
+        "ROS_ANDROID_DEBUG_BUNDLE_SHA256",
+        "ROS_ANDROID_UI_REVISION",
+        "ROS_ANDROID_OFFLINE_STAGENET",
+    ] {
+        println!("cargo:rerun-if-env-changed={key}");
+    }
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        let debug = std::env::var("PROFILE").as_deref() == Ok("debug");
+        let fallback = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("resources/ros-fallback.tar.zst");
+        let generated = if debug && std::env::var_os("ROS_ANDROID_DEBUG_BUNDLE").is_some() {
+            let path = std::fs::canonicalize(std::env::var("ROS_ANDROID_DEBUG_BUNDLE").unwrap())
+                .expect("debug UI archive");
+            let hash = std::env::var("ROS_ANDROID_DEBUG_BUNDLE_SHA256")
+                .expect("debug bundle pin required");
+            let rev = std::env::var("ROS_ANDROID_UI_REVISION").expect("debug UI revision required");
+            assert!(hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()));
+            assert!(rev.len() == 40 && rev.bytes().all(|b| b.is_ascii_hexdigit()));
+            println!("cargo:rerun-if-changed={}", path.display());
+            format!("const ARCHIVE:&[u8]=include_bytes!({:?}); const ARCHIVE_EXPECTED_HASH:&str={:?}; const UI_REVISION:&str={:?}; const DEBUG_LOCAL_UI:bool=true;",path,hash,rev)
+        } else {
+            format!("const ARCHIVE:&[u8]=include_bytes!({:?}); const ARCHIVE_EXPECTED_HASH:&str=updater::ota::FALLBACK_SHA256; const UI_REVISION:&str=\"pinned-release-fallback\"; const DEBUG_LOCAL_UI:bool=false;",fallback)
+        };
+        std::fs::write(
+            std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("android_bundle.rs"),
+            generated,
+        )
+        .unwrap();
+        if debug && std::env::var("ROS_ANDROID_OFFLINE_STAGENET").as_deref() == Ok("1") {
+            println!("cargo:rustc-cfg=android_offline_stagenet");
+        }
+    }
+
     let commands = if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
         ANDROID_COMMANDS
     } else {

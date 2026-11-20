@@ -1,0 +1,26 @@
+# Android current ROS + resumable scan (experimental DEBUG milestone)
+
+Host branch `feat/android-runtime-poc`; local only, no publication. Frontend isolated branch `feat/android-host-compat-poc` in `/workspace/android-ros-poc/current-ui`: base upstream `131eb05773dae5a4d8719c57a09d00d4f99293e2`, debug build `5711e411d521e182016b74dd74715783ab1a6def`. Unlike the old GHOST IV release fallback, this is the current source-built ROS. The private bundle is not checked into this repository.
+
+`build.rs` accepts an external artifact/hash/revision ONLY for Android PROFILE=debug. Release continues using the existing hash-pinned fallback and Ed25519 signed OTA trust; no trust pins/CSP were relaxed. `ROS_ANDROID_OFFLINE_STAGENET=1` is an additional compile-time DEBUG-only mode selecting 127.0.0.1:48081 for the scanner, not a general private-network fetch exemption.
+
+## Implemented
+- Ordinary Terminal wallet commands reuse native monero-oxide state/scanner. Scan resumes actual committed cache cursor, iterates eight-block cooperative batches with a ten-second network-request bound, checks lifecycle epoch/generation, checkpoints and emits real SYNC_DATA. The old one-block limit and whole-scan 35-second timeout are removed. It scans to the sampled node tip, not a continuous background service.
+- Android output cache now uses Argon2id + ChaCha20-Poly1305 (RIPA2), fresh salt/nonce, atomic writes, explicit authentication errors. Old app-private JSON cache migrates only after wallet-password verification. Android unlock authenticates cache before activating keys and trusts committed cache cursor including zero. Desktop storage behavior unchanged. This is SOFTWARE password encryption, NOT Android Keystore.
+- Native pause/resume emits WALLET_STATE locked. Current frontend clears Monero balances, addresses, accounts, outputs, transactions, prepared send and cached credentials; explicit unlock required. Native errors no longer masquerade as synced. A real emulator test exposed fast errors preceding React subscription: the native platform adapter now caches/replays its last authoritative sync event when the Wallet opens.
+
+## Actual emulator evidence
+Evidence root `/workspace/android-ros-poc/evidence/current-ros-sync/`. API35 x86_64 AVD `ros-poc-api35`, desktop layout/UA DEBUG experiment, actual platform still Android. Public throwaway fixture only; no mainnet, signing, secrets exported or real funds.
+
+- Current Wallet opened existing encrypted native fixture through ordinary open_wallet, displayed native account/balance/subaddresses, fetched/parsed/scanned canonical stagenet genesis from official monerod 0.18.5.4 in --stagenet --offline mode; checkpoint next=1,target=1. This is a REAL daemon/protocol/native scan of OFFLINE GENESIS, NOT public-chain full synchronization and NOT evidence of multi-batch/history/spend detection.
+- Cache migrated to RIPA2; controlled ciphertext tamper rejected in actual Wallet UI with “Android cache authentication failed; original retained”, wallet remained locked; original restored.
+- HOME/resume immediately cleared cached unlocked Wallet visuals and required passphrase again.
+- Disconnected local node produced real native request error. First UI retained Connecting due to subscription race; fixed in frontend second commit and final APK retest recorded separately.
+- Boundary probes deny unknown/private-keys/mnemonic/signing/mainnet/Tor bypass/POST/private-network; hostile iframe blocked by original frame-src CSP.
+
+## Genuine remaining blockers / limitations
+Public stagenet GET /get_info and POST /json_rpc probes at vetted community.rino.io and xmr-tw.org endpoints got immediate empty HTTP500 responses with Pingora header on this environment; nodely TLS endpoint EOF. No proxy/network-control bypass attempted. Public-node full sync remains NOT VERIFIED (see node-probes.json/network-diagnostic.json). Native onion connectivity remains NOT VERIFIED; Tor routing intentionally unavailable.
+
+Receive scanning is not a production full wallet: spent-output detection, reorg/backfill coverage, continuous tip following and nonempty transaction/output frontend adapters remain incomplete. Hardware-backed key storage, biometric policy, physical-device/process-power-loss/background-service tests, production custody and signing are not implemented. Release remains keyless. Browser is a separate CLEARNET Activity with no wallet bridge; current ROS Browser's address placeholder still says routed over Tor (known misleading frontend label, not an implemented capability). Gateway/AI/VPN remain explicitly unavailable.
+
+Build reproduction: source `/workspace/android-ros-poc/env.sh` and `current-ui-build.env`; CARGO_BUILD_JOBS=3 "$TAURI_ANDROID_CLI" android build --debug --target x86_64 --apk --config src-tauri/tauri.android.conf.json. Packaging helper `/workspace/android-ros-poc/package-current-ui.py`. Real emulator uses temporary /dev/kvm ACL, removed at end; do not apply globally. Official daemon archive SHA256 ba2928962c101b609434bf8c1b43ad59ebe96c5525977284ca599d8bf0f02d10 verified against official downloads hashes.txt; GPG signature not independently verified.

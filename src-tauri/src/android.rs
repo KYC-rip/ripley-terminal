@@ -52,7 +52,7 @@ static ANDROID_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::At
 static ANDROID_APP: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
 use android_policy::{DIAGNOSTICS, ORIGIN as ROS_ORIGIN};
 const MOBILE_CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: ipc: http://ipc.localhost; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const ARCHIVE: &[u8] = include_bytes!("../resources/ros-fallback.tar.zst");
+include!(concat!(env!("OUT_DIR"), "/android_bundle.rs"));
 struct PocSession {
     wallet_unlocked: Mutex<bool>,
     epoch: AtomicU64,
@@ -68,6 +68,11 @@ pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeResume(
     _: *mut std::ffi::c_void,
 ) {
     ANDROID_FOREGROUND.store(true, Ordering::SeqCst);
+    if POC_SESSION.epoch.load(Ordering::SeqCst) > 0 {
+        if let Some(app) = ANDROID_APP.get() {
+            android_terminal::notify_lock(app);
+        }
+    }
 }
 #[no_mangle]
 pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeLock(
@@ -77,6 +82,7 @@ pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeLock(
     ANDROID_FOREGROUND.store(false, Ordering::SeqCst);
     POC_SESSION.epoch.fetch_add(1, Ordering::SeqCst);
     if let Some(app) = ANDROID_APP.get().cloned() {
+        android_terminal::notify_lock(&app);
         tauri::async_runtime::spawn(async move {
             if let Some(state) = app.try_state::<wallet::WalletState>() {
                 state.lock().await;
@@ -139,8 +145,8 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
         },
         capabilities: json!({"bundledRos":true,"productionSigning":false,"remoteBridge":false,
           "arbitraryNetwork":false,"keystore":false,"backgroundSync":false,
-          "stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
-          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":false,
+          "uiRevision":UI_REVISION,"debugLocalUi":DEBUG_LOCAL_UI,"stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
+          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
           "publicHttpsGet":true,"networkPost":false,"torRouting":false,
           "nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
     })
@@ -446,7 +452,7 @@ pub fn run() {
                 .unwrap()
         })
         .setup(|app| {
-            if !updater::ota::verify_archive_hash(ARCHIVE, updater::ota::FALLBACK_SHA256) {
+            if !updater::ota::verify_archive_hash(ARCHIVE, ARCHIVE_EXPECTED_HASH) {
                 return Err("Bundled ROS hash mismatch".into());
             }
             app.manage(updater::protocol::RosBundle::from_archive(ARCHIVE)?);

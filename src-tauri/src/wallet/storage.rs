@@ -490,7 +490,10 @@ pub fn load_watch(data_dir: &Path, identity_id: &str) -> Option<monero_wallet::V
 pub fn load_watch_parts(
     data_dir: &Path,
     identity_id: &str,
-) -> Option<(monero_oxide::ed25519::Point, Zeroizing<monero_oxide::ed25519::Scalar>)> {
+) -> Option<(
+    monero_oxide::ed25519::Point,
+    Zeroizing<monero_oxide::ed25519::Scalar>,
+)> {
     let k = super::device_key::watch_key()?;
     load_watch_parts_with_key(&k, data_dir, identity_id)
 }
@@ -508,7 +511,10 @@ fn load_watch_parts_with_key(
     k: &[u8; KEY_LEN],
     data_dir: &Path,
     identity_id: &str,
-) -> Option<(monero_oxide::ed25519::Point, Zeroizing<monero_oxide::ed25519::Scalar>)> {
+) -> Option<(
+    monero_oxide::ed25519::Point,
+    Zeroizing<monero_oxide::ed25519::Scalar>,
+)> {
     let path = watch_path(data_dir, identity_id).ok()?;
     let data = std::fs::read(&path).ok()?;
     let pt = Zeroizing::new(open_sealed(k, &data)?);
@@ -559,12 +565,23 @@ mod tests {
     fn watch_only_vault_keeps_its_start_height() {
         let dir = std::env::temp_dir().join(format!("ros-wo-height-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        save_watch_only_vault(&dir, "vo_t", "pw", &"11".repeat(32), &"22".repeat(32), 3_600_000).unwrap();
+        save_watch_only_vault(
+            &dir,
+            "vo_t",
+            "pw",
+            &"11".repeat(32),
+            &"22".repeat(32),
+            3_600_000,
+        )
+        .unwrap();
         let w = load_wallet(&dir, "vo_t", "pw").unwrap();
         assert_eq!(w.scan_height, 3_600_000);
         assert!(w.view_only.is_some() && w.seed_entropy.is_empty());
         // Never overwrites an existing vault.
-        assert!(save_watch_only_vault(&dir, "vo_t", "pw", &"11".repeat(32), &"22".repeat(32), 0).is_err());
+        assert!(
+            save_watch_only_vault(&dir, "vo_t", "pw", &"11".repeat(32), &"22".repeat(32), 0)
+                .is_err()
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -731,4 +748,69 @@ mod tests {
         assert_eq!(ids, vec!["vault_ok".to_string()]);
         let _ = std::fs::remove_dir_all(&dir);
     }
+}
+
+// Android has no Keystore integration yet. Seal the cache with the unlocked
+// wallet password, never a plaintext fallback; this is software encryption only.
+#[cfg(target_os = "android")]
+pub fn android_save_cache(
+    dir: &Path,
+    id: &str,
+    cache: &OutputCache,
+    password: &str,
+) -> Result<(), String> {
+    let plaintext = Zeroizing::new(serde_json::to_vec(cache).map_err(|e| e.to_string())?);
+    let mut salt = [0u8; 16];
+    let mut nonce = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut salt);
+    rand::thread_rng().fill_bytes(&mut nonce);
+    let key = derive_key(password, &salt);
+    let cipher = ChaCha20Poly1305::new(key.as_ref().into());
+    let ct = cipher
+        .encrypt(
+            chacha20poly1305::Nonce::from_slice(&nonce),
+            plaintext.as_slice(),
+        )
+        .map_err(|_| "Android cache encryption failed")?;
+    let mut data = b"RIPA2".to_vec();
+    data.extend_from_slice(&salt);
+    data.extend_from_slice(&nonce);
+    data.extend_from_slice(&ct);
+    atomic_write(&output_cache_path(dir, id)?, &data)
+}
+#[cfg(target_os = "android")]
+pub fn android_load_cache(
+    dir: &Path,
+    id: &str,
+    password: &str,
+) -> Result<Option<OutputCache>, String> {
+    let path = output_cache_path(dir, id)?;
+    let data = match std::fs::read(path) {
+        Ok(d) => d,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+    };
+    if !data.starts_with(b"RIPA2") {
+        let cache: OutputCache = serde_json::from_slice(&data)
+            .map_err(|_| "Legacy Android cache invalid; original retained")?;
+        android_save_cache(dir, id, &cache, password)?;
+        return Ok(Some(cache));
+    }
+    if data.len() < 49 {
+        return Err("Android cache truncated; original retained".into());
+    }
+    let salt: [u8; 16] = data[5..21].try_into().unwrap();
+    let key = derive_key(password, &salt);
+    let cipher = ChaCha20Poly1305::new(key.as_ref().into());
+    let pt = Zeroizing::new(
+        cipher
+            .decrypt(
+                chacha20poly1305::Nonce::from_slice(&data[21..33]),
+                &data[33..],
+            )
+            .map_err(|_| "Android cache authentication failed; original retained")?,
+    );
+    serde_json::from_slice(&pt)
+        .map(Some)
+        .map_err(|_| "Android cache schema invalid; original retained".into())
 }

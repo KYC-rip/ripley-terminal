@@ -12,7 +12,14 @@ use tauri::{
 
 pub const TEST_PASSWORD: &str = "ANDROID-STAGENET-TEST-ONLY";
 pub const PUBLIC_RESTORE:&str="avidly chlorine gave yeti ramped certain hybrid comb governing amply hinder pamphlet offend geometry narrate unopened robot epoxy annoyed glide ingested ascend were austere unopened";
-const NODE: &str = "http://stagenet.tools.rino.io:38081";
+#[cfg(not(android_offline_stagenet))]
+const NODE: &str = "http://stagenet.community.rino.io:38081";
+#[cfg(android_offline_stagenet)]
+const NODE: &str = "http://127.0.0.1:48081";
+pub fn notify_lock(app: &tauri::AppHandle) {
+    emit(app, "WALLET_STATE", "info", "{\"locked\":true}");
+}
+
 #[derive(Default)]
 pub struct TerminalState {
     last_error: Mutex<Option<String>>,
@@ -93,7 +100,7 @@ fn identities(app: &tauri::AppHandle) -> Value {
     read_json(root(app).join("identities.json"))
 }
 fn config() -> Value {
-    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity"})
+    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity","offlineStagenetProtocolTest":cfg!(android_offline_stagenet)})
 }
 fn emit(app: &tauri::AppHandle, source: &str, level: &str, message: &str) {
     let _ = app.emit(
@@ -197,7 +204,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
         return Err(err(c, "BUSY", "A bounded node request is already running"));
     }
     let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(35), async {
+    let outcome = (async {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none())
@@ -230,59 +237,87 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
         )
         .await
         .map_err(|e| err(c, "NETWORK_ERROR", format!("{e:?}")))?;
-        let height = daemon
+        // latest_block_number is an INDEX, not a block count: genesis is valid.
+        let target = daemon
             .latest_block_number()
             .await
-            .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))?;
-        let height = height as u64;
-        if height == 0 {
-            return Err(err(c, "NODE_RPC_ERROR", "Empty chain"));
-        }
+            .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))? as u64
+            + 1;
         let mut scanner = state
             .get_scanner()
             .await
             .ok_or_else(|| err(c, "WALLET_LOCKED", "No scanner"))?;
         let cursor = state.get_scan_height().await;
-        let from = if cursor == u64::MAX {
-            height - 1
+        let start = if cursor == u64::MAX {
+            target.saturating_sub(8)
         } else {
-            cursor.min(height - 1)
+            cursor
         };
-        let block = ProvidesScannableBlocks::scannable_block_by_number(&daemon, from as usize)
-            .await
-            .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))?;
-        if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
-            return Err(err(c, "WALLET_LOCKED", "Locked during node request"));
+        let mut next = start;
+        while next < target {
+            let end = (next + 8).min(target);
+            while next < end {
+                if epoch != POC_SESSION.epoch.load(Ordering::SeqCst)
+                    || !ANDROID_FOREGROUND.load(Ordering::SeqCst)
+                {
+                    return Err(err(c, "WALLET_LOCKED", "Scan cancelled by lifecycle lock"));
+                }
+                let block =
+                    ProvidesScannableBlocks::scannable_block_by_number(&daemon, next as usize)
+                        .await
+                        .map_err(|e| err(c, "NODE_RPC_ERROR", format!("{e:?}")))?;
+                if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
+                    return Err(err(c, "WALLET_LOCKED", "Locked during block fetch"));
+                }
+                let outputs = scanner
+                    .scan(block)
+                    .map_err(|e| err(c, "SCAN_ERROR", format!("{e:?}")))?
+                    .not_additionally_locked();
+                state.add_outputs(outputs, next, 0, generation).await;
+                next += 1;
+                if !state.update_sync_status_for(generation, next, target).await {
+                    return Err(err(c, "WALLET_LOCKED", "Stale scanner generation"));
+                }
+                state
+                    .save_output_cache_checked()
+                    .await
+                    .map_err(|e| err(c, "CHECKPOINT_ERROR", e))?;
+                let status = if next >= target { "SYNCED" } else { "SYNCING" };
+                let pct = 100.0 * (next - start) as f64 / (target - start).max(1) as f64;
+                emit(
+                    &app,
+                    "SYNC_DATA",
+                    "info",
+                    &format!("{status}|{next}|{target}|{pct}|{NODE}|{start}"),
+                );
+                eprintln!(
+                    "ANDROID_SCAN_CHECKPOINT next={next} target={target} offline={}",
+                    cfg!(android_offline_stagenet)
+                );
+            }
+            tokio::task::yield_now().await;
         }
-        let outputs = scanner
-            .scan(block)
-            .map_err(|e| err(c, "SCAN_ERROR", format!("{e:?}")))?
-            .not_additionally_locked();
-        state.add_outputs(outputs, from, 0, generation).await;
-        // This is ONE real block, not a claim of full-chain synchronization.
-        let _ = state
-            .update_sync_status_for(generation, from + 1, height)
-            .await;
+        if next >= target {
+            emit(
+                &app,
+                "SYNC_DATA",
+                "info",
+                &format!("SYNCED|{next}|{target}|100|{NODE}|{start}"),
+            );
+        }
         state.set_daemon_url(NODE).await;
-        emit(
-            &app,
-            "NETWORK",
-            "info",
-            &format!("Scanned one stagenet block at {from}; full-chain sync is not implemented"),
-        );
         Ok(())
     })
-    .await
-    .unwrap_or_else(|_| {
-        Err(err(
-            c,
-            "NETWORK_TIMEOUT",
-            "Stagenet request timed out after 35 seconds",
-        ))
-    });
+    .await;
     terminal.scanning.store(false, Ordering::SeqCst);
     *terminal.last_error.lock().unwrap() = outcome.as_ref().err().map(|e| e.message.clone());
     if let Err(e) = &outcome {
+        emit(
+            &app,
+            "SYNC_DATA",
+            "error",
+            &format!("ERROR|0|0|0|{}|0", e.message.replace('|', "/")),
+        );
         emit(
             &app,
             "NETWORK",
@@ -613,7 +648,9 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         }
         "reselect_node" => {
             scan(app.clone()).await?;
-            Ok(json!({"oneBlockOnly":true,"network":"stagenet"}))
+            Ok(
+                json!({"boundedBatches":true,"offlineProtocolTest":cfg!(android_offline_stagenet),"network":"stagenet"}),
+            )
         }
         "ros_native_fetch" | "ros_native_fetch_bytes" => fetch(app, c, &a).await,
         "open_native_browser"

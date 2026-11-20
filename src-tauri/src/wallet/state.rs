@@ -628,6 +628,8 @@ impl WalletState {
 
         // Load and decrypt wallet file
         let wallet_data = storage::load_wallet(&inner.data_dir, identity_id, password)?;
+        #[cfg(target_os = "android")]
+        let android_cache = storage::android_load_cache(&inner.data_dir, identity_id, password)?;
 
         // Derive keys from stored entropy — or, for a watch-only vault, from the
         // stored view key + PUBLIC spend point. Watch-only unlocks with NO spend
@@ -766,7 +768,12 @@ impl WalletState {
         inner.pending_change.clear();
 
         // Load cached outputs (avoids full rescan on relaunch)
+        #[cfg(not(target_os = "android"))]
         let cache = storage::load_output_cache(&inner.data_dir, identity_id);
+        #[cfg(target_os = "android")]
+        let cache_present = android_cache.is_some();
+        #[cfg(target_os = "android")]
+        let cache = android_cache.unwrap_or_default();
         if !cache.outputs.is_empty() {
             log::info!("Loaded {} cached outputs from disk", cache.outputs.len());
             // Restore WalletOutputs (+ their block height) from serialized cache
@@ -784,7 +791,12 @@ impl WalletState {
         // progress — with or without outputs. (It used to count only when the cache
         // held outputs, so a rescan that found none resumed from the wallet file's
         // stale height after a restart — ticket #8175618389.)
-        inner.scan_height = resume_height(inner.scan_height, cache.scan_height);
+        #[cfg(not(target_os = "android"))]
+        { inner.scan_height = resume_height(inner.scan_height, cache.scan_height); }
+        // A committed encrypted cache (including cursor 0) is authoritative;
+        // a vault may be ahead if the last checkpoint write failed at lock.
+        #[cfg(target_os = "android")]
+        { if cache_present { inner.scan_height = cache.scan_height; } }
         // Blocks the background pool / a soft-locked session scanned without the spend
         // key may hold sends of ours: resume the scan at the spend marker so they're
         // re-scanned with it (outputs dedupe by id, sends by txid).
@@ -1984,7 +1996,11 @@ impl WalletState {
         let inner = self.inner.read().await;
         if let Some(identity_id) = &inner.active_identity {
             let cache = inner.cache_snapshot();
+            #[cfg(not(target_os = "android"))]
             storage::save_output_cache(&inner.data_dir, identity_id, &cache)?;
+            #[cfg(target_os = "android")]
+            storage::android_save_cache(&inner.data_dir, identity_id, &cache,
+                inner.password.as_deref().ok_or("Android cache is locked")?)?;
             log::info!(
                 "Output cache saved: {} outputs at height {}",
                 cache.outputs.len(),
