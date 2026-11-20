@@ -411,6 +411,10 @@ struct WalletInner {
 
     // Tracked state from scanning
     scanned_outputs: Vec<OwnedOutput>,
+    #[cfg(target_os="android")]
+    android_chain:Option<storage::AndroidChain>,
+    #[cfg(target_os="android")]
+    android_chain_verified:bool,
     /// Output ids spent by a broadcast tx (excluded from balance/coin-control/
     /// input-selection until a rescan reconfirms). Fixes the balance over-count
     /// where spent outputs lingered in scanned_outputs.
@@ -469,6 +473,8 @@ impl WalletInner {
             subaddress_next: std::collections::HashMap::from([(0u32, 1u32)]),
             subaddress_labels: vec![],
             scanned_outputs: vec![],
+            #[cfg(target_os="android")] android_chain:None,
+            #[cfg(target_os="android")] android_chain_verified:false,
             spent: HashSet::new(),
             frozen: HashSet::new(),
             sent: vec![],
@@ -515,6 +521,7 @@ impl WalletInner {
             })
             .collect();
         storage::OutputCache {
+            #[cfg(target_os="android")] android_chain:self.android_chain.clone(),
             scan_height: self.scan_height,
             outputs: cached_outputs,
             spent: self.spent.iter().cloned().collect(),
@@ -534,6 +541,88 @@ impl WalletInner {
 }
 
 impl WalletState {
+
+    #[cfg(target_os="android")]
+    pub async fn android_chain_prepare(&self,start:u64)->Result<storage::AndroidChain,String>{
+      let mut w=self.inner.write().await;
+      w.android_chain_verified=false;
+      if w.android_chain.is_none(){
+        if !w.scanned_outputs.is_empty()||!w.spent.is_empty(){return Err("CHECKPOINT_UPGRADE_RESCAN_REQUIRED: nonempty legacy cache is unverified".into())}
+        w.android_chain=Some(storage::AndroidChain{version:1,floor:start,anchors:vec![],spent_at:Default::default(),spends_verified_to:Some(start)});
+        w.scan_height=start;
+      }
+      let chain=w.android_chain.as_ref().unwrap();
+      if chain.version!=1{return Err("Unsupported checkpoint version".into())}
+      crate::android_chain::validate(w.scan_height,chain.floor,&chain.anchors)?;
+      Ok(chain.clone())
+    }
+    #[cfg(target_os="android")]
+    pub async fn android_verification(&self)->serde_json::Value{
+      let w=self.inner.read().await;
+      serde_json::json!({"chainVerified":w.android_chain_verified,"cursor":w.scan_height,"restoreFloor":w.android_chain.as_ref().map(|c|c.floor),"spentVerifiedTo":w.android_chain.as_ref().and_then(|c|c.spends_verified_to),"spentOutputCount":w.spent.len(),"spentVerification":if w.android_chain_verified&&w.android_chain.as_ref().and_then(|c|c.spends_verified_to)==Some(w.scan_height){"verified-from-restore-floor"}else{"unverified"},"spendingEnabled":false})
+    }
+    #[cfg(target_os="android")]
+    pub async fn android_reconcile(&self,from:u64,generation:u64)->Result<u64,String>{
+      let mut w=self.inner.write().await;
+      if self.current_scanner_generation()!=generation||w.is_locked{return Err("Wallet locked/stale scanner".into())}
+      let old=w.scan_height;
+      if from>old{return Err("Cannot roll forward during rollback".into())}
+      let mut cache=w.cache_snapshot();
+      let chain=cache.android_chain.as_mut().ok_or("Missing journal")?;
+      chain.anchors.retain(|(h,_)|*h<from);
+      chain.spent_at.retain(|_,h|*h<from);
+      chain.spends_verified_to=chain.spends_verified_to.map(|h|h.min(from));
+      cache.outputs.retain(|o|o.height<from);
+      cache.spent=chain.spent_at.keys().cloned().collect();
+      cache.sent.retain(|s|s.height<from);
+      cache.scan_height=from;
+      crate::android_chain::validate(from,chain.floor,&chain.anchors)?;
+      storage::android_save_cache(&w.data_dir,w.active_identity.as_deref().ok_or("No wallet")?,&cache,w.password.as_deref().ok_or("Locked")?)?;
+      // Disk first, under exclusive lock: no saver can commit an older snapshot.
+      w.scanned_outputs.retain(|o|o.height<from);w.spent=cache.spent.into_iter().collect();w.sent=cache.sent;
+      w.android_chain=cache.android_chain;w.scan_height=from;w.android_chain_verified=true;
+      w.pending_spends.clear();w.pending_change.clear();w.offline_staged.clear();
+      if from<old{self.scanner_generation.fetch_add(1,Ordering::SeqCst);}
+      Ok(self.current_scanner_generation())
+    }
+    #[cfg(target_os="android")]
+    pub async fn android_commit_block(&self,outputs:Vec<WalletOutput>,height:u64,timestamp:u64,hash:String,previous:String,inputs:HashMap<[u8;32],([u8;32],u64,u64)>,generation:u64)->Result<(),String>{
+      let mut w=self.inner.write().await;
+      if self.current_scanner_generation()!=generation||w.is_locked{return Err("Wallet locked/stale scanner".into())}
+      if w.scan_height!=height{return Err("Noncontiguous block commit".into())}
+      let mut cache=w.cache_snapshot();
+      let chain=cache.android_chain.as_mut().ok_or("Missing checkpoint journal")?;
+      if let Some((_,last))=chain.anchors.last(){if last!=&previous{return Err("CHAIN_CHANGED: previous hash mismatch".into())}}
+      let mut ids:HashSet<String>=w.scanned_outputs.iter().map(|o|output_id(&o.output)).collect();
+      let fresh:Vec<_>=outputs.into_iter().filter(|o|ids.insert(output_id(o))).collect();
+      let mut newly_spent=Vec::new();let mut outgoing:HashMap<String,(u64,u64,u64)>=HashMap::new();
+      if let Some(sk)=w.spend_key.as_ref(){
+       for (o,_) in w.scanned_outputs.iter().map(|o|(&o.output,o.height)).chain(fresh.iter().map(|o|(o,height))){
+        if let Some((txid,h,t))=inputs.get(&output_key_image(sk,o)){
+         let id=output_id(o);chain.spent_at.insert(id.clone(),*h);newly_spent.push(id);
+         let e=outgoing.entry(hex::encode(txid)).or_insert((0,*h,*t));e.0=e.0.saturating_add(o.commitment().amount);
+        }
+       }
+       if chain.spends_verified_to==Some(height){chain.spends_verified_to=Some(height+1)}
+      }else{chain.spends_verified_to=None;}
+      for o in &fresh{cache.outputs.push(storage::CachedOutput{data:o.serialize(),amount:o.commitment().amount,tx_hash:hex::encode(o.transaction()),tx_index:o.index_in_transaction(),subaddress:o.subaddress().map(|s|s.address()),height,timestamp});}
+      for (txid,(gross,h,t)) in outgoing{
+       if !cache.sent.iter().any(|s|s.tx_hash==txid){
+        let change:u64=cache.outputs.iter().filter(|o|o.tx_hash==txid).map(|o|o.amount).sum();
+        cache.sent.push(storage::SentTx{tx_hash:txid,amount:gross.saturating_sub(change),fee:0,destinations:vec![],height:h,timestamp:t,tx_key:String::new(),account:0});
+       }
+      }
+      cache.spent=chain.spent_at.keys().cloned().collect();
+      chain.anchors.push((height,hash));if chain.anchors.len()>crate::android_chain::RETAIN{chain.anchors.remove(0);}
+      cache.scan_height=height.checked_add(1).ok_or("Height overflow")?;
+      crate::android_chain::validate(cache.scan_height,chain.floor,&chain.anchors)?;
+      storage::android_save_cache(&w.data_dir,w.active_identity.as_deref().ok_or("No wallet")?,&cache,w.password.as_deref().ok_or("Locked")?)?;
+      let before=w.subaddress_next.clone();
+      for output in fresh{if let Some(s)=output.subaddress(){note_used_index(&mut w,s.account(),s.address());}w.scanned_outputs.push(OwnedOutput{output,height,timestamp});}
+      let growth=window_growth(&before,&w.subaddress_next);if let Some(s)=w.scanner.as_mut(){register_indices(s,&growth);}
+      w.spent=cache.spent.into_iter().collect();w.sent=cache.sent;w.android_chain=cache.android_chain;w.scan_height=cache.scan_height;w.android_chain_verified=true;
+      Ok(())
+    }
     pub fn new(app: AppHandle) -> Self {
         let data_dir = app
             .path()
@@ -557,7 +646,7 @@ impl WalletState {
     #[cfg(target_os = "android")]
     pub fn new_android_debug_test(app: AppHandle, data_dir: PathBuf) -> Self {
         let mut inner=WalletInner::empty(data_dir.clone());
-        inner.network=if cfg!(android_mainnet_readonly){Network::Mainnet}else{Network::Stagenet};
+        inner.network=if cfg!(any(android_mainnet_readonly,android_offline_regtest)){Network::Mainnet}else{Network::Stagenet};
         Self {app,scanner_generation:AtomicU64::new(0),vigil_hot:AtomicBool::new(false),
             transfer_grants:tokio::sync::Mutex::new(super::transfer_ledger::GrantLedger::load(data_dir.join("transfer_grants.json"))),
             inner:Arc::new(RwLock::new(inner))}
@@ -630,6 +719,21 @@ impl WalletState {
         let wallet_data = storage::load_wallet(&inner.data_dir, identity_id, password)?;
         #[cfg(target_os = "android")]
         let android_cache = storage::android_load_cache(&inner.data_dir, identity_id, password)?;
+        #[cfg(target_os="android")]
+        if let Some(cache)=android_cache.as_ref(){
+         if let Some(chain)=&cache.android_chain{
+          if chain.version!=1{return Err("Unsupported Android checkpoint version".into())}
+          crate::android_chain::validate(cache.scan_height,chain.floor,&chain.anchors)?;
+          let mut ids=HashSet::new();
+          for o in &cache.outputs{
+           let output=monero_wallet::WalletOutput::read(&mut o.data.as_slice()).map_err(|_|"Invalid cached WalletOutput")?;
+           if o.height>=cache.scan_height||hex::encode(output.transaction())!=o.tx_hash||output.commitment().amount!=o.amount||output.index_in_transaction()!=o.tx_index||!ids.insert(output_id(&output)){return Err("Invalid/duplicate checkpoint output".into())}
+          }
+          let spent:HashSet<_>=cache.spent.iter().cloned().collect();
+          if spent!=chain.spent_at.keys().cloned().collect()||chain.spent_at.iter().any(|(id,h)|!ids.contains(id)||*h>=cache.scan_height)||chain.spends_verified_to.is_some_and(|h|h<chain.floor||h>cache.scan_height){return Err("Invalid checkpoint spent state".into())}
+         }
+        }
+
 
         // Derive keys from stored entropy — or, for a watch-only vault, from the
         // stored view key + PUBLIC spend point. Watch-only unlocks with NO spend
@@ -774,6 +878,7 @@ impl WalletState {
         let cache_present = android_cache.is_some();
         #[cfg(target_os = "android")]
         let cache = android_cache.unwrap_or_default();
+        #[cfg(target_os="android")] { inner.android_chain=cache.android_chain.clone(); inner.android_chain_verified=false; }
         if !cache.outputs.is_empty() {
             log::info!("Loaded {} cached outputs from disk", cache.outputs.len());
             // Restore WalletOutputs (+ their block height) from serialized cache

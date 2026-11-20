@@ -42,6 +42,7 @@ use std::sync::{
 use tauri::{Manager, WebviewWindow};
 
 mod android_policy;
+mod android_chain;
 mod android_terminal;
 mod commands {
     pub mod wallet {

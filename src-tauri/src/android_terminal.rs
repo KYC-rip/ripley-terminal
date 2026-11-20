@@ -216,6 +216,13 @@ async fn unlocked(app: &tauri::AppHandle, c: &str) -> Result<(), Error> {
     }
     Ok(())
 }
+async fn canonical_hash(client:&reqwest::Client,height:u64)->Result<String,Error>{
+ let v:Value=client.post(format!("{NODE}/json_rpc")).json(&json!({"jsonrpc":"2.0","id":"android-canonical","method":"get_block_header_by_height","params":{"height":height}})).send().await.map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?.error_for_status().map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?.json().await.map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?;
+ if v.get("error").is_some()||v["result"]["block_header"]["height"].as_u64()!=Some(height){return Err(err("reselect_node","HEADER_UNAVAILABLE","Invalid canonical header response"))}
+ let h=v["result"]["block_header"]["hash"].as_str().ok_or_else(||err("reselect_node","HEADER_UNAVAILABLE","Missing block hash"))?;
+ if h.len()!=64||!h.bytes().all(|b|b.is_ascii_hexdigit()){return Err(err("reselect_node","HEADER_UNAVAILABLE","Malformed hash"))}
+ Ok(h.to_ascii_lowercase())
+}
 async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     use monero_daemon_rpc::prelude::*;
     let c = "reselect_node";
@@ -267,7 +274,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             ));
         }
         let state = app.state::<wallet::WalletState>();
-        let generation = state.current_scanner_generation();
+        let mut generation = state.current_scanner_generation();
         let daemon = wallet::reqwest_transport::ReqwestTransport::connect(
             NODE.into(),
             std::time::Duration::from_secs(10),
@@ -285,8 +292,17 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             .await
             .ok_or_else(|| err(c, "WALLET_LOCKED", "No scanner"))?;
         let cursor = state.get_scan_height().await;
-        let start =
-            scan_plan::start(cursor, target).map_err(|e| err(c, "REORG_RESCAN_REQUIRED", e))?;
+        let initial=if cursor==u64::MAX {target.saturating_sub(8)}else{cursor};
+        let chain=state.android_chain_prepare(initial).await.map_err(|e|err(c,"CHECKPOINT_INVALID",e))?;
+        let mut remote=Vec::new();
+        for (h,old_hash) in chain.anchors.iter().rev(){
+          if *h>=target{continue}
+          let hash=canonical_hash(&client,*h).await?;
+          let matched=&hash==old_hash;remote.push((*h,hash));if matched{break}
+        }
+        let start=crate::android_chain::rollback(initial,chain.floor,&chain.anchors,&remote,target).map_err(|e|err(c,"REORG_RESCAN_REQUIRED",e))?;
+        generation=state.android_reconcile(start,generation).await.map_err(|e|err(c,"ROLLBACK_CHECKPOINT_ERROR",e))?;
+        if start<initial{eprintln!("ANDROID_REORG_ROLLBACK old={initial} next={start} target={target}");}
         let mut next = start;
         while next < target {
             let end = scan_plan::batch_end(next, target);
@@ -305,21 +321,18 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
                     return Err(err(c, "WALLET_LOCKED", "Locked during block fetch"));
                 }
                 let block_timestamp = block.block.header.timestamp;
-                let outputs = scanner
-                    .scan(block)
-                    .map_err(|e| err(c, "SCAN_ERROR", format!("{e:?}")))?
-                    .not_additionally_locked();
-                state
-                    .add_outputs(outputs, next, block_timestamp, generation)
-                    .await;
-                next += 1;
-                if !state.update_sync_status_for(generation, next, target).await {
-                    return Err(err(c, "WALLET_LOCKED", "Stale scanner generation"));
+                let hash=hex::encode(block.block.hash());let previous=hex::encode(block.block.header.previous);
+                let mut inputs=std::collections::HashMap::new();
+                for (idx,tx) in block.transactions.iter().enumerate(){
+                 let txid=*block.block.transactions.get(idx).ok_or_else(||err(c,"INVALID_BLOCK","Missing transaction id"))?;
+                 for input in &tx.prefix().inputs{if let monero_oxide::transaction::Input::ToKey{key_image,..}=input{inputs.insert(key_image.to_bytes(),(txid,next,block_timestamp));}}
                 }
-                state
-                    .save_output_cache_checked()
-                    .await
-                    .map_err(|e| err(c, "CHECKPOINT_ERROR", e))?;
+                let outputs=scanner.scan(block).map_err(|e|err(c,"SCAN_ERROR",format!("{e:?}")))?.ignore_additional_timelock();
+                if canonical_hash(&client,next).await?!=hash{return Err(err(c,"CHAIN_CHANGED","Canonical block changed during fetch; retry reconciliation"))}
+                state.android_commit_block(outputs,next,block_timestamp,hash,previous,inputs,generation).await.map_err(|e|err(c,"CHECKPOINT_ERROR",e))?;
+                next+=1;
+                if !state.update_sync_status_for(generation,next,target).await{return Err(err(c,"WALLET_LOCKED","Stale scanner generation"))}
+                if let Some(updated)=state.get_scanner().await{scanner=updated;}
                 let status = if next >= target { "SYNCED" } else { "SYNCING" };
                 let pct = 100.0 * (next - start) as f64 / (target - start).max(1) as f64;
                 emit(
@@ -622,15 +635,18 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         }
         "get_accounts" => {
             unlocked(app, c).await?;
-            Ok(json!(state.get_accounts().await))
+            let mut accounts=json!(state.get_accounts().await);
+            let verified=state.android_verification().await["chainVerified"]==true;
+            if let Some(xs)=accounts.as_array_mut(){for x in xs{x["unlocked_balance"]=json!("0");if !verified{x["balance"]=json!("0");}}}
+            Ok(accounts)
         }
         "get_balance" => {
             unlocked(app, c).await?;
-            let (total, unlocked) = state
+            let (total, _unlocked) = state
                 .balances_for_account(num(&a, "accountIndex"), state.tip_height().await)
                 .await;
             Ok(
-                json!({"total":total.to_string(),"unlocked":unlocked.to_string(),"viewOnly":false,"network":TEST_NETWORK,"verifiedSync":false}),
+                json!({"total":if state.android_verification().await["chainVerified"]==true{total.to_string()}else{"0".into()},"observedTotal":total.to_string(),"unlocked":"0","spendingEnabled":false,"verification":state.android_verification().await,"viewOnly":false,"network":TEST_NETWORK,"verifiedSync":false}),
             )
         }
         "get_height" => Ok(json!(state.get_sync_status().await.height)),
@@ -657,6 +673,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             );
             s["scanning"] = json!(app.state::<TerminalState>().scanning.load(Ordering::SeqCst));
             s["fullSyncVerified"] = json!(false);
+            s["verification"]=state.android_verification().await;
             s["scanHeight"] = json!(state.get_scan_height().await);
             s["ownedOutputCount"] = json!(state.output_count().await);
             s["fixtureNetwork"] = json!(if cfg!(android_offline_regtest) {
@@ -722,19 +739,22 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
                 .map_err(|e| wallet_error(c, e))?;
             Ok(Value::Null)
         }
-        "get_transactions" => {
-            unlocked(app, c).await?;
-            if state.output_count().await != 0 {
-                return Err(unsupported(c));
-            }
-            Ok(json!({"in":[],"out":[],"pending":[]}))
-        }
-        "get_outputs" => {
-            unlocked(app, c).await?;
-            if state.output_count().await != 0 {
-                return Err(unsupported(c));
-            }
-            Ok(json!({"transfers":[]}))
+        "get_transactions"|"get_outputs" => {
+          unlocked(app,c).await?;
+          let verification=state.android_verification().await;
+          if verification["chainVerified"]!=true{return Err(err(c,"CHAIN_UNVERIFIED","Canonical history is not verified; sync/retry required"))}
+          let account=num(&a,"accountIndex");let sent=state.get_sent().await;let tip=state.tip_height().await;
+          let mut transfers=Vec::new();let mut incoming:BTreeMap<String,(u64,u64,u64)>=BTreeMap::new();
+          for (o,spent,frozen) in state.list_owned().await{
+            let v=&o.output;let major=v.subaddress().map(|s|s.account()).unwrap_or(0);if major!=account{continue}
+            let txid=hex::encode(v.transaction());
+            if !spent{transfers.push(json!({"amount":v.commitment().amount,"key_image":wallet::state::output_id(v),"unlocked":false,"frozen":frozen,"subaddr_index":{"major":major,"minor":v.subaddress().map(|s|s.address()).unwrap_or(0)},"timestamp":o.timestamp,"txid":txid}));}
+            if !sent.iter().any(|s|s.tx_hash==txid){let x=incoming.entry(txid).or_insert((0,o.height,o.timestamp));x.0=x.0.saturating_add(v.commitment().amount);}
+          }
+          if c=="get_outputs"{return Ok(json!({"transfers":transfers,"verification":verification,"spendingEnabled":false}))}
+          let ins:Vec<_>=incoming.into_iter().map(|(txid,(amount,height,timestamp))|json!({"txid":txid,"amount":amount,"height":height,"timestamp":timestamp,"confirmations":tip.saturating_sub(height),"subaddr_index":{"major":account,"minor":0},"payment_id":"0000000000000000"})).collect();
+          let outs:Vec<_>=sent.into_iter().filter(|s|s.account==account).map(|s|json!({"txid":s.tx_hash,"amount":s.amount,"height":s.height,"timestamp":s.timestamp,"fee":s.fee,"confirmations":tip.saturating_sub(s.height),"subaddr_index":{"major":account,"minor":0},"destinations":[],"address":""})).collect();
+          Ok(json!({"in":ins,"out":outs,"pending":[],"verification":verification}))
         }
         "reselect_node" => {
             scan(app.clone()).await?;

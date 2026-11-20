@@ -275,8 +275,20 @@ pub struct SentTx {
     pub account: u32,
 }
 
+#[cfg(target_os="android")]
+#[derive(Serialize,Deserialize,Default,Clone)]
+pub struct AndroidChain {
+ pub version:u32,
+ pub floor:u64,
+ pub anchors:Vec<(u64,String)>,
+ pub spent_at:std::collections::BTreeMap<String,u64>,
+ pub spends_verified_to:Option<u64>,
+}
 #[derive(Serialize, Deserialize, Default)]
 pub struct OutputCache {
+    #[cfg(target_os="android")]
+    #[serde(default)]
+    pub android_chain:Option<AndroidChain>,
     pub scan_height: u64,
     pub outputs: Vec<CachedOutput>,
     /// Spent output ids ("hextxid:index_in_transaction"). Excluded from balance,
@@ -352,11 +364,18 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     let mut tmp_name = path.file_name().unwrap_or_default().to_os_string();
     tmp_name.push(".tmp");
     let tmp = path.with_file_name(tmp_name);
-    std::fs::write(&tmp, data).map_err(|e| format!("Failed to write: {}", e))?;
+    {
+        use std::io::Write;
+        let mut file=std::fs::File::create(&tmp).map_err(|e|e.to_string())?;
+        file.write_all(data).map_err(|e|e.to_string())?;
+        file.sync_all().map_err(|e|e.to_string())?;
+    }
     if let Err(e) = std::fs::rename(&tmp, path) {
         let _ = std::fs::remove_file(&tmp);
         return Err(format!("Failed to commit: {}", e));
     }
+    #[cfg(target_os="android")]
+    std::fs::File::open(path.parent().unwrap()).and_then(|f|f.sync_all()).map_err(|e|format!("Directory durability failed: {e}"))?;
     Ok(())
 }
 
@@ -759,6 +778,8 @@ pub fn android_save_cache(
     cache: &OutputCache,
     password: &str,
 ) -> Result<(), String> {
+    static WRITER:std::sync::Mutex<()>=std::sync::Mutex::new(());
+    let _writer=WRITER.lock().map_err(|_|"Android cache writer poisoned")?;
     let plaintext = Zeroizing::new(serde_json::to_vec(cache).map_err(|e| e.to_string())?);
     let mut salt = [0u8; 16];
     let mut nonce = [0u8; 12];
