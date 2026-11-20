@@ -744,6 +744,12 @@ impl WalletState {
         }
 
 
+        // Android may unlock/switch while an old native network fetch is in
+        // flight. Invalidate it under the same exclusive lock BEFORE replacing
+        // identity/keys, so old-wallet outputs cannot enter a new-wallet cache.
+        #[cfg(target_os="android")]
+        self.scanner_generation.fetch_add(1,Ordering::SeqCst);
+
         // Derive keys from stored entropy — or, for a watch-only vault, from the
         // stored view key + PUBLIC spend point. Watch-only unlocks with NO spend
         // key resident, so it can scan/prepare but every signing path fails cleanly

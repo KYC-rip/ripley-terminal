@@ -619,8 +619,16 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
                 .unlocked_epoch
                 .store(epoch, Ordering::SeqCst);
             let handle = app.clone();
+            let wanted_generation=state.current_scanner_generation();
             tauri::async_runtime::spawn(async move {
-                let _ = scan(handle).await;
+                // Bounded handoff from a cancelled old-wallet fetch. Never run
+                // two scanners or silently leave the replacement wallet busy.
+                for _ in 0..55 {
+                    if epoch!=POC_SESSION.epoch.load(Ordering::SeqCst)||handle.state::<wallet::WalletState>().current_scanner_generation()!=wanted_generation{return}
+                    if !handle.state::<TerminalState>().scanning.load(Ordering::SeqCst){let _=scan(handle).await;return}
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                }
+                emit(&handle,"SYNC_DATA","error","ERROR|0|0|0|Previous request did not stop; retry native sync|0");
             });
             Ok(json!({"success":true,"network":TEST_NETWORK,"signing":false}))
         }
