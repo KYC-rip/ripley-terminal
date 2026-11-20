@@ -5,7 +5,7 @@ pub fn validate(cursor:u64,floor:u64,anchors:&[(u64,String)]) -> Result<(), &'st
 }
 pub fn validate_retained(cursor:u64,floor:u64,retained_from:u64,anchors:&[(u64,String)]) -> Result<(), &'static str> {
  if cursor<floor{return Err("cursor precedes restore floor")}
- if cursor==floor {return if anchors.is_empty(){Ok(())}else{Err("unexpected anchors at restore floor")}}
+ if cursor==floor {return if anchors.is_empty()&&retained_from==floor{Ok(())}else{Err("unexpected anchors/retained floor at restore floor")}}
  if anchors.is_empty()||anchors.len()>RETAIN{return Err("missing/oversized checkpoint history")}
  let first=anchors[0].0;
  if first!=retained_from||first<floor{return Err("checkpoint history truncated")}
@@ -59,3 +59,5 @@ pub fn advance_spend_verification(previous:Option<u64>,from:u64,to:u64,has_key:b
 #[test]fn rollback_preserves_explicit_retained_floor(){let a:Vec<_>=(40..104).map(|i|(i,format!("{i:064x}"))).collect();let r=a[..63].to_vec();assert_eq!(rollback_retained(104,0,40,&a,&r,103),Ok(103));assert!(validate_retained(103,0,40,&r).is_ok());}
 #[test]fn restart_partial_history_is_valid(){let a=vec![(40,format!("{:064x}",40))];assert!(validate_retained(41,0,40,&a).is_ok());assert!(validate_retained(41,0,39,&a).is_err());}
 }
+
+#[cfg(test)]#[test]fn empty_journal_requires_exact_retained_floor(){assert!(validate_retained(10,10,11,&[]).is_err());}
