@@ -224,6 +224,13 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     if terminal.scanning.swap(true, Ordering::SeqCst) {
         return Err(err(c, "BUSY", "A bounded node request is already running"));
     }
+    *terminal.last_error.lock().unwrap() = None;
+    emit(
+        &app,
+        "SYNC_DATA",
+        "info",
+        &format!("CONNECTING|0|0|0|{NODE}|0"),
+    );
     let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
     let outcome = (async {
         let client = reqwest::Client::builder()
