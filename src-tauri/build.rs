@@ -240,11 +240,13 @@ const ANDROID_COMMANDS: &[&str] = &[
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(android_offline_stagenet)");
+    println!("cargo:rustc-check-cfg=cfg(android_offline_regtest)");
     for key in [
         "ROS_ANDROID_DEBUG_BUNDLE",
         "ROS_ANDROID_DEBUG_BUNDLE_SHA256",
         "ROS_ANDROID_UI_REVISION",
         "ROS_ANDROID_OFFLINE_STAGENET",
+        "ROS_ANDROID_OFFLINE_REGTEST",
     ] {
         println!("cargo:rerun-if-env-changed={key}");
     }
@@ -270,6 +272,9 @@ fn main() {
             generated,
         )
         .unwrap();
+        if debug && std::env::var("ROS_ANDROID_OFFLINE_REGTEST").as_deref() == Ok("1") {
+            println!("cargo:rustc-cfg=android_offline_regtest");
+        }
         if debug && std::env::var("ROS_ANDROID_OFFLINE_STAGENET").as_deref() == Ok("1") {
             println!("cargo:rustc-cfg=android_offline_stagenet");
         }

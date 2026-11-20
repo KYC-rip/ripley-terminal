@@ -11,10 +11,17 @@ use tauri::{
 };
 
 pub const TEST_PASSWORD: &str = "ANDROID-STAGENET-TEST-ONLY";
+pub const TEST_DATA_DIR: &str = if cfg!(android_offline_regtest) {
+    "android-terminal-debug-regtest"
+} else {
+    "android-terminal-debug-stagenet"
+};
+#[path = "android_scan_plan.rs"]
+mod scan_plan;
 pub const PUBLIC_RESTORE:&str="avidly chlorine gave yeti ramped certain hybrid comb governing amply hinder pamphlet offend geometry narrate unopened robot epoxy annoyed glide ingested ascend were austere unopened";
-#[cfg(not(android_offline_stagenet))]
+#[cfg(not(any(android_offline_stagenet, android_offline_regtest)))]
 const NODE: &str = "http://stagenet.community.rino.io:38081";
-#[cfg(android_offline_stagenet)]
+#[cfg(any(android_offline_stagenet, android_offline_regtest))]
 const NODE: &str = "http://127.0.0.1:48081";
 pub fn notify_lock(app: &tauri::AppHandle) {
     emit(app, "WALLET_STATE", "info", "{\"locked\":true}");
@@ -81,7 +88,7 @@ fn root(app: &tauri::AppHandle) -> std::path::PathBuf {
     app.path()
         .app_data_dir()
         .expect("private directory")
-        .join("android-terminal-debug-stagenet")
+        .join(TEST_DATA_DIR)
 }
 fn read_json(p: std::path::PathBuf) -> Value {
     std::fs::read(p)
@@ -100,7 +107,7 @@ fn identities(app: &tauri::AppHandle) -> Value {
     read_json(root(app).join("identities.json"))
 }
 fn config() -> Value {
-    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity","offlineStagenetProtocolTest":cfg!(android_offline_stagenet)})
+    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity","offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet)})
 }
 fn emit(app: &tauri::AppHandle, source: &str, level: &str, message: &str) {
     let _ = app.emit(
@@ -226,8 +233,17 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             .json()
             .await
             .map_err(|e| err(c, "INVALID_NODE_RESPONSE", e.to_string()))?;
-        if info["nettype"] != "stagenet" {
-            return Err(err(c, "STAGENET_ONLY", "Node did not attest stagenet"));
+        let expected_network = if cfg!(android_offline_regtest) {
+            "fakechain"
+        } else {
+            "stagenet"
+        };
+        if info["nettype"] != expected_network {
+            return Err(err(
+                c,
+                "STAGENET_ONLY",
+                "Node does not match the compiled test-network identity",
+            ));
         }
         let state = app.state::<wallet::WalletState>();
         let generation = state.current_scanner_generation();
@@ -248,14 +264,12 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             .await
             .ok_or_else(|| err(c, "WALLET_LOCKED", "No scanner"))?;
         let cursor = state.get_scan_height().await;
-        let start = if cursor == u64::MAX {
-            target.saturating_sub(8)
-        } else {
-            cursor
-        };
+        let start =
+            scan_plan::start(cursor, target).map_err(|e| err(c, "REORG_RESCAN_REQUIRED", e))?;
         let mut next = start;
         while next < target {
-            let end = (next + 8).min(target);
+            let end = scan_plan::batch_end(next, target);
+            let batch_start = next;
             while next < end {
                 if epoch != POC_SESSION.epoch.load(Ordering::SeqCst)
                     || !ANDROID_FOREGROUND.load(Ordering::SeqCst)
@@ -295,6 +309,10 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
                     cfg!(android_offline_stagenet)
                 );
             }
+            eprintln!(
+                "ANDROID_SCAN_BATCH from={batch_start} next={next} target={target} regtest={}",
+                cfg!(android_offline_regtest)
+            );
             tokio::task::yield_now().await;
         }
         if next >= target {
@@ -576,6 +594,11 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             );
             s["scanning"] = json!(app.state::<TerminalState>().scanning.load(Ordering::SeqCst));
             s["fullSyncVerified"] = json!(false);
+            s["fixtureNetwork"] = json!(if cfg!(android_offline_regtest) {
+                "FAKECHAIN REGTEST - NOT STAGENET"
+            } else {
+                "stagenet"
+            });
             s["lastError"] = json!(app
                 .state::<TerminalState>()
                 .last_error

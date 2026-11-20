@@ -146,7 +146,7 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
         capabilities: json!({"bundledRos":true,"productionSigning":false,"remoteBridge":false,
           "arbitraryNetwork":false,"keystore":false,"backgroundSync":false,
           "uiRevision":UI_REVISION,"debugLocalUi":DEBUG_LOCAL_UI,"stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
-          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
+          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
           "publicHttpsGet":true,"networkPost":false,"torRouting":false,
           "nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
     })
@@ -457,7 +457,7 @@ pub fn run() {
             }
             app.manage(updater::protocol::RosBundle::from_archive(ARCHIVE)?);
             let _=ANDROID_APP.set(app.handle().clone());
-            app.manage(wallet::WalletState::new_android_stagenet(app.handle().clone(), app.path().app_data_dir()?.join("android-terminal-debug-stagenet")));
+            app.manage(wallet::WalletState::new_android_stagenet(app.handle().clone(), app.path().app_data_dir()?.join(android_terminal::TEST_DATA_DIR)));
             app.manage(android_terminal::TerminalState::default());
             let window=tauri::WebviewWindowBuilder::new(
                 app,
