@@ -38,3 +38,13 @@ pub fn rollback(cursor:u64,floor:u64,anchors:&[(u64,String)],remote:&[(u64,Strin
 #[test]fn restart_after_rollback(){let x=a(3);assert!(validate(3,0,&x).is_ok());assert_eq!(rollback(3,0,&x,&a(5),5),Ok(3));}
 #[test]fn invalid_hash(){let mut x=a(2);x[1].1="not-a-hash".into();assert!(validate(2,0,&x).is_err());}
 }
+
+pub fn advance_spend_verification(previous:Option<u64>,from:u64,to:u64,has_key:bool)->Option<u64>{
+ if !has_key{return None} if to<from{return previous} if previous==Some(from){Some(to)}else{previous}
+}
+#[cfg(test)]mod spend_tests{use super::*;
+#[test]fn absent_key_is_unverified(){assert_eq!(advance_spend_verification(Some(10),10,11,false),None);}
+#[test]fn gap_never_falsely_advances(){assert_eq!(advance_spend_verification(Some(9),10,11,true),Some(9));}
+#[test]fn unknown_does_not_become_verified(){assert_eq!(advance_spend_verification(None,10,11,true),None);}
+#[test]fn actual_contiguous_observation_advances(){assert_eq!(advance_spend_verification(Some(10),10,11,true),Some(11));}
+}

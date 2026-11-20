@@ -557,6 +557,8 @@ impl WalletState {
       Ok(chain.clone())
     }
     #[cfg(target_os="android")]
+    pub async fn android_invalidate_verification(&self){self.inner.write().await.android_chain_verified=false;}
+    #[cfg(target_os="android")]
     pub async fn android_verification(&self)->serde_json::Value{
       let w=self.inner.read().await;
       serde_json::json!({"chainVerified":w.android_chain_verified,"cursor":w.scan_height,"restoreFloor":w.android_chain.as_ref().map(|c|c.floor),"spentVerifiedTo":w.android_chain.as_ref().and_then(|c|c.spends_verified_to),"spentOutputCount":w.spent.len(),"spentVerification":if w.android_chain_verified&&w.android_chain.as_ref().and_then(|c|c.spends_verified_to)==Some(w.scan_height){"verified-from-restore-floor"}else{"unverified"},"spendingEnabled":false})
@@ -596,6 +598,7 @@ impl WalletState {
       let mut ids:HashSet<String>=w.scanned_outputs.iter().map(|o|output_id(&o.output)).collect();
       let fresh:Vec<_>=outputs.into_iter().filter(|o|ids.insert(output_id(o))).collect();
       let mut newly_spent=Vec::new();let mut outgoing:HashMap<String,(u64,u64,u64)>=HashMap::new();
+      chain.spends_verified_to=crate::android_chain::advance_spend_verification(chain.spends_verified_to,height,height+1,w.spend_key.is_some());
       if let Some(sk)=w.spend_key.as_ref(){
        for (o,_) in w.scanned_outputs.iter().map(|o|(&o.output,o.height)).chain(fresh.iter().map(|o|(o,height))){
         if let Some((txid,h,t))=inputs.get(&output_key_image(sk,o)){
@@ -603,8 +606,7 @@ impl WalletState {
          let e=outgoing.entry(hex::encode(txid)).or_insert((0,*h,*t));e.0=e.0.saturating_add(o.commitment().amount);
         }
        }
-       if chain.spends_verified_to==Some(height){chain.spends_verified_to=Some(height+1)}
-      }else{chain.spends_verified_to=None;}
+      }
       for o in &fresh{cache.outputs.push(storage::CachedOutput{data:o.serialize(),amount:o.commitment().amount,tx_hash:hex::encode(o.transaction()),tx_index:o.index_in_transaction(),subaddress:o.subaddress().map(|s|s.address()),height,timestamp});}
       for (txid,(gross,h,t)) in outgoing{
        if !cache.sent.iter().any(|s|s.tx_hash==txid){

@@ -231,6 +231,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     if terminal.scanning.swap(true, Ordering::SeqCst) {
         return Err(err(c, "BUSY", "A bounded node request is already running"));
     }
+    app.state::<wallet::WalletState>().android_invalidate_verification().await;
     *terminal.last_error.lock().unwrap() = None;
     emit(
         &app,
@@ -302,7 +303,11 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
         }
         let start=crate::android_chain::rollback(initial,chain.floor,&chain.anchors,&remote,target).map_err(|e|err(c,"REORG_RESCAN_REQUIRED",e))?;
         generation=state.android_reconcile(start,generation).await.map_err(|e|err(c,"ROLLBACK_CHECKPOINT_ERROR",e))?;
-        if start<initial{eprintln!("ANDROID_REORG_ROLLBACK old={initial} next={start} target={target}");}
+        if !state.update_sync_status_for(generation,start,target).await{return Err(err(c,"WALLET_LOCKED","Stale reconciliation"))}
+        if start<initial{eprintln!("ANDROID_REORG_ROLLBACK old={initial} next={start} target={target}");
+         #[cfg(all(debug_assertions,android_offline_regtest))]
+         if app.path().app_data_dir().map(|p|p.join("android-rollback-pause").exists()).unwrap_or(false){eprintln!("ANDROID_REORG_CHECKPOINT_PAUSED");tokio::time::sleep(std::time::Duration::from_secs(5)).await;}
+        }
         let mut next = start;
         while next < target {
             let end = scan_plan::batch_end(next, target);
@@ -367,6 +372,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     terminal.scanning.store(false, Ordering::SeqCst);
     *terminal.last_error.lock().unwrap() = outcome.as_ref().err().map(|e| e.message.clone());
     if let Err(e) = &outcome {
+        app.state::<wallet::WalletState>().android_invalidate_verification().await;
         emit(
             &app,
             "SYNC_DATA",
