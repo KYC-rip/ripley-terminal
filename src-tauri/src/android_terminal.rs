@@ -301,7 +301,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
           let hash=canonical_hash(&client,*h).await?;
           let matched=&hash==old_hash;remote.push((*h,hash));if matched{break}
         }
-        let start=crate::android_chain::rollback(initial,chain.floor,&chain.anchors,&remote,target).map_err(|e|err(c,"REORG_RESCAN_REQUIRED",e))?;
+        let start=crate::android_chain::rollback_retained(initial,chain.floor,chain.retained_from.ok_or_else(||err(c,"CHECKPOINT_INVALID","Missing retained floor"))?,&chain.anchors,&remote,target).map_err(|e|err(c,"REORG_RESCAN_REQUIRED",e))?;
         generation=state.android_reconcile(start,generation).await.map_err(|e|err(c,"ROLLBACK_CHECKPOINT_ERROR",e))?;
         if !state.update_sync_status_for(generation,start,target).await{return Err(err(c,"WALLET_LOCKED","Stale reconciliation"))}
         if start<initial{eprintln!("ANDROID_REORG_ROLLBACK old={initial} next={start} target={target}");

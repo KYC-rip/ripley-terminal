@@ -1,11 +1,14 @@
 //! Pure canonical-checkpoint invariants. Cursor is first unscanned block.
 pub const RETAIN: usize = 64;
 pub fn validate(cursor:u64,floor:u64,anchors:&[(u64,String)]) -> Result<(), &'static str> {
+ validate_retained(cursor,floor,floor.max(cursor.saturating_sub(RETAIN as u64)),anchors)
+}
+pub fn validate_retained(cursor:u64,floor:u64,retained_from:u64,anchors:&[(u64,String)]) -> Result<(), &'static str> {
  if cursor<floor{return Err("cursor precedes restore floor")}
  if cursor==floor {return if anchors.is_empty(){Ok(())}else{Err("unexpected anchors at restore floor")}}
  if anchors.is_empty()||anchors.len()>RETAIN{return Err("missing/oversized checkpoint history")}
  let first=anchors[0].0;
- if first!=floor.max(cursor.saturating_sub(RETAIN as u64)){return Err("checkpoint history truncated")}
+ if first!=retained_from||first<floor{return Err("checkpoint history truncated")}
  for (i,(h,hash)) in anchors.iter().enumerate(){
   if *h!=first+i as u64||hash.len()!=64||!hash.bytes().all(|b|b.is_ascii_hexdigit()){return Err("invalid checkpoint chain")}
  }
@@ -13,7 +16,10 @@ pub fn validate(cursor:u64,floor:u64,anchors:&[(u64,String)]) -> Result<(), &'st
  Ok(())
 }
 pub fn rollback(cursor:u64,floor:u64,anchors:&[(u64,String)],remote:&[(u64,String)],tip:u64)->Result<u64,&'static str>{
- validate(cursor,floor,anchors)?;
+ return rollback_retained(cursor,floor,floor.max(cursor.saturating_sub(RETAIN as u64)),anchors,remote,tip);
+}
+pub fn rollback_retained(cursor:u64,floor:u64,retained_from:u64,anchors:&[(u64,String)],remote:&[(u64,String)],tip:u64)->Result<u64,&'static str>{
+ validate_retained(cursor,floor,retained_from,anchors)?;
  if cursor==floor {return if tip>=floor{Ok(cursor)}else{Err("chain below restore floor; explicit rescan required")}}
  for (h,hash) in anchors.iter().rev(){
   if *h>=tip{continue}
@@ -47,4 +53,9 @@ pub fn advance_spend_verification(previous:Option<u64>,from:u64,to:u64,has_key:b
 #[test]fn gap_never_falsely_advances(){assert_eq!(advance_spend_verification(Some(9),10,11,true),Some(9));}
 #[test]fn unknown_does_not_become_verified(){assert_eq!(advance_spend_verification(None,10,11,true),None);}
 #[test]fn actual_contiguous_observation_advances(){assert_eq!(advance_spend_verification(Some(10),10,11,true),Some(11));}
+}
+
+#[cfg(test)]mod rollback_retention_tests{use super::*;
+#[test]fn rollback_preserves_explicit_retained_floor(){let a:Vec<_>=(40..104).map(|i|(i,format!("{i:064x}"))).collect();let r=a[..63].to_vec();assert_eq!(rollback_retained(104,0,40,&a,&r,103),Ok(103));assert!(validate_retained(103,0,40,&r).is_ok());}
+#[test]fn restart_partial_history_is_valid(){let a=vec![(40,format!("{:064x}",40))];assert!(validate_retained(41,0,40,&a).is_ok());assert!(validate_retained(41,0,39,&a).is_err());}
 }

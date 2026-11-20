@@ -280,6 +280,7 @@ pub struct SentTx {
 pub struct AndroidChain {
  pub version:u32,
  pub floor:u64,
+ pub retained_from:Option<u64>,
  pub anchors:Vec<(u64,String)>,
  pub spent_at:std::collections::BTreeMap<String,u64>,
  pub spends_verified_to:Option<u64>,

@@ -548,12 +548,14 @@ impl WalletState {
       w.android_chain_verified=false;
       if w.android_chain.is_none(){
         if !w.scanned_outputs.is_empty()||!w.spent.is_empty(){return Err("CHECKPOINT_UPGRADE_RESCAN_REQUIRED: nonempty legacy cache is unverified".into())}
-        w.android_chain=Some(storage::AndroidChain{version:1,floor:start,anchors:vec![],spent_at:Default::default(),spends_verified_to:Some(start)});
+        w.android_chain=Some(storage::AndroidChain{version:2,floor:start,retained_from:Some(start),anchors:vec![],spent_at:Default::default(),spends_verified_to:Some(start)});
         w.scan_height=start;
       }
-      let chain=w.android_chain.as_ref().unwrap();
-      if chain.version!=1{return Err("Unsupported checkpoint version".into())}
-      crate::android_chain::validate(w.scan_height,chain.floor,&chain.anchors)?;
+      let cursor=w.scan_height;
+      let chain=w.android_chain.as_mut().unwrap();
+      if chain.version==1{crate::android_chain::validate(cursor,chain.floor,&chain.anchors)?;chain.retained_from=Some(chain.anchors.first().map(|a|a.0).unwrap_or(chain.floor));chain.version=2;}
+      if chain.version!=2{return Err("Unsupported checkpoint version".into())}
+      crate::android_chain::validate_retained(cursor,chain.floor,chain.retained_from.ok_or("Missing retained checkpoint floor")?,&chain.anchors)?;
       Ok(chain.clone())
     }
     #[cfg(target_os="android")]
@@ -572,13 +574,14 @@ impl WalletState {
       let mut cache=w.cache_snapshot();
       let chain=cache.android_chain.as_mut().ok_or("Missing journal")?;
       chain.anchors.retain(|(h,_)|*h<from);
+      if chain.anchors.is_empty(){chain.retained_from=Some(chain.floor);}
       chain.spent_at.retain(|_,h|*h<from);
       chain.spends_verified_to=chain.spends_verified_to.map(|h|h.min(from));
       cache.outputs.retain(|o|o.height<from);
       cache.spent=chain.spent_at.keys().cloned().collect();
       cache.sent.retain(|s|s.height<from);
       cache.scan_height=from;
-      crate::android_chain::validate(from,chain.floor,&chain.anchors)?;
+      crate::android_chain::validate_retained(from,chain.floor,chain.retained_from.ok_or("Missing retained floor")?,&chain.anchors)?;
       storage::android_save_cache(&w.data_dir,w.active_identity.as_deref().ok_or("No wallet")?,&cache,w.password.as_deref().ok_or("Locked")?)?;
       // Disk first, under exclusive lock: no saver can commit an older snapshot.
       w.scanned_outputs.retain(|o|o.height<from);w.spent=cache.spent.into_iter().collect();w.sent=cache.sent;
@@ -616,8 +619,9 @@ impl WalletState {
       }
       cache.spent=chain.spent_at.keys().cloned().collect();
       chain.anchors.push((height,hash));if chain.anchors.len()>crate::android_chain::RETAIN{chain.anchors.remove(0);}
+      chain.retained_from=Some(chain.anchors.first().unwrap().0);
       cache.scan_height=height.checked_add(1).ok_or("Height overflow")?;
-      crate::android_chain::validate(cache.scan_height,chain.floor,&chain.anchors)?;
+      crate::android_chain::validate_retained(cache.scan_height,chain.floor,chain.retained_from.ok_or("Missing retained floor")?,&chain.anchors)?;
       storage::android_save_cache(&w.data_dir,w.active_identity.as_deref().ok_or("No wallet")?,&cache,w.password.as_deref().ok_or("Locked")?)?;
       let before=w.subaddress_next.clone();
       for output in fresh{if let Some(s)=output.subaddress(){note_used_index(&mut w,s.account(),s.address());}w.scanned_outputs.push(OwnedOutput{output,height,timestamp});}
@@ -724,8 +728,11 @@ impl WalletState {
         #[cfg(target_os="android")]
         if let Some(cache)=android_cache.as_ref(){
          if let Some(chain)=&cache.android_chain{
-          if chain.version!=1{return Err("Unsupported Android checkpoint version".into())}
-          crate::android_chain::validate(cache.scan_height,chain.floor,&chain.anchors)?;
+          match chain.version {
+           1=>crate::android_chain::validate(cache.scan_height,chain.floor,&chain.anchors)?,
+           2=>crate::android_chain::validate_retained(cache.scan_height,chain.floor,chain.retained_from.ok_or("Missing retained checkpoint floor")?,&chain.anchors)?,
+           _=>return Err("Unsupported Android checkpoint version".into())
+          }
           let mut ids=HashSet::new();
           for o in &cache.outputs{
            let output=monero_wallet::WalletOutput::read(&mut o.data.as_slice()).map_err(|_|"Invalid cached WalletOutput")?;
