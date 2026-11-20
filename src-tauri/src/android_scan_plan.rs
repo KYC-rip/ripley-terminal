@@ -63,3 +63,12 @@ mod tests {
         assert_eq!(batch_end(u64::MAX - 2, u64::MAX), u64::MAX);
     }
 }
+
+#[cfg(test)]
+#[test]
+fn nonzero_mainnet_receive_cursor_never_replays_restore_window() {
+    let committed=3_810_171;
+    assert_eq!(start(committed,3_810_187),Ok(committed));
+    assert_eq!(batch_end(committed,3_810_187),3_810_179);
+    assert_eq!(batch_end(3_810_179,3_810_187),3_810_187);
+}

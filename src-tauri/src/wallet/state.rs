@@ -800,6 +800,13 @@ impl WalletState {
         // Blocks the background pool / a soft-locked session scanned without the spend
         // key may hold sends of ours: resume the scan at the spend marker so they're
         // re-scanned with it (outputs dedupe by id, sends by txid).
+        // Android currently implements receive-only bounded scanning. Rewinding
+        // to the desktop spend-check marker would replay every mainnet batch on
+        // unlock, without actually implementing spent detection. Preserve the
+        // honest (possibly old) spend marker but resume the authenticated cursor.
+        #[cfg(target_os = "android")]
+        { inner.spends_checked = cache.spends_checked_height; }
+        #[cfg(not(target_os = "android"))]
         if view_only {
             inner.spends_checked = cache.spends_checked_height;
         } else {
