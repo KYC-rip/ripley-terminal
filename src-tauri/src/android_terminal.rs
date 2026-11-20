@@ -762,6 +762,18 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
           let outs:Vec<_>=sent.into_iter().filter(|s|s.account==account).map(|s|json!({"txid":s.tx_hash,"amount":s.amount,"height":s.height,"timestamp":s.timestamp,"fee":s.fee,"confirmations":tip.saturating_sub(s.height),"subaddr_index":{"major":account,"minor":0},"destinations":[],"address":""})).collect();
           Ok(json!({"in":ins,"out":outs,"pending":[],"verification":verification}))
         }
+        "rescan" => {
+          unlocked(app,c).await?;
+          if app.state::<TerminalState>().scanning.load(Ordering::SeqCst){return Err(err(c,"BUSY","Wait for bounded scanner to finish"))}
+          let verification=state.android_verification().await;
+          let floor=verification["restoreFloor"].as_u64().ok_or_else(||err(c,"CHECKPOINT_INVALID","Restore disposable wallet to initialize a canonical checkpoint"))?;
+          if a["height"].as_u64().unwrap_or(0)!=floor{return Err(err(c,"RESCAN_RANGE","Test rescan must use its original restore floor; no arbitrary mainnet history scan"))}
+          use tauri_plugin_dialog::{DialogExt,MessageDialogButtons};
+          if !app.dialog().message("Discard disposable cached observations and rescan from the original restore height? Keys remain native, application spending remains disabled.").title("Read-only native rescan").buttons(MessageDialogButtons::OkCancelCustom("Rescan test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Rescan cancelled"))}
+          state.android_reconcile(floor,state.current_scanner_generation()).await.map_err(|e|err(c,"RESET_CHECKPOINT_ERROR",e))?;
+          scan(app.clone()).await?;
+          Ok(json!({"success":true,"resetHeight":floor,"spendingEnabled":false}))
+        }
         "reselect_node" => {
             scan(app.clone()).await?;
             Ok(
