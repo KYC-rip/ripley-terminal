@@ -294,7 +294,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             .ok_or_else(|| err(c, "WALLET_LOCKED", "No scanner"))?;
         let cursor = state.get_scan_height().await;
         let initial=if cursor==u64::MAX {target.saturating_sub(8)}else{cursor};
-        let chain=state.android_chain_prepare(initial).await.map_err(|e|err(c,"CHECKPOINT_INVALID",e))?;
+        let chain=state.android_chain_prepare(initial,generation).await.map_err(|e|err(c,"CHECKPOINT_INVALID",e))?;
         let mut remote=Vec::new();
         for (h,old_hash) in chain.anchors.iter().rev(){
           if *h>=target{continue}

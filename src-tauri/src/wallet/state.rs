@@ -543,8 +543,9 @@ impl WalletInner {
 impl WalletState {
 
     #[cfg(target_os="android")]
-    pub async fn android_chain_prepare(&self,start:u64)->Result<storage::AndroidChain,String>{
+    pub async fn android_chain_prepare(&self,start:u64,generation:u64)->Result<storage::AndroidChain,String>{
       let mut w=self.inner.write().await;
+      if self.current_scanner_generation()!=generation||w.is_locked{return Err("Wallet locked/stale checkpoint preparation".into())}
       w.android_chain_verified=false;
       if w.android_chain.is_none(){
         if !w.scanned_outputs.is_empty()||!w.spent.is_empty(){return Err("CHECKPOINT_UPGRADE_RESCAN_REQUIRED: nonempty legacy cache is unverified".into())}
