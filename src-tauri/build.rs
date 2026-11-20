@@ -241,12 +241,14 @@ const ANDROID_COMMANDS: &[&str] = &[
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(android_offline_stagenet)");
     println!("cargo:rustc-check-cfg=cfg(android_offline_regtest)");
+    println!("cargo:rustc-check-cfg=cfg(android_mainnet_readonly)");
     for key in [
         "ROS_ANDROID_DEBUG_BUNDLE",
         "ROS_ANDROID_DEBUG_BUNDLE_SHA256",
         "ROS_ANDROID_UI_REVISION",
         "ROS_ANDROID_OFFLINE_STAGENET",
         "ROS_ANDROID_OFFLINE_REGTEST",
+        "ROS_ANDROID_MAINNET_READONLY",
     ] {
         println!("cargo:rerun-if-env-changed={key}");
     }
@@ -272,6 +274,20 @@ fn main() {
             generated,
         )
         .unwrap();
+        if debug {
+            let modes = [
+                "ROS_ANDROID_OFFLINE_STAGENET",
+                "ROS_ANDROID_OFFLINE_REGTEST",
+                "ROS_ANDROID_MAINNET_READONLY",
+            ]
+            .iter()
+            .filter(|k| std::env::var(k).as_deref() == Ok("1"))
+            .count();
+            assert!(modes <= 1, "Android test networks are mutually exclusive");
+        }
+        if debug && std::env::var("ROS_ANDROID_MAINNET_READONLY").as_deref() == Ok("1") {
+            println!("cargo:rustc-cfg=android_mainnet_readonly");
+        }
         if debug && std::env::var("ROS_ANDROID_OFFLINE_REGTEST").as_deref() == Ok("1") {
             println!("cargo:rustc-cfg=android_offline_regtest");
         }

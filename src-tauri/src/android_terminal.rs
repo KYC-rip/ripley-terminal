@@ -11,7 +11,15 @@ use tauri::{
 };
 
 pub const TEST_PASSWORD: &str = "ANDROID-STAGENET-TEST-ONLY";
-pub const TEST_DATA_DIR: &str = if cfg!(android_offline_regtest) {
+pub const MAINNET_READONLY: bool = cfg!(android_mainnet_readonly);
+pub const TEST_NETWORK: &str = if MAINNET_READONLY {
+    "mainnet"
+} else {
+    "stagenet"
+};
+pub const TEST_DATA_DIR: &str = if MAINNET_READONLY {
+    "android-terminal-debug-mainnet-readonly"
+} else if cfg!(android_offline_regtest) {
     "android-terminal-debug-regtest"
 } else {
     "android-terminal-debug-stagenet"
@@ -19,8 +27,14 @@ pub const TEST_DATA_DIR: &str = if cfg!(android_offline_regtest) {
 #[path = "android_scan_plan.rs"]
 mod scan_plan;
 pub const PUBLIC_RESTORE:&str="avidly chlorine gave yeti ramped certain hybrid comb governing amply hinder pamphlet offend geometry narrate unopened robot epoxy annoyed glide ingested ascend were austere unopened";
-#[cfg(not(any(android_offline_stagenet, android_offline_regtest)))]
+#[cfg(not(any(
+    android_offline_stagenet,
+    android_offline_regtest,
+    android_mainnet_readonly
+)))]
 const NODE: &str = "http://stagenet.community.rino.io:38081";
+#[cfg(android_mainnet_readonly)]
+const NODE: &str = "https://node.kyc.rip";
 #[cfg(any(android_offline_stagenet, android_offline_regtest))]
 const NODE: &str = "http://127.0.0.1:48081";
 pub fn notify_lock(app: &tauri::AppHandle) {
@@ -107,7 +121,7 @@ fn identities(app: &tauri::AppHandle) -> Value {
     read_json(root(app).join("identities.json"))
 }
 fn config() -> Value {
-    json!({"network":"stagenet","routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"nativeBrowserMode":"isolated-activity","offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet)})
+    json!({"network":TEST_NETWORK,"routingMode":"clearnet","transportPolicy":"strict","customNodeAddress":NODE,"nodeFallback":false,"watchSync":false,"watchSyncAsked":true,"sync_all_wallets":false,"fast_sync":false,"autoLockMinutes":0,"allowWsOverTor":false,"androidTestMode":cfg!(debug_assertions),"nativeSigning":false,"mainnetReadOnlyTest":MAINNET_READONLY,"nativeBrowserMode":"isolated-activity","offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet)})
 }
 fn emit(app: &tauri::AppHandle, source: &str, level: &str, message: &str) {
     let _ = app.emit(
@@ -136,7 +150,7 @@ fn check_wallet(c: &str) -> Result<(), Error> {
 fn check_password(c: &str, p: &str) -> Result<(), Error> {
     check_wallet(c)?;
     if p != TEST_PASSWORD {
-        return Err(err(c,"PUBLIC_TEST_PASSWORD_REQUIRED",format!("Stagenet test only. Use public test password: {TEST_PASSWORD}. Never use real funds or keys.")));
+        return Err(err(c,"PUBLIC_TEST_PASSWORD_REQUIRED",format!("Disposable test wallet only. Use public test password: {TEST_PASSWORD}. Never use real funds or keys.")));
     }
     Ok(())
 }
@@ -226,7 +240,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             return Err(err(
                 c,
                 "NODE_HTTP_ERROR",
-                format!("Stagenet node HTTP {}", r.status().as_u16()),
+                format!("{} node HTTP {}", TEST_NETWORK, r.status().as_u16()),
             ));
         }
         let info: Value = r
@@ -236,7 +250,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
         let expected_network = if cfg!(android_offline_regtest) {
             "fakechain"
         } else {
-            "stagenet"
+            TEST_NETWORK
         };
         if info["nettype"] != expected_network {
             return Err(err(
@@ -283,11 +297,14 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
                 if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
                     return Err(err(c, "WALLET_LOCKED", "Locked during block fetch"));
                 }
+                let block_timestamp = block.block.header.timestamp;
                 let outputs = scanner
                     .scan(block)
                     .map_err(|e| err(c, "SCAN_ERROR", format!("{e:?}")))?
                     .not_additionally_locked();
-                state.add_outputs(outputs, next, 0, generation).await;
+                state
+                    .add_outputs(outputs, next, block_timestamp, generation)
+                    .await;
                 next += 1;
                 if !state.update_sync_status_for(generation, next, target).await {
                     return Err(err(c, "WALLET_LOCKED", "Stale scanner generation"));
@@ -447,6 +464,9 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
     match c {
         "get_config" => Ok(config()),
         "save_config" | "save_config_and_reload" => {
+            if MAINNET_READONLY {
+                return Err(err(c,"NETWORK_CONFIG_IMMUTABLE","Read-only mainnet test endpoint and custody policy cannot be changed by JavaScript"));
+            }
             check_network(c, &a["config"])?;
             let current = config();
             if let Some(o) = a["config"].as_object() {
@@ -499,15 +519,51 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
                 return Err(err(c, "INVALID_ARGUMENT", "Invalid wallet id"));
             }
             let seed = a["seed"].as_str().filter(|s| !s.trim().is_empty());
+            if MAINNET_READONLY && seed.is_some() {
+                return Err(err(c,"THROWAWAY_ONLY","Mainnet read-only test accepts only fresh native throwaway keys; imports are disabled"));
+            }
+            let restore_height = if MAINNET_READONLY {
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(10))
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .map_err(|e| err(c, "NETWORK_ERROR", e.to_string()))?;
+                let info: Value = client
+                    .get(format!("{NODE}/get_info"))
+                    .send()
+                    .await
+                    .map_err(|e| err(c, "NETWORK_ERROR", e.to_string()))?
+                    .error_for_status()
+                    .map_err(|e| err(c, "NETWORK_ERROR", e.to_string()))?
+                    .json()
+                    .await
+                    .map_err(|e| err(c, "NODE_RESPONSE", e.to_string()))?;
+                if info["nettype"] != "mainnet" {
+                    return Err(err(
+                        c,
+                        "NETWORK_MISMATCH",
+                        "Pinned node did not attest mainnet",
+                    ));
+                }
+                let tip = info["height"]
+                    .as_u64()
+                    .filter(|h| *h > 24)
+                    .ok_or_else(|| err(c, "NODE_RESPONSE", "Invalid mainnet height"))?;
+                let start = tip - 24;
+                eprintln!("ANDROID_READONLY_WINDOW start={start} sampled_tip={tip} blocks=24");
+                Some(start)
+            } else {
+                a["restoreHeight"].as_u64()
+            };
             if seed.is_some_and(|s| s.trim() != PUBLIC_RESTORE) {
                 return Err(err(c,"PUBLIC_TEST_SEED_REQUIRED","Restore accepts ONLY the published Cake test vector in this debug host. Never import real keys."));
             }
             use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-            if !app.dialog().message("DEBUG STAGENET TEST WALLET ONLY. Public test password; no real funds, mainnet, seed export or signing. Approve this native create/restore?").title("Android stagenet test custody").buttons(MessageDialogButtons::OkCancelCustom("Approve test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Native wallet creation denied"));}
+            if !app.dialog().message(if MAINNET_READONLY {"DEBUG MAINNET READ-ONLY THROWAWAY WALLET. Fresh test keys only, recent 24-block scan. Never send funds. No import, seed export, transaction preparation, signing or spending. Approve test wallet?"} else {"DEBUG STAGENET TEST WALLET ONLY. Public test password; no real funds, mainnet, seed export or signing. Approve this native create/restore?"}).title(if MAINNET_READONLY {"Android MAINNET READ-ONLY test"} else {"Android stagenet test custody"}).buttons(MessageDialogButtons::OkCancelCustom("Approve test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Native wallet creation denied"));}
             let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
             let mnemonic = zeroize::Zeroizing::new(
                 state
-                    .create_wallet(name, password, seed, a["restoreHeight"].as_u64())
+                    .create_wallet(name, password, seed, restore_height)
                     .await
                     .map_err(|e| wallet_error(c, e))?,
             );
@@ -515,7 +571,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
                 return Err(err(c, "WALLET_LOCKED", "Backgrounded during creation"));
             }
-            Ok(json!({"success":true,"network":"stagenet","secretExport":false}))
+            Ok(json!({"success":true,"network":TEST_NETWORK,"secretExport":false}))
         }
         "open_wallet" => {
             let name = strarg(&a, "name")?;
@@ -540,7 +596,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             tauri::async_runtime::spawn(async move {
                 let _ = scan(handle).await;
             });
-            Ok(json!({"success":true,"network":"stagenet","signing":false}))
+            Ok(json!({"success":true,"network":TEST_NETWORK,"signing":false}))
         }
         "close_wallet" => {
             state.lock().await;
@@ -567,7 +623,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
                 .balances_for_account(num(&a, "accountIndex"), state.tip_height().await)
                 .await;
             Ok(
-                json!({"total":total.to_string(),"unlocked":unlocked.to_string(),"viewOnly":false,"network":"stagenet","verifiedSync":false}),
+                json!({"total":total.to_string(),"unlocked":unlocked.to_string(),"viewOnly":false,"network":TEST_NETWORK,"verifiedSync":false}),
             )
         }
         "get_height" => Ok(json!(state.get_sync_status().await.height)),
@@ -582,7 +638,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             {
                 s["status"] = json!("OFFLINE");
             }
-            s["network"] = json!("stagenet");
+            s["network"] = json!(TEST_NETWORK);
             s["locked"] = json!(
                 !ANDROID_FOREGROUND.load(Ordering::SeqCst)
                     || app
@@ -594,8 +650,12 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             );
             s["scanning"] = json!(app.state::<TerminalState>().scanning.load(Ordering::SeqCst));
             s["fullSyncVerified"] = json!(false);
+            s["scanHeight"] = json!(state.get_scan_height().await);
+            s["ownedOutputCount"] = json!(state.output_count().await);
             s["fixtureNetwork"] = json!(if cfg!(android_offline_regtest) {
                 "FAKECHAIN REGTEST - NOT STAGENET"
+            } else if MAINNET_READONLY {
+                "MAINNET READ-ONLY THROWAWAY"
             } else {
                 "stagenet"
             });
@@ -672,7 +732,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         "reselect_node" => {
             scan(app.clone()).await?;
             Ok(
-                json!({"boundedBatches":true,"offlineProtocolTest":cfg!(android_offline_stagenet),"network":"stagenet"}),
+                json!({"boundedBatches":true,"offlineProtocolTest":cfg!(android_offline_stagenet),"network":TEST_NETWORK}),
             )
         }
         "ros_native_fetch" | "ros_native_fetch_bytes" => fetch(app, c, &a).await,

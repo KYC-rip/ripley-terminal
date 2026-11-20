@@ -553,11 +553,11 @@ impl WalletState {
         }
     }
 
-    /// Isolated DEBUG Android test host. Cannot share desktop/mainnet wallet files.
+    /// Isolated DEBUG test host. Read-only-mainnet tests have a separate app-private root; no desktop wallet access.
     #[cfg(target_os = "android")]
-    pub fn new_android_stagenet(app: AppHandle, data_dir: PathBuf) -> Self {
+    pub fn new_android_debug_test(app: AppHandle, data_dir: PathBuf) -> Self {
         let mut inner=WalletInner::empty(data_dir.clone());
-        inner.network=Network::Stagenet;
+        inner.network=if cfg!(android_mainnet_readonly){Network::Mainnet}else{Network::Stagenet};
         Self {app,scanner_generation:AtomicU64::new(0),vigil_hot:AtomicBool::new(false),
             transfer_grants:tokio::sync::Mutex::new(super::transfer_ledger::GrantLedger::load(data_dir.join("transfer_grants.json"))),
             inner:Arc::new(RwLock::new(inner))}

@@ -139,14 +139,18 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
         app_version: env!("CARGO_PKG_VERSION"),
         debug_poc: cfg!(debug_assertions),
         custody: if cfg!(debug_assertions) {
-            "debug-stagenet-test-only"
+            if cfg!(android_mainnet_readonly) {
+                "debug-mainnet-readonly-throwaway"
+            } else {
+                "debug-stagenet-test-only"
+            }
         } else {
             "keyless"
         },
         capabilities: json!({"bundledRos":true,"productionSigning":false,"remoteBridge":false,
           "arbitraryNetwork":false,"keystore":false,"backgroundSync":false,
           "uiRevision":UI_REVISION,"debugLocalUi":DEBUG_LOCAL_UI,"stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
-          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
+          "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"mainnetReadOnlyTest":cfg!(android_mainnet_readonly),"offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
           "publicHttpsGet":true,"networkPost":false,"torRouting":false,
           "nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
     })
@@ -457,7 +461,7 @@ pub fn run() {
             }
             app.manage(updater::protocol::RosBundle::from_archive(ARCHIVE)?);
             let _=ANDROID_APP.set(app.handle().clone());
-            app.manage(wallet::WalletState::new_android_stagenet(app.handle().clone(), app.path().app_data_dir()?.join(android_terminal::TEST_DATA_DIR)));
+            app.manage(wallet::WalletState::new_android_debug_test(app.handle().clone(), app.path().app_data_dir()?.join(android_terminal::TEST_DATA_DIR)));
             app.manage(android_terminal::TerminalState::default());
             let window=tauri::WebviewWindowBuilder::new(
                 app,
