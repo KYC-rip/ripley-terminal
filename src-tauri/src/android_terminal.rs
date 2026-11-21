@@ -622,9 +622,11 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             if seed.is_some_and(|s| s.trim() != PUBLIC_RESTORE) {
                 return Err(err(c,"PUBLIC_TEST_SEED_REQUIRED","Restore accepts ONLY the published Cake test vector in this debug host. Never import real keys."));
             }
+            let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
             use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
             if !app.dialog().message(if MAINNET_READONLY {"DEBUG MAINNET READ-ONLY THROWAWAY WALLET. Fresh test keys only, recent 24-block scan. Never send funds. No import, seed export, transaction preparation, signing or spending. Approve test wallet?"} else {"DEBUG STAGENET TEST WALLET ONLY. Public test password; no real funds, mainnet, seed export or signing. Approve this native create/restore?"}).title(if MAINNET_READONLY {"Android MAINNET READ-ONLY test"} else {"Android stagenet test custody"}).buttons(MessageDialogButtons::OkCancelCustom("Approve test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Native wallet creation denied"));}
-            let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
+            check_wallet(c)?;
+            if epoch!=POC_SESSION.epoch.load(Ordering::SeqCst){return Err(err(c,"STALE_WALLET_SESSION","Activity changed during confirmation"))}
             let mnemonic = zeroize::Zeroizing::new(
                 state
                     .create_wallet(name, password, seed, restore_height)
@@ -644,12 +646,13 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             if !valid_id(name) {
                 return Err(err(c, "INVALID_ARGUMENT", "Invalid id"));
             }
+            check_wallet(c)?;
             let epoch = POC_SESSION.epoch.load(Ordering::SeqCst);
             state
                 .unlock(name, password)
                 .await
                 .map_err(|e| wallet_error(c, e))?;
-            if epoch != POC_SESSION.epoch.load(Ordering::SeqCst) {
+            if epoch != POC_SESSION.epoch.load(Ordering::SeqCst)||!ANDROID_FOREGROUND.load(Ordering::SeqCst) {
                 state.lock().await;
                 return Err(err(c, "WALLET_LOCKED", "Backgrounded during unlock"));
             }
@@ -813,12 +816,15 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         "rescan" => {
           unlocked(app,c).await?;
           if app.state::<TerminalState>().scanning.load(Ordering::SeqCst){return Err(err(c,"BUSY","Wait for bounded scanner to finish"))}
+          let ticket=terminal.session.current();let generation=state.current_scanner_generation();
           let verification=state.android_verification().await;
           let floor=verification["restoreFloor"].as_u64().ok_or_else(||err(c,"CHECKPOINT_INVALID","Restore disposable wallet to initialize a canonical checkpoint"))?;
           if a["height"].as_u64().unwrap_or(0)!=floor{return Err(err(c,"RESCAN_RANGE","Test rescan must use its original restore floor; no arbitrary mainnet history scan"))}
           use tauri_plugin_dialog::{DialogExt,MessageDialogButtons};
           if !app.dialog().message("Discard disposable cached observations and rescan from the original restore height? Keys remain native, application spending remains disabled.").title("Read-only native rescan").buttons(MessageDialogButtons::OkCancelCustom("Rescan test wallet".into(),"Cancel".into())).blocking_show(){return Err(err(c,"USER_DENIED","Rescan cancelled"))}
-          state.android_reconcile(floor,state.current_scanner_generation()).await.map_err(|e|err(c,"RESET_CHECKPOINT_ERROR",e))?;
+          if !terminal.session.accepts(ticket){return Err(err(c,"STALE_WALLET_SESSION","Wallet changed during rescan approval"))}
+          unlocked(app,c).await?;
+          state.android_reconcile(floor,generation).await.map_err(|e|err(c,"RESET_CHECKPOINT_ERROR",e))?;
           scan(app.clone()).await?;
           Ok(json!({"success":true,"resetHeight":floor,"spendingEnabled":false}))
         }
