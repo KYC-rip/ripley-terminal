@@ -513,6 +513,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
     match c {
         "android_notify" => {
             use tauri_plugin_notification::NotificationExt;
+            if app.notification().permission_state().map_err(|e|err(c,"NOTIFICATION_ERROR",e.to_string()))?!=tauri::plugin::PermissionState::Granted{return Err(err(c,"PERMISSION_REQUIRED","Enable Android notification permission explicitly in Settings"))}
             let title=strarg(&a,"title")?;let body=a["body"].as_str().unwrap_or("");
             if title.len()>200||body.len()>2000{return Err(err(c,"INVALID_ARGUMENT","Notification text exceeds limit"))}
             app.notification().builder().title(title).body(body).show().map_err(|e|err(c,"NOTIFICATION_ERROR",e.to_string()))?;
@@ -690,10 +691,14 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         }
         "get_accounts" => {
             unlocked(app, c).await?;
-            let mut accounts=json!(state.get_accounts().await);
+            let mut accounts=state.get_accounts().await;
             let verified=state.android_verification().await["chainVerified"]==true;
-            if let Some(xs)=accounts.as_array_mut(){for x in xs{x["unlocked_balance"]=json!("0");if !verified{x["balance"]=json!("0");}}}
-            Ok(accounts)
+            let tip=state.tip_height().await;
+            for account in &mut accounts {
+                account.balance=if verified{state.balances_for_account(account.index,tip).await.0.to_string()}else{"0".into()};
+                account.unlocked_balance="0".into();
+            }
+            Ok(json!(accounts))
         }
         "get_balance" => {
             unlocked(app, c).await?;
