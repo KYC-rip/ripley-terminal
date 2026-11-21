@@ -43,6 +43,8 @@ pub fn notify_lock(app: &tauri::AppHandle) {
 
 #[derive(Default)]
 pub struct TerminalState {
+    pub session: crate::android_session::Session,
+    pub wallet_ops: tokio::sync::Mutex<()>,
     last_error: Mutex<Option<String>>,
     unlocked_epoch: AtomicU64,
     scanning: std::sync::atomic::AtomicBool,
@@ -114,8 +116,8 @@ fn write_json(p: std::path::PathBuf, v: &Value) -> Result<(), Error> {
     if let Some(d) = p.parent() {
         std::fs::create_dir_all(d).map_err(|e| err("storage", "STORAGE_ERROR", e.to_string()))?;
     }
-    std::fs::write(p, serde_json::to_vec(v).unwrap())
-        .map_err(|e| err("storage", "STORAGE_ERROR", e.to_string()))
+    wallet::storage::atomic_write(&p, &serde_json::to_vec(v).unwrap())
+        .map_err(|e| err("storage", "STORAGE_ERROR", e))
 }
 fn identities(app: &tauri::AppHandle) -> Value {
     read_json(root(app).join("identities.json"))
@@ -126,7 +128,7 @@ fn config() -> Value {
 fn emit(app: &tauri::AppHandle, source: &str, level: &str, message: &str) {
     let _ = app.emit(
         "core-log",
-        json!({"source":source,"level":level,"message":message}),
+        json!({"source":source,"level":level,"message":message,"walletSession":app.state::<TerminalState>().session.current()}),
     );
 }
 fn check_wallet(c: &str) -> Result<(), Error> {
@@ -187,7 +189,11 @@ pub fn handle(invoke: Invoke) -> bool {
     // Command names only. Never log arguments, passwords, seeds or response bodies.
     eprintln!("ANDROID_TERMINAL_INVOKE {}", command);
     invoke.resolver.respond_async(async move {
-        dispatch(&app, &command, payload).await.map_err(|e| {
+        let ticket=app.state::<TerminalState>().session.current();
+        let result=dispatch(&app, &command, payload).await;
+        if result.is_err()&&matches!(command.as_str(),"open_wallet"|"create_wallet"){notify_lock(&app);}
+        let result=if matches!(command.as_str(),"get_accounts"|"get_balance"|"get_subaddresses"|"get_transactions"|"get_outputs"|"get_height")&&!app.state::<TerminalState>().session.accepts(ticket){Err(err(&command,"STALE_WALLET_SESSION","Discarded response from previous wallet"))}else{result};
+        result.map_err(|e| {
             // The shipped frontend's direct AI/Gateway adapters use String(error),
             // matching desktop's Result<_, String>; keep their failure readable.
             if command.starts_with("local_ai_") || command.starts_with("agent_gateway_") {
@@ -216,6 +222,9 @@ async fn unlocked(app: &tauri::AppHandle, c: &str) -> Result<(), Error> {
     }
     Ok(())
 }
+fn emit_scan(app:&tauri::AppHandle,ticket:u64,source:&str,level:&str,message:&str){
+ if app.state::<TerminalState>().session.accepts(ticket){let _=app.emit("core-log",json!({"source":source,"level":level,"message":message,"walletSession":ticket}));}
+}
 async fn canonical_hash(client:&reqwest::Client,height:u64)->Result<String,Error>{
  let v:Value=client.post(format!("{NODE}/json_rpc")).json(&json!({"jsonrpc":"2.0","id":"android-canonical","method":"get_block_header_by_height","params":{"height":height}})).send().await.map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?.error_for_status().map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?.json().await.map_err(|e|err("reselect_node","HEADER_UNAVAILABLE",e.to_string()))?;
  if v.get("error").is_some()||v["result"]["block_header"]["height"].as_u64()!=Some(height){return Err(err("reselect_node","HEADER_UNAVAILABLE","Invalid canonical header response"))}
@@ -226,15 +235,18 @@ async fn canonical_hash(client:&reqwest::Client,height:u64)->Result<String,Error
 async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     use monero_daemon_rpc::prelude::*;
     let c = "reselect_node";
-    unlocked(&app, c).await?;
     let terminal = app.state::<TerminalState>();
+    let ticket=terminal.session.current();
+    unlocked(&app, c).await?;
+    if !terminal.session.accepts(ticket){return Err(err(c,"STALE_WALLET_SESSION","Wallet changed before scan"))}
     if terminal.scanning.swap(true, Ordering::SeqCst) {
         return Err(err(c, "BUSY", "A bounded node request is already running"));
     }
+    let mut generation=app.state::<wallet::WalletState>().current_scanner_generation();
     app.state::<wallet::WalletState>().android_invalidate_verification().await;
     *terminal.last_error.lock().unwrap() = None;
-    emit(
-        &app,
+    emit_scan(
+        &app, ticket,
         "SYNC_DATA",
         "info",
         &format!("CONNECTING|0|0|0|{NODE}|0"),
@@ -275,7 +287,7 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             ));
         }
         let state = app.state::<wallet::WalletState>();
-        let mut generation = state.current_scanner_generation();
+        if !terminal.session.accepts(ticket){return Err(err(c,"STALE_WALLET_SESSION","Wallet changed during node request"))}
         let daemon = wallet::reqwest_transport::ReqwestTransport::connect(
             NODE.into(),
             std::time::Duration::from_secs(10),
@@ -340,8 +352,8 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
                 if let Some(updated)=state.get_scanner().await{scanner=updated;}
                 let status = if next >= target { "SYNCED" } else { "SYNCING" };
                 let pct = 100.0 * (next - start) as f64 / (target - start).max(1) as f64;
-                emit(
-                    &app,
+                emit_scan(
+                    &app, ticket,
                     "SYNC_DATA",
                     "info",
                     &format!("{status}|{next}|{target}|{pct}|{NODE}|{start}"),
@@ -358,8 +370,8 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
             tokio::task::yield_now().await;
         }
         if next >= target {
-            emit(
-                &app,
+            emit_scan(
+                &app, ticket,
                 "SYNC_DATA",
                 "info",
                 &format!("SYNCED|{next}|{target}|100|{NODE}|{start}"),
@@ -370,17 +382,18 @@ async fn scan(app: tauri::AppHandle) -> Result<(), Error> {
     })
     .await;
     terminal.scanning.store(false, Ordering::SeqCst);
+    if !terminal.session.accepts(ticket){return Err(err(c,"STALE_WALLET_SESSION","Discarded old-wallet completion"))}
     *terminal.last_error.lock().unwrap() = outcome.as_ref().err().map(|e| e.message.clone());
     if let Err(e) = &outcome {
         app.state::<wallet::WalletState>().android_invalidate_verification().await;
-        emit(
-            &app,
+        emit_scan(
+            &app, ticket,
             "SYNC_DATA",
             "error",
             &format!("ERROR|0|0|0|{}|0", e.message.replace('|', "/")),
         );
-        emit(
-            &app,
+        emit_scan(
+            &app, ticket,
             "NETWORK",
             "error",
             &format!("{}: {}", e.code, e.message),
@@ -486,8 +499,33 @@ async fn fetch(app: &tauri::AppHandle, c: &str, args: &Value) -> ResultValue {
     )
 }
 async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
+    let terminal=app.state::<TerminalState>();
+    let _operation=if matches!(c,"create_wallet"|"open_wallet"|"close_wallet"|"switch_identity"|"save_identities"|"create_account"|"create_subaddress"|"set_subaddress_label"|"rename_account") {Some(terminal.wallet_ops.lock().await)}else{None};
     let state = app.state::<wallet::WalletState>();
+    if matches!(c,"create_wallet"|"open_wallet"|"close_wallet"|"switch_identity") {
+        check_wallet(c)?;
+        terminal.session.invalidate();
+        terminal.unlocked_epoch.store(u64::MAX,Ordering::SeqCst);
+        *terminal.last_error.lock().unwrap()=None;
+        if matches!(c,"close_wallet"|"switch_identity"){notify_lock(app)}else{emit(app,"WALLET_CONTEXT","info","Native wallet context changing")}
+        state.lock().await;
+    }
     match c {
+        "android_notify" => {
+            use tauri_plugin_notification::NotificationExt;
+            let title=strarg(&a,"title")?;let body=a["body"].as_str().unwrap_or("");
+            if title.len()>200||body.len()>2000{return Err(err(c,"INVALID_ARGUMENT","Notification text exceeds limit"))}
+            app.notification().builder().title(title).body(body).show().map_err(|e|err(c,"NOTIFICATION_ERROR",e.to_string()))?;
+            Ok(json!({"submitted":true}))
+        }
+        "ros_kv_load" => crate::commands::ros_kv::ros_kv_load(app.clone()).await.map(|v|json!(v)).map_err(|e|err(c,"STORAGE_ERROR",e)),
+        "ros_kv_set" => crate::commands::ros_kv::ros_kv_set(app.clone(),strarg(&a,"key")?.into(),strarg(&a,"value")?.into()).await.map(|_|Value::Null).map_err(|e|err(c,"STORAGE_ERROR",e)),
+        "ros_kv_remove" => crate::commands::ros_kv::ros_kv_remove(app.clone(),strarg(&a,"key")?.into()).await.map(|_|Value::Null).map_err(|e|err(c,"STORAGE_ERROR",e)),
+        "ros_kv_clear" => crate::commands::ros_kv::ros_kv_clear(app.clone()).await.map(|_|Value::Null).map_err(|e|err(c,"STORAGE_ERROR",e)),
+        "android_clipboard_read"|"android_clipboard_write" => {
+            if !ANDROID_FOREGROUND.load(Ordering::SeqCst){return Err(err(c,"APP_BACKGROUND","Clipboard requires foreground Activity"))}
+            native_io(app,c,if c=="android_clipboard_read"{"readClipboard"}else{"writeClipboard"},a).await
+        }
         "get_config" => Ok(config()),
         "save_config" | "save_config_and_reload" => {
             if MAINNET_READONLY {
@@ -675,6 +713,8 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             {
                 s["status"] = json!("OFFLINE");
             }
+            s["activeWalletId"]=json!(state.get_active_identity_id().await);
+            s["walletSession"]=json!(terminal.session.current());
             s["network"] = json!(TEST_NETWORK);
             s["locked"] = json!(
                 !ANDROID_FOREGROUND.load(Ordering::SeqCst)

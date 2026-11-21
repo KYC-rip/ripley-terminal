@@ -2,10 +2,10 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
 const source=fs.readFileSync('src-tauri/src/android/boot.js','utf8');
 function boot({debug=false,frame=false}={}){
- const calls=[];const answers={get_balance:{total:'7',unlocked:'3'},get_subaddresses:[{index:0,address:'PUBLIC_TEST_ADDRESS',label:'Primary',balance:'7',unlockedBalance:'3'}],get_identities:[]};
- const window={__ANDROID_STAGENET_DEBUG__:debug,__TAURI__:{core:{invoke:async(cmd,args)=>{calls.push({cmd,args});return answers[cmd]??null;}},event:{listen:async()=>()=>{}}},fetch:async()=>{},addEventListener:()=>{}};window.top=frame?{}:window;
+ let listener;const calls=[];const answers={get_balance:{total:'7',unlocked:'3'},get_subaddresses:[{index:0,address:'PUBLIC_TEST_ADDRESS',label:'Primary',balance:'7',unlockedBalance:'3'}],get_identities:[]};
+ const window={__ANDROID_STAGENET_DEBUG__:debug,__TAURI__:{core:{invoke:async(cmd,args)=>{calls.push({cmd,args});return answers[cmd]??null;}},event:{listen:async(event,fn)=>{listener=fn;return()=>{}}}},fetch:async()=>{},addEventListener:()=>{}};window.top=frame?{}:window;
  class BlobURL{static createObjectURL(){return 'blob:unit';}static revokeObjectURL(){}}
- const context={btoa:s=>Buffer.from(s,"binary").toString("base64"),alert:()=>{},URL:BlobURL,Blob,Map,window,document:{addEventListener:()=>{}},HTMLAnchorElement:class{click(){}},console:{info(){}},Error,Uint8Array,Math,Date};vm.createContext(context);vm.runInContext(source,context);return{bridge:window.__rosNative,calls,context};
+ const context={navigator:{clipboard:{}},btoa:s=>Buffer.from(s,"binary").toString("base64"),alert:()=>{},URL:BlobURL,Blob,Map,window,document:{addEventListener:()=>{}},HTMLAnchorElement:class{click(){}},console:{info(){},warn(){}},Error,Uint8Array,Math,Date};vm.createContext(context);vm.runInContext(source,context);return{bridge:window.__rosNative,calls,context,emit:p=>listener?.({payload:p})};
 }
 test('release remains keyless; DEBUG marker alone selects native stagenet capability',()=>{assert.equal(boot().bridge.caps.monero,false);assert.equal(boot({debug:true}).bridge.caps.monero,true);assert.equal(boot().bridge.caps.tor,false);});
 test('iframe receives no native bridge',()=>assert.equal(boot({frame:true}).bridge,undefined));
@@ -14,3 +14,6 @@ test('create uses ordinary native creation/identities/open contract, not diagnos
 test('unknown wallet action rejects explicitly',async()=>{const b=boot();const r=await b.bridge.wallet.action('unknown');assert.equal(r.success,false);assert.match(r.error,/UNSUPPORTED_ANDROID/);});
 test('secret and spend commands are absent from granted Android permission',()=>{const p=fs.readFileSync('src-tauri/permissions/android-terminal.toml','utf8');for(const command of ['get_wallet_keys','get_mnemonic','prepare_transfer','relay_transfer'])assert.ok(!p.includes('"'+command+'"'));});
 test('download retains Blob before immediate URL revocation',async()=>{const b=boot();const c=b.context;const blob=new Blob(['PUBLIC_ANDROID_EXPORT_TEST'],{type:'text/plain'});const url=c.URL.createObjectURL(blob);const a=new c.HTMLAnchorElement();a.href=url;a.download='public.txt';a.click();c.URL.revokeObjectURL(url);await new Promise(resolve=>setImmediate(resolve));const saved=b.calls.find(x=>x.cmd==='android_save_export');assert.ok(saved);assert.equal(Buffer.from(saved.args.base64,'base64').toString(),'PUBLIC_ANDROID_EXPORT_TEST');});
+
+test('native clipboard uses bounded backend API rather than WebView permission fallback',async()=>{const b=boot();await b.context.navigator.clipboard.writeText('PUBLIC_CLIPBOARD_TEST');assert.equal(b.calls[0].cmd,'android_clipboard_write');assert.equal(b.calls[0].args.text,'PUBLIC_CLIPBOARD_TEST');});
+test('old-wallet events cannot overwrite newer wallet session',async()=>{const b=boot();const seen=[];await b.bridge.onLog(e=>seen.push(e));b.emit({source:'SYNC_DATA',walletSession:2,message:'NEW'});b.emit({source:'SYNC_DATA',walletSession:1,message:'STALE'});b.emit({source:'WALLET_STATE',walletSession:3,message:'LOCKED'});assert.deepEqual(seen.map(e=>e.message),['NEW','LOCKED']);});

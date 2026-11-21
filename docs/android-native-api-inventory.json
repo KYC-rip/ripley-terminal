@@ -1,0 +1,1375 @@
+{
+  "desktopRegistered": 138,
+  "androidMatchArms": 50,
+  "rows": [
+    {
+      "command": "agent_gateway_rotate_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:915"
+      ]
+    },
+    {
+      "command": "agent_gateway_set_config",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:914"
+      ]
+    },
+    {
+      "command": "agent_gateway_status",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:913"
+      ]
+    },
+    {
+      "command": "agent_web_read",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:348"
+      ]
+    },
+    {
+      "command": "app_version",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:315"
+      ]
+    },
+    {
+      "command": "arm_transfer_grant",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:635"
+      ]
+    },
+    {
+      "command": "browser_embed_bounds",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:485"
+      ]
+    },
+    {
+      "command": "browser_embed_close",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:489"
+      ]
+    },
+    {
+      "command": "browser_embed_deliver_xmr402",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:490"
+      ]
+    },
+    {
+      "command": "browser_embed_navigate",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:486"
+      ]
+    },
+    {
+      "command": "browser_embed_open",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:483"
+      ]
+    },
+    {
+      "command": "browser_embed_visible",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:487"
+      ]
+    },
+    {
+      "command": "browser_embed_zoom",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:488"
+      ]
+    },
+    {
+      "command": "capture_window_png",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:314"
+      ]
+    },
+    {
+      "command": "change_wallet_password",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:579"
+      ]
+    },
+    {
+      "command": "check_for_updates",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "check_tx_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:243"
+      ]
+    },
+    {
+      "command": "check_tx_proof",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:245"
+      ]
+    },
+    {
+      "command": "clipboard_write_image",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:311"
+      ]
+    },
+    {
+      "command": "close_wallet",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:533"
+      ]
+    },
+    {
+      "command": "create_account",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:248"
+      ]
+    },
+    {
+      "command": "create_identity",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "create_subaddress",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:220"
+      ]
+    },
+    {
+      "command": "create_wallet",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:538"
+      ]
+    },
+    {
+      "command": "delete_identity",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:571"
+      ]
+    },
+    {
+      "command": "detect_legacy_wallets",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "estimate_fees",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:231"
+      ]
+    },
+    {
+      "command": "export_unsigned_transfer",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:628"
+      ]
+    },
+    {
+      "command": "export_watch_only",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:626"
+      ]
+    },
+    {
+      "command": "fetch_price_history",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "find_address_owner",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:596"
+      ]
+    },
+    {
+      "command": "get_accounts",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:196"
+      ]
+    },
+    {
+      "command": "get_active_identity",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "get_all_xmr402_payments",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:658"
+      ]
+    },
+    {
+      "command": "get_app_info",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "get_balance",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:201"
+      ]
+    },
+    {
+      "command": "get_config",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:360",
+        "os/platform/native.ts:383",
+        "os/platform/native.ts:463",
+        "os/platform/native.ts:477",
+        "os/platform/native.ts:497"
+      ]
+    },
+    {
+      "command": "get_ghost_trades",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "get_height",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:206"
+      ]
+    },
+    {
+      "command": "get_identities",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:540",
+        "os/platform/native.ts:588",
+        "os/platform/native.ts:607"
+      ]
+    },
+    {
+      "command": "get_mnemonic",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:552",
+        "os/platform/native.ts:563"
+      ]
+    },
+    {
+      "command": "get_outputs",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:218"
+      ]
+    },
+    {
+      "command": "get_subaddresses",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:202",
+        "os/platform/native.ts:208",
+        "os/platform/native.ts:212"
+      ]
+    },
+    {
+      "command": "get_sync_status",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": []
+    },
+    {
+      "command": "get_tor_status",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:427"
+      ]
+    },
+    {
+      "command": "get_transactions",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:216"
+      ]
+    },
+    {
+      "command": "get_tx_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:235"
+      ]
+    },
+    {
+      "command": "get_tx_proof",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:237"
+      ]
+    },
+    {
+      "command": "get_ui_mode",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "get_wallet_keys",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:560"
+      ]
+    },
+    {
+      "command": "get_xmr402_payment",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:654"
+      ]
+    },
+    {
+      "command": "import_signed_transfer",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:630"
+      ]
+    },
+    {
+      "command": "import_view_only",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:604"
+      ]
+    },
+    {
+      "command": "import_watch_only",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:627"
+      ]
+    },
+    {
+      "command": "inspect_seed",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:592"
+      ]
+    },
+    {
+      "command": "local_ai_clear_all",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:949"
+      ]
+    },
+    {
+      "command": "local_ai_complete",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:947"
+      ]
+    },
+    {
+      "command": "local_ai_download",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:945"
+      ]
+    },
+    {
+      "command": "local_ai_load",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:946"
+      ]
+    },
+    {
+      "command": "local_ai_remove",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:948"
+      ]
+    },
+    {
+      "command": "local_ai_status",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:944"
+      ]
+    },
+    {
+      "command": "open_external_url",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:471"
+      ]
+    },
+    {
+      "command": "open_native_browser",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:467"
+      ]
+    },
+    {
+      "command": "open_wallet",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:532",
+        "os/platform/native.ts:544"
+      ]
+    },
+    {
+      "command": "prepare_transfer",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:267",
+        "os/platform/native.ts:618"
+      ]
+    },
+    {
+      "command": "proxied_get",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "refresh",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "relay_transfer",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:269",
+        "os/platform/native.ts:620"
+      ]
+    },
+    {
+      "command": "relay_transfer_grant",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:639"
+      ]
+    },
+    {
+      "command": "rename_account",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:250"
+      ]
+    },
+    {
+      "command": "rename_identity",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "rescan",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:252"
+      ]
+    },
+    {
+      "command": "reselect_node",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:582"
+      ]
+    },
+    {
+      "command": "resolve_openalias",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:349"
+      ]
+    },
+    {
+      "command": "restart_tor",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:415"
+      ]
+    },
+    {
+      "command": "reveal_path",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "revoke_all_transfer_grants",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:641"
+      ]
+    },
+    {
+      "command": "revoke_transfer_grant",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:640"
+      ]
+    },
+    {
+      "command": "ros_kv_clear",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/kvProbe.ts:74",
+        "os/platform/native.ts:346"
+      ]
+    },
+    {
+      "command": "ros_kv_load",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/kvProbe.ts:68",
+        "os/kvProbe.ts:71",
+        "os/platform/native.ts:343"
+      ]
+    },
+    {
+      "command": "ros_kv_remove",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/kvProbe.ts:73",
+        "os/platform/native.ts:345"
+      ]
+    },
+    {
+      "command": "ros_kv_set",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/kvProbe.ts:72",
+        "os/platform/native.ts:344"
+      ]
+    },
+    {
+      "command": "ros_native_fetch",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:310"
+      ]
+    },
+    {
+      "command": "ros_native_fetch_bytes",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:319"
+      ]
+    },
+    {
+      "command": "save_config",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": []
+    },
+    {
+      "command": "save_config_and_reload",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": []
+    },
+    {
+      "command": "save_config_only",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "save_ghost_trade",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "save_identities",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:541",
+        "os/platform/native.ts:612"
+      ]
+    },
+    {
+      "command": "save_xmr402_payment",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:652"
+      ]
+    },
+    {
+      "command": "select_background_image",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "set_subaddress_label",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:223"
+      ]
+    },
+    {
+      "command": "set_ui_mode",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:352"
+      ]
+    },
+    {
+      "command": "set_vigil_hot",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "sign_message",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:241"
+      ]
+    },
+    {
+      "command": "sign_offline_transfer",
+      "android": "custody denied",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:629"
+      ]
+    },
+    {
+      "command": "sweep_all",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:256"
+      ]
+    },
+    {
+      "command": "sweep_single",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:260"
+      ]
+    },
+    {
+      "command": "switch_identity",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:542",
+        "os/platform/native.ts:613"
+      ]
+    },
+    {
+      "command": "tor_circuit",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:438"
+      ]
+    },
+    {
+      "command": "transfer_grant_status",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:643"
+      ]
+    },
+    {
+      "command": "verify_password",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:549",
+        "os/platform/native.ts:569"
+      ]
+    },
+    {
+      "command": "vigil_archive_strike_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_clear_session",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_delete_strike_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_get_session",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_get_strike_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_save_session",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vigil_save_strike_key",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_cache_endpoints",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_connect",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_disconnect",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_emergency_restore",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_open_window",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:443"
+      ]
+    },
+    {
+      "command": "vpn_probe_endpoints",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_probe_exit_ip",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_profiles_clear",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_profiles_load",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_profiles_save",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_recover",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_set_dns_filter",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_set_killswitch",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "vpn_set_locale",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:449"
+      ]
+    },
+    {
+      "command": "vpn_status",
+      "android": "implemented handler",
+      "allowed": true,
+      "frontendCallsites": [
+        "os/platform/native.ts:439"
+      ]
+    },
+    {
+      "command": "wallpaper_clear",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:339"
+      ]
+    },
+    {
+      "command": "wallpaper_save",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:329"
+      ]
+    },
+    {
+      "command": "wallpaper_url",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:335"
+      ]
+    },
+    {
+      "command": "watch_sync_set",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:381"
+      ]
+    },
+    {
+      "command": "xapp_bounds",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:504"
+      ]
+    },
+    {
+      "command": "xapp_bridge",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": []
+    },
+    {
+      "command": "xapp_bridge_reply",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:522"
+      ]
+    },
+    {
+      "command": "xapp_close",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:509"
+      ]
+    },
+    {
+      "command": "xapp_history",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:508"
+      ]
+    },
+    {
+      "command": "xapp_navigate",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:505"
+      ]
+    },
+    {
+      "command": "xapp_open",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:502"
+      ]
+    },
+    {
+      "command": "xapp_push",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:510"
+      ]
+    },
+    {
+      "command": "xapp_visible",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:506"
+      ]
+    },
+    {
+      "command": "xapp_zoom",
+      "android": "explicit unsupported or ACL denial",
+      "allowed": false,
+      "frontendCallsites": [
+        "os/platform/native.ts:507"
+      ]
+    }
+  ],
+  "actualFrontendLiteralInvokeCommands": 100,
+  "frontendCallsites": {
+    "ros_kv_load": [
+      "os/kvProbe.ts:68",
+      "os/kvProbe.ts:71",
+      "os/platform/native.ts:343"
+    ],
+    "ros_kv_set": [
+      "os/kvProbe.ts:72",
+      "os/platform/native.ts:344"
+    ],
+    "ros_kv_remove": [
+      "os/kvProbe.ts:73",
+      "os/platform/native.ts:345"
+    ],
+    "ros_kv_clear": [
+      "os/kvProbe.ts:74",
+      "os/platform/native.ts:346"
+    ],
+    "get_accounts": [
+      "os/platform/native.ts:196"
+    ],
+    "get_balance": [
+      "os/platform/native.ts:201"
+    ],
+    "get_subaddresses": [
+      "os/platform/native.ts:202",
+      "os/platform/native.ts:208",
+      "os/platform/native.ts:212"
+    ],
+    "get_height": [
+      "os/platform/native.ts:206"
+    ],
+    "get_transactions": [
+      "os/platform/native.ts:216"
+    ],
+    "get_outputs": [
+      "os/platform/native.ts:218"
+    ],
+    "create_subaddress": [
+      "os/platform/native.ts:220"
+    ],
+    "set_subaddress_label": [
+      "os/platform/native.ts:223"
+    ],
+    "estimate_fees": [
+      "os/platform/native.ts:231"
+    ],
+    "get_tx_key": [
+      "os/platform/native.ts:235"
+    ],
+    "get_tx_proof": [
+      "os/platform/native.ts:237"
+    ],
+    "sign_message": [
+      "os/platform/native.ts:241"
+    ],
+    "check_tx_key": [
+      "os/platform/native.ts:243"
+    ],
+    "check_tx_proof": [
+      "os/platform/native.ts:245"
+    ],
+    "create_account": [
+      "os/platform/native.ts:248"
+    ],
+    "rename_account": [
+      "os/platform/native.ts:250"
+    ],
+    "rescan": [
+      "os/platform/native.ts:252"
+    ],
+    "sweep_all": [
+      "os/platform/native.ts:256"
+    ],
+    "sweep_single": [
+      "os/platform/native.ts:260"
+    ],
+    "prepare_transfer": [
+      "os/platform/native.ts:267",
+      "os/platform/native.ts:618"
+    ],
+    "relay_transfer": [
+      "os/platform/native.ts:269",
+      "os/platform/native.ts:620"
+    ],
+    "ros_native_fetch": [
+      "os/platform/native.ts:310"
+    ],
+    "clipboard_write_image": [
+      "os/platform/native.ts:311"
+    ],
+    "capture_window_png": [
+      "os/platform/native.ts:314"
+    ],
+    "app_version": [
+      "os/platform/native.ts:315"
+    ],
+    "ros_native_fetch_bytes": [
+      "os/platform/native.ts:319"
+    ],
+    "wallpaper_save": [
+      "os/platform/native.ts:329"
+    ],
+    "wallpaper_url": [
+      "os/platform/native.ts:335"
+    ],
+    "wallpaper_clear": [
+      "os/platform/native.ts:339"
+    ],
+    "agent_web_read": [
+      "os/platform/native.ts:348"
+    ],
+    "resolve_openalias": [
+      "os/platform/native.ts:349"
+    ],
+    "set_ui_mode": [
+      "os/platform/native.ts:352"
+    ],
+    "plugin:notification|notify": [
+      "os/platform/native.ts:358"
+    ],
+    "get_config": [
+      "os/platform/native.ts:360",
+      "os/platform/native.ts:383",
+      "os/platform/native.ts:463",
+      "os/platform/native.ts:477",
+      "os/platform/native.ts:497"
+    ],
+    "watch_sync_set": [
+      "os/platform/native.ts:381"
+    ],
+    "restart_tor": [
+      "os/platform/native.ts:415"
+    ],
+    "get_tor_status": [
+      "os/platform/native.ts:427"
+    ],
+    "tor_circuit": [
+      "os/platform/native.ts:438"
+    ],
+    "vpn_status": [
+      "os/platform/native.ts:439"
+    ],
+    "vpn_open_window": [
+      "os/platform/native.ts:443"
+    ],
+    "vpn_set_locale": [
+      "os/platform/native.ts:449"
+    ],
+    "open_native_browser": [
+      "os/platform/native.ts:467"
+    ],
+    "open_external_url": [
+      "os/platform/native.ts:471"
+    ],
+    "browser_embed_open": [
+      "os/platform/native.ts:483"
+    ],
+    "browser_embed_bounds": [
+      "os/platform/native.ts:485"
+    ],
+    "browser_embed_navigate": [
+      "os/platform/native.ts:486"
+    ],
+    "browser_embed_visible": [
+      "os/platform/native.ts:487"
+    ],
+    "browser_embed_zoom": [
+      "os/platform/native.ts:488"
+    ],
+    "browser_embed_close": [
+      "os/platform/native.ts:489"
+    ],
+    "browser_embed_deliver_xmr402": [
+      "os/platform/native.ts:490"
+    ],
+    "xapp_open": [
+      "os/platform/native.ts:502"
+    ],
+    "xapp_bounds": [
+      "os/platform/native.ts:504"
+    ],
+    "xapp_navigate": [
+      "os/platform/native.ts:505"
+    ],
+    "xapp_visible": [
+      "os/platform/native.ts:506"
+    ],
+    "xapp_zoom": [
+      "os/platform/native.ts:507"
+    ],
+    "xapp_history": [
+      "os/platform/native.ts:508"
+    ],
+    "xapp_close": [
+      "os/platform/native.ts:509"
+    ],
+    "xapp_push": [
+      "os/platform/native.ts:510"
+    ],
+    "xapp_bridge_reply": [
+      "os/platform/native.ts:522"
+    ],
+    "open_wallet": [
+      "os/platform/native.ts:532",
+      "os/platform/native.ts:544"
+    ],
+    "close_wallet": [
+      "os/platform/native.ts:533"
+    ],
+    "create_wallet": [
+      "os/platform/native.ts:538"
+    ],
+    "get_identities": [
+      "os/platform/native.ts:540",
+      "os/platform/native.ts:588",
+      "os/platform/native.ts:607"
+    ],
+    "save_identities": [
+      "os/platform/native.ts:541",
+      "os/platform/native.ts:612"
+    ],
+    "switch_identity": [
+      "os/platform/native.ts:542",
+      "os/platform/native.ts:613"
+    ],
+    "verify_password": [
+      "os/platform/native.ts:549",
+      "os/platform/native.ts:569"
+    ],
+    "get_mnemonic": [
+      "os/platform/native.ts:552",
+      "os/platform/native.ts:563"
+    ],
+    "get_wallet_keys": [
+      "os/platform/native.ts:560"
+    ],
+    "delete_identity": [
+      "os/platform/native.ts:571"
+    ],
+    "change_wallet_password": [
+      "os/platform/native.ts:579"
+    ],
+    "reselect_node": [
+      "os/platform/native.ts:582"
+    ],
+    "inspect_seed": [
+      "os/platform/native.ts:592"
+    ],
+    "find_address_owner": [
+      "os/platform/native.ts:596"
+    ],
+    "import_view_only": [
+      "os/platform/native.ts:604"
+    ],
+    "export_watch_only": [
+      "os/platform/native.ts:626"
+    ],
+    "import_watch_only": [
+      "os/platform/native.ts:627"
+    ],
+    "export_unsigned_transfer": [
+      "os/platform/native.ts:628"
+    ],
+    "sign_offline_transfer": [
+      "os/platform/native.ts:629"
+    ],
+    "import_signed_transfer": [
+      "os/platform/native.ts:630"
+    ],
+    "arm_transfer_grant": [
+      "os/platform/native.ts:635"
+    ],
+    "relay_transfer_grant": [
+      "os/platform/native.ts:639"
+    ],
+    "revoke_transfer_grant": [
+      "os/platform/native.ts:640"
+    ],
+    "revoke_all_transfer_grants": [
+      "os/platform/native.ts:641"
+    ],
+    "transfer_grant_status": [
+      "os/platform/native.ts:643"
+    ],
+    "save_xmr402_payment": [
+      "os/platform/native.ts:652"
+    ],
+    "get_xmr402_payment": [
+      "os/platform/native.ts:654"
+    ],
+    "get_all_xmr402_payments": [
+      "os/platform/native.ts:658"
+    ],
+    "agent_gateway_status": [
+      "os/platform/native.ts:913"
+    ],
+    "agent_gateway_set_config": [
+      "os/platform/native.ts:914"
+    ],
+    "agent_gateway_rotate_key": [
+      "os/platform/native.ts:915"
+    ],
+    "local_ai_status": [
+      "os/platform/native.ts:944"
+    ],
+    "local_ai_download": [
+      "os/platform/native.ts:945"
+    ],
+    "local_ai_load": [
+      "os/platform/native.ts:946"
+    ],
+    "local_ai_complete": [
+      "os/platform/native.ts:947"
+    ],
+    "local_ai_remove": [
+      "os/platform/native.ts:948"
+    ],
+    "local_ai_clear_all": [
+      "os/platform/native.ts:949"
+    ]
+  }
+}

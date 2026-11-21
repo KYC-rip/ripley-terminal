@@ -66,11 +66,14 @@ if(window===window.top){
  default:throw new Error(`[UNSUPPORTED_ANDROID] wallet action ${mode} not implemented`);
  }}catch(e){return {success:false,error:e.message||String(e)}}};
  const browser={open:(url,x,y,w,h,bg)=>invoke('browser_embed_open',{url,x,y,w,h,bg}),bounds:(x,y,w,h)=>invoke('browser_embed_bounds',{x,y,w,h}),navigate:url=>invoke('browser_embed_navigate',{url}),visible:visible=>invoke('browser_embed_visible',{visible}),setZoom:zoom=>invoke('browser_embed_zoom',{zoom}),close:()=>invoke('browser_embed_close')};
- window.__rosNative={runtime:'tauri',caps:{tor:false,monero:false,browser:true,keychain:false,browserMode:'isolated-activity',nativeWalletTestMode:window.__ANDROID_STAGENET_DEBUG__===true},
+ const clipboardRead=()=>invoke('android_clipboard_read').then(r=>r.text);
+ const clipboardWrite=text=>invoke('android_clipboard_write',{text:String(text)}).then(()=>{});
+ try{Object.defineProperty(navigator.clipboard,'readText',{value:clipboardRead});Object.defineProperty(navigator.clipboard,'writeText',{value:clipboardWrite});}catch(e){console.warn('Native clipboard adapter unavailable');}
+ window.__rosNative={clipboardRead,clipboardWrite,notify:(title,body)=>{invoke('android_notify',{title,body}).catch(e=>console.warn('Native notification refused'));},runtime:'tauri',caps:{tor:false,monero:false,browser:true,keychain:false,browserMode:'isolated-activity',nativeWalletTestMode:window.__ANDROID_STAGENET_DEBUG__===true},
  appVersion:()=>invoke('android_runtime_status').then(s=>s.appVersion),fetch:req=>invoke('ros_native_fetch',{req}),fetchBytes:req=>invoke('ros_native_fetch_bytes',{req}),
  getConfig:()=>invoke('get_config'),setConfig:config=>invoke('save_config',{config}),torStatus:async()=>({status:'disconnected',supported:false}),
  openBrowser:url=>invoke('open_native_browser',{url}),openExternal:url=>invoke('open_external_url',{url}),embedBrowser:browser,
- onLog:fn=>window.__TAURI__.event.listen('core-log',e=>fn(e.payload)),
+ onLog:fn=>{let session=-1;return window.__TAURI__.event.listen('core-log',e=>{const p=e.payload;if(Number.isSafeInteger(p?.walletSession)){if(p.walletSession<session)return;session=p.walletSession;}fn(p);});},
  wallet:{rpc,action,identities:()=>invoke('get_identities'),uplink:()=>invoke('get_sync_status'),send:{prepare:(destinations,accountIndex,priority)=>invoke('prepare_transfer',{destinations,accountIndex,priority}),relay:(txMetadata,to,amount,fee)=>invoke('relay_transfer',{txMetadata,to,amount,fee})}}};
  // Startup IPC is async, but capability selection must precede module bootstrap.
  // Native DEBUG entry point sets this marker in an initialization script; release omits it.

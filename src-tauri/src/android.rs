@@ -42,9 +42,11 @@ use std::sync::{
 use tauri::{Manager, WebviewWindow};
 
 mod android_policy;
+mod android_session;
 mod android_chain;
 mod android_terminal;
 mod commands {
+    pub mod ros_kv;
     pub mod wallet {
         pub(crate) use crate::wallet::time::sent_time;
     }
@@ -83,8 +85,12 @@ pub extern "system" fn Java_run_ripley_androidpoc_MainActivity_nativeLock(
     ANDROID_FOREGROUND.store(false, Ordering::SeqCst);
     POC_SESSION.epoch.fetch_add(1, Ordering::SeqCst);
     if let Some(app) = ANDROID_APP.get().cloned() {
+        let ticket=app.state::<android_terminal::TerminalState>().session.invalidate();
         android_terminal::notify_lock(&app);
         tauri::async_runtime::spawn(async move {
+            let terminal=app.state::<android_terminal::TerminalState>();
+            let _operation=terminal.wallet_ops.lock().await;
+            if !terminal.session.accepts(ticket){return;}
             if let Some(state) = app.try_state::<wallet::WalletState>() {
                 state.lock().await;
             }
@@ -153,7 +159,7 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
           "uiRevision":UI_REVISION,"debugLocalUi":DEBUG_LOCAL_UI,"stagenetDiagnostics": cfg!(debug_assertions),"terminalWalletTestCore":cfg!(debug_assertions),
           "secretExport":false,"spending":false,"fullWalletSync":false,"outputCacheSealing":true,"softwarePasswordEncryption":true,"resumableBatchedScan":true,"mainnetReadOnlyTest":cfg!(android_mainnet_readonly),"offlineRegtest":cfg!(android_offline_regtest),"offlineStagenetProtocolTest":cfg!(android_offline_stagenet),
           "publicHttpsGet":true,"networkPost":false,"torRouting":false,
-          "nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
+          "nativePreferences":true,"nativeClipboardText":true,"nativeNotifications":true,"walletKeystore":false,"nativeDocumentSave":true,"browserMode":"isolated-clearnet-activity","foregroundWalletLock":true}),
     })
 }
 fn save_report(app: &tauri::AppHandle, name: &str, value: &Value) -> Result<(), String> {
@@ -406,6 +412,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(android_terminal::io_plugin())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .register_uri_scheme_protocol("ros", |ctx, request| {
             let uri = request.uri().to_string();
             let path = uri

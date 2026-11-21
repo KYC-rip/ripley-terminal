@@ -156,6 +156,14 @@ pub fn save_wallet(
         .map_err(|e| format!("Failed to create wallet dir: {}", e))?;
 
     let encrypted = encrypt_wallet(data, password);
+    #[cfg(target_os="android")]
+    {
+        static VAULT_WRITER:std::sync::Mutex<()>=std::sync::Mutex::new(());
+        let _writer=VAULT_WRITER.lock().map_err(|_|"Android vault writer poisoned")?;
+        atomic_write(&path,&encrypted)?;
+    }
+    #[cfg(not(target_os="android"))]
+    {
     // Write to a temp file then atomically rename over the target. A plain write
     // could be interrupted (crash / power loss) mid-flush and leave a truncated,
     // undecryptable vault — destroying the seed. This matters most for a password
@@ -168,6 +176,8 @@ pub fn save_wallet(
         // Don't leave the half-written temp behind if the commit rename fails.
         let _ = std::fs::remove_file(&tmp);
         return Err(format!("Failed to commit wallet file: {}", e));
+    }
+
     }
 
     log::info!("Wallet saved: {}", path.display());
@@ -357,7 +367,7 @@ fn is_sealed(data: &[u8]) -> bool {
 
 /// Atomic temp-then-rename write, so an interrupted write can't leave a
 /// truncated file (which loaders would discard, forcing a full rescan).
-fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
+pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     std::fs::create_dir_all(path.parent().unwrap())
         .map_err(|e| format!("Failed to create dir: {}", e))?;
     // APPEND .tmp (don't replace the extension): "<id>.cache" and "<id>.watch"

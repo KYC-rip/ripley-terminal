@@ -1110,6 +1110,8 @@ impl WalletState {
     }
 
     pub async fn lock(&self) {
+        #[cfg(target_os="android")]
+        self.scanner_generation.fetch_add(1,Ordering::SeqCst);
         // Save output cache before taking exclusive lock
         self.save_output_cache().await;
 

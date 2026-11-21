@@ -186,6 +186,7 @@ const ANDROID_COMMANDS: &[&str] = &[
     "android_poc_wallet",
     "android_runtime_status",
     "android_save_export",
+        "android_clipboard_read", "android_clipboard_write", "android_notify",
     "browser_embed_bounds",
     "browser_embed_close",
     "browser_embed_navigate",

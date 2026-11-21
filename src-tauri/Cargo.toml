@@ -52,6 +52,7 @@ features = ["apple-native", "windows-native", "sync-secret-service"]
 # image-png: lets tauri::image::Image decode the PNG the webview hands us for clipboard copy.
 tauri = { version = "2", features = ["devtools", "protocol-asset", "image-png"] }
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 # Used from RUST only (commands::system::clipboard_write_image), so it needs no JS capability:
 # WKWebView exposes a text-only clipboard, so the webview cannot write an image itself.
 # B2 (2026-11-15): open_external_url must not go through a shell. `open` calls the platform API
@@ -197,7 +198,6 @@ tauri-plugin-fs = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-clipboard-manager = "2"
 open = "5"
-tauri-plugin-notification = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Android has no system OpenSSL/sqlite development libraries.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-clipboard-read"
+description = "Enables the android_clipboard_read command without any pre-configured scope."
+commands.allow = ["android_clipboard_read"]
+
+[[permission]]
+identifier = "deny-android-clipboard-read"
+description = "Denies the android_clipboard_read command without any pre-configured scope."
+commands.deny = ["android_clipboard_read"]

@@ -121,10 +121,14 @@ pub fn put(dir: &Path, key: &str, value: &str) -> Result<(), String> {
     let tmp = dir.join(format!("{stem}.{}-{seq}{TMP_SUFFIX}", std::process::id()));
     let _guard = lock_kv();
     fs::write(&tmp, value.as_bytes()).map_err(|e| format!("write: {e}"))?;
+    #[cfg(target_os="android")]
+    fs::File::open(&tmp).and_then(|f|f.sync_all()).map_err(|e|format!("sync: {e}"))?;
     if let Err(e) = fs::rename(&tmp, &path) {
         let _ = fs::remove_file(&tmp);
         return Err(format!("rename: {e}"));
     }
+    #[cfg(target_os="android")]
+    fs::File::open(dir).and_then(|f|f.sync_all()).map_err(|e|format!("directory sync: {e}"))?;
     Ok(())
 }
 

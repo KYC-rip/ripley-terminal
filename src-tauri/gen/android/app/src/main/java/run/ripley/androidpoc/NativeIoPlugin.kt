@@ -2,6 +2,11 @@ package run.ripley.androidpoc
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.content.Context
+import android.os.PersistableBundle
+import android.os.Build
 import android.util.Base64
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
@@ -12,11 +17,30 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 
+@InvokeArg class ClipboardArgs { lateinit var text: String }
 @InvokeArg class BrowserArgs { lateinit var url: String }
 @InvokeArg class ExportArgs { lateinit var name: String; lateinit var base64: String; var mime: String = "application/octet-stream" }
 
 @TauriPlugin
 class NativeIoPlugin(private val activity: Activity): Plugin(activity) {
+  @Command fun readClipboard(invoke: Invoke) {
+    try {
+      val clipboard=activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+      val text=clipboard.primaryClip?.takeIf { it.itemCount>0 }?.getItemAt(0)?.text?.toString() ?: ""
+      require(text.length<=65536) { "Clipboard exceeds 64 KiB text limit" }
+      invoke.resolve(JSObject().put("text",text))
+    } catch(e:Exception){invoke.reject(e.message ?: "Clipboard read failed")}
+  }
+  @Command fun writeClipboard(invoke: Invoke) {
+    try {
+      val a=invoke.parseArgs(ClipboardArgs::class.java)
+      require(a.text.length<=65536) { "Clipboard exceeds 64 KiB text limit" }
+      val clip=ClipData.newPlainText("ROS",a.text)
+      if(Build.VERSION.SDK_INT>=24) clip.description.extras=PersistableBundle().apply {putBoolean("android.content.extra.IS_SENSITIVE",true)}
+      (activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+      invoke.resolve(JSObject().put("written",true))
+    } catch(e:Exception){invoke.reject(e.message ?: "Clipboard write failed")}
+  }
   @Command fun openBrowser(invoke: Invoke) {
     try {
       val args=invoke.parseArgs(BrowserArgs::class.java)
