@@ -7,7 +7,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:915"
+        "os/platform/native.ts:916"
       ]
     },
     {
@@ -15,7 +15,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:914"
+        "os/platform/native.ts:915"
       ]
     },
     {
@@ -23,7 +23,7 @@
       "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:913"
+        "os/platform/native.ts:914"
       ]
     },
     {
@@ -31,7 +31,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:348"
+        "os/platform/native.ts:349"
       ]
     },
     {
@@ -39,7 +39,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:315"
+        "os/platform/native.ts:316"
       ]
     },
     {
@@ -47,7 +47,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:635"
+        "os/platform/native.ts:636"
       ]
     },
     {
@@ -55,7 +55,7 @@
       "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:485"
+        "os/platform/native.ts:486"
       ]
     },
     {
@@ -63,7 +63,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:489"
+        "os/platform/native.ts:490"
       ]
     },
     {
@@ -71,7 +71,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:490"
+        "os/platform/native.ts:491"
       ]
     },
     {
@@ -79,7 +79,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:486"
+        "os/platform/native.ts:487"
       ]
     },
     {
@@ -87,7 +87,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:483"
+        "os/platform/native.ts:484"
       ]
     },
     {
@@ -95,7 +95,7 @@
       "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:487"
+        "os/platform/native.ts:488"
       ]
     },
     {
@@ -103,7 +103,7 @@
       "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:488"
+        "os/platform/native.ts:489"
       ]
     },
     {
@@ -111,7 +111,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:314"
+        "os/platform/native.ts:315"
       ]
     },
     {
@@ -119,7 +119,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:579"
+        "os/platform/native.ts:580"
       ]
     },
     {
@@ -133,7 +133,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:243"
+        "os/platform/native.ts:244"
       ]
     },
     {
@@ -141,7 +141,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:245"
+        "os/platform/native.ts:246"
       ]
     },
     {
@@ -149,7 +149,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:311"
+        "os/platform/native.ts:312"
       ]
     },
     {
@@ -157,7 +157,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:533"
+        "os/platform/native.ts:534"
       ]
     },
     {
@@ -165,7 +165,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:248"
+        "os/platform/native.ts:249"
       ]
     },
     {
@@ -179,7 +179,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:220"
+        "os/platform/native.ts:221"
       ]
     },
     {
@@ -187,7 +187,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:538"
+        "os/platform/native.ts:539"
       ]
     },
     {
@@ -195,7 +195,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:571"
+        "os/platform/native.ts:572"
       ]
     },
     {
@@ -209,7 +209,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:231"
+        "os/platform/native.ts:232"
       ]
     },
     {
@@ -217,7 +217,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:628"
+        "os/platform/native.ts:629"
       ]
     },
     {
@@ -225,7 +225,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:626"
+        "os/platform/native.ts:627"
       ]
     },
     {
@@ -239,7 +239,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:596"
+        "os/platform/native.ts:597"
       ]
     },
     {
@@ -247,7 +247,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:196"
+        "os/platform/native.ts:197"
       ]
     },
     {
@@ -261,7 +261,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:658"
+        "os/platform/native.ts:659"
       ]
     },
     {
@@ -275,7 +275,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:201"
+        "os/platform/native.ts:202"
       ]
     },
     {
@@ -283,11 +283,11 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:360",
-        "os/platform/native.ts:383",
-        "os/platform/native.ts:463",
-        "os/platform/native.ts:477",
-        "os/platform/native.ts:497"
+        "os/platform/native.ts:361",
+        "os/platform/native.ts:384",
+        "os/platform/native.ts:464",
+        "os/platform/native.ts:478",
+        "os/platform/native.ts:498"
       ]
     },
     {
@@ -301,7 +301,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:206"
+        "os/platform/native.ts:207"
       ]
     },
     {
@@ -309,9 +309,9 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:540",
-        "os/platform/native.ts:588",
-        "os/platform/native.ts:607"
+        "os/platform/native.ts:541",
+        "os/platform/native.ts:589",
+        "os/platform/native.ts:608"
       ]
     },
     {
@@ -319,8 +319,8 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:552",
-        "os/platform/native.ts:563"
+        "os/platform/native.ts:553",
+        "os/platform/native.ts:564"
       ]
     },
     {
@@ -328,7 +328,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:218"
+        "os/platform/native.ts:219"
       ]
     },
     {
@@ -336,9 +336,9 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:202",
-        "os/platform/native.ts:208",
-        "os/platform/native.ts:212"
+        "os/platform/native.ts:203",
+        "os/platform/native.ts:209",
+        "os/platform/native.ts:213"
       ]
     },
     {
@@ -352,7 +352,7 @@
       "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:427"
+        "os/platform/native.ts:428"
       ]
     },
     {
@@ -360,7 +360,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:216"
+        "os/platform/native.ts:217"
       ]
     },
     {
@@ -368,7 +368,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:235"
+        "os/platform/native.ts:236"
       ]
     },
     {
@@ -376,7 +376,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:237"
+        "os/platform/native.ts:238"
       ]
     },
     {
@@ -390,7 +390,7 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:560"
+        "os/platform/native.ts:561"
       ]
     },
     {
@@ -398,7 +398,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:654"
+        "os/platform/native.ts:655"
       ]
     },
     {
@@ -406,7 +406,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:630"
+        "os/platform/native.ts:631"
       ]
     },
     {
@@ -414,7 +414,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:604"
+        "os/platform/native.ts:605"
       ]
     },
     {
@@ -422,7 +422,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:627"
+        "os/platform/native.ts:628"
       ]
     },
     {
@@ -430,7 +430,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:592"
+        "os/platform/native.ts:593"
       ]
     },
     {
@@ -438,7 +438,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:949"
+        "os/platform/native.ts:950"
       ]
     },
     {
@@ -446,7 +446,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:947"
+        "os/platform/native.ts:948"
       ]
     },
     {
@@ -454,7 +454,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:945"
+        "os/platform/native.ts:946"
       ]
     },
     {
@@ -462,7 +462,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:946"
+        "os/platform/native.ts:947"
       ]
     },
     {
@@ -470,7 +470,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:948"
+        "os/platform/native.ts:949"
       ]
     },
     {
@@ -478,7 +478,7 @@
       "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:944"
+        "os/platform/native.ts:945"
       ]
     },
     {
@@ -486,7 +486,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:471"
+        "os/platform/native.ts:472"
       ]
     },
     {
@@ -494,7 +494,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:467"
+        "os/platform/native.ts:468"
       ]
     },
     {
@@ -502,8 +502,8 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:532",
-        "os/platform/native.ts:544"
+        "os/platform/native.ts:533",
+        "os/platform/native.ts:545"
       ]
     },
     {
@@ -511,8 +511,8 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:267",
-        "os/platform/native.ts:618"
+        "os/platform/native.ts:268",
+        "os/platform/native.ts:619"
       ]
     },
     {
@@ -532,8 +532,8 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:269",
-        "os/platform/native.ts:620"
+        "os/platform/native.ts:270",
+        "os/platform/native.ts:621"
       ]
     },
     {
@@ -541,7 +541,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:639"
+        "os/platform/native.ts:640"
       ]
     },
     {
@@ -549,7 +549,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:250"
+        "os/platform/native.ts:251"
       ]
     },
     {
@@ -563,7 +563,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:252"
+        "os/platform/native.ts:253"
       ]
     },
     {
@@ -571,7 +571,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:582"
+        "os/platform/native.ts:583"
       ]
     },
     {
@@ -579,7 +579,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:349"
+        "os/platform/native.ts:350"
       ]
     },
     {
@@ -587,7 +587,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:415"
+        "os/platform/native.ts:416"
       ]
     },
     {
@@ -601,7 +601,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:641"
+        "os/platform/native.ts:642"
       ]
     },
     {
@@ -609,7 +609,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:640"
+        "os/platform/native.ts:641"
       ]
     },
     {
@@ -618,7 +618,7 @@
       "allowed": true,
       "frontendCallsites": [
         "os/kvProbe.ts:74",
-        "os/platform/native.ts:346"
+        "os/platform/native.ts:347"
       ]
     },
     {
@@ -628,7 +628,7 @@
       "frontendCallsites": [
         "os/kvProbe.ts:68",
         "os/kvProbe.ts:71",
-        "os/platform/native.ts:343"
+        "os/platform/native.ts:344"
       ]
     },
     {
@@ -637,7 +637,7 @@
       "allowed": true,
       "frontendCallsites": [
         "os/kvProbe.ts:73",
-        "os/platform/native.ts:345"
+        "os/platform/native.ts:346"
       ]
     },
     {
@@ -646,7 +646,7 @@
       "allowed": true,
       "frontendCallsites": [
         "os/kvProbe.ts:72",
-        "os/platform/native.ts:344"
+        "os/platform/native.ts:345"
       ]
     },
     {
@@ -654,7 +654,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:310"
+        "os/platform/native.ts:311"
       ]
     },
     {
@@ -662,7 +662,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:319"
+        "os/platform/native.ts:320"
       ]
     },
     {
@@ -694,8 +694,8 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:541",
-        "os/platform/native.ts:612"
+        "os/platform/native.ts:542",
+        "os/platform/native.ts:613"
       ]
     },
     {
@@ -703,7 +703,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:652"
+        "os/platform/native.ts:653"
       ]
     },
     {
@@ -717,7 +717,7 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:223"
+        "os/platform/native.ts:224"
       ]
     },
     {
@@ -725,7 +725,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:352"
+        "os/platform/native.ts:353"
       ]
     },
     {
@@ -739,7 +739,7 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:241"
+        "os/platform/native.ts:242"
       ]
     },
     {
@@ -747,7 +747,7 @@
       "android": "custody denied",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:629"
+        "os/platform/native.ts:630"
       ]
     },
     {
@@ -755,7 +755,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:256"
+        "os/platform/native.ts:257"
       ]
     },
     {
@@ -763,7 +763,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:260"
+        "os/platform/native.ts:261"
       ]
     },
     {
@@ -771,8 +771,8 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:542",
-        "os/platform/native.ts:613"
+        "os/platform/native.ts:543",
+        "os/platform/native.ts:614"
       ]
     },
     {
@@ -780,7 +780,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:438"
+        "os/platform/native.ts:439"
       ]
     },
     {
@@ -788,7 +788,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:643"
+        "os/platform/native.ts:644"
       ]
     },
     {
@@ -796,8 +796,8 @@
       "android": "implemented handler",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:549",
-        "os/platform/native.ts:569"
+        "os/platform/native.ts:550",
+        "os/platform/native.ts:570"
       ]
     },
     {
@@ -871,7 +871,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:443"
+        "os/platform/native.ts:444"
       ]
     },
     {
@@ -927,7 +927,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:449"
+        "os/platform/native.ts:450"
       ]
     },
     {
@@ -935,7 +935,7 @@
       "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
-        "os/platform/native.ts:439"
+        "os/platform/native.ts:440"
       ]
     },
     {
@@ -943,7 +943,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:339"
+        "os/platform/native.ts:340"
       ]
     },
     {
@@ -951,7 +951,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:329"
+        "os/platform/native.ts:330"
       ]
     },
     {
@@ -959,7 +959,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:335"
+        "os/platform/native.ts:336"
       ]
     },
     {
@@ -967,7 +967,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:381"
+        "os/platform/native.ts:382"
       ]
     },
     {
@@ -975,7 +975,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:504"
+        "os/platform/native.ts:505"
       ]
     },
     {
@@ -989,7 +989,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:522"
+        "os/platform/native.ts:523"
       ]
     },
     {
@@ -997,7 +997,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:509"
+        "os/platform/native.ts:510"
       ]
     },
     {
@@ -1005,7 +1005,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:508"
+        "os/platform/native.ts:509"
       ]
     },
     {
@@ -1013,7 +1013,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:505"
+        "os/platform/native.ts:506"
       ]
     },
     {
@@ -1021,7 +1021,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:502"
+        "os/platform/native.ts:503"
       ]
     },
     {
@@ -1029,7 +1029,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:510"
+        "os/platform/native.ts:511"
       ]
     },
     {
@@ -1037,7 +1037,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:506"
+        "os/platform/native.ts:507"
       ]
     },
     {
@@ -1045,7 +1045,7 @@
       "android": "explicit unsupported or ACL denial",
       "allowed": false,
       "frontendCallsites": [
-        "os/platform/native.ts:507"
+        "os/platform/native.ts:508"
       ]
     }
   ],

@@ -191,7 +191,6 @@ pub fn handle(invoke: Invoke) -> bool {
     invoke.resolver.respond_async(async move {
         let ticket=app.state::<TerminalState>().session.current();
         let result=dispatch(&app, &command, payload).await;
-        if result.is_err()&&matches!(command.as_str(),"open_wallet"|"create_wallet"){notify_lock(&app);}
         let result=if matches!(command.as_str(),"get_accounts"|"get_balance"|"get_subaddresses"|"get_transactions"|"get_outputs"|"get_height"|"get_sync_status")&&!app.state::<TerminalState>().session.accepts(ticket){Err(err(&command,"STALE_WALLET_SESSION","Discarded response from previous wallet"))}else{result};
         result.map_err(|e| {
             // The shipped frontend's direct AI/Gateway adapters use String(error),
@@ -510,7 +509,7 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
         if matches!(c,"close_wallet"|"switch_identity"){notify_lock(app)}else{emit(app,"WALLET_CONTEXT","info","Native wallet context changing")}
         state.lock().await;
     }
-    match c {
+    let result:ResultValue=async {match c {
         "android_notify" => {
             use tauri_plugin_notification::NotificationExt;
             if app.notification().permission_state().map_err(|e|err(c,"NOTIFICATION_ERROR",e.to_string()))?!=tauri::plugin::PermissionState::Granted{return Err(err(c,"PERMISSION_REQUIRED","Enable Android notification permission explicitly in Settings"))}
@@ -871,5 +870,10 @@ async fn dispatch(app: &tauri::AppHandle, c: &str, a: Value) -> ResultValue {
             "Secret exports and spending are disabled in Android stagenet POC",
         )),
         _ => Err(unsupported(c)),
+    }}.await;
+    // Publish under wallet_ops: a failed old open must not label a new session locked.
+    if result.is_err()&&matches!(c,"open_wallet"|"create_wallet") {
+        emit(app,"WALLET_STATE","info",&json!({"locked":true,"reason":"operation-failed","command":c}).to_string());
     }
+    result
 }
