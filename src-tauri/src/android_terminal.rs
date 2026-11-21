@@ -192,7 +192,7 @@ pub fn handle(invoke: Invoke) -> bool {
         let ticket=app.state::<TerminalState>().session.current();
         let result=dispatch(&app, &command, payload).await;
         if result.is_err()&&matches!(command.as_str(),"open_wallet"|"create_wallet"){notify_lock(&app);}
-        let result=if matches!(command.as_str(),"get_accounts"|"get_balance"|"get_subaddresses"|"get_transactions"|"get_outputs"|"get_height")&&!app.state::<TerminalState>().session.accepts(ticket){Err(err(&command,"STALE_WALLET_SESSION","Discarded response from previous wallet"))}else{result};
+        let result=if matches!(command.as_str(),"get_accounts"|"get_balance"|"get_subaddresses"|"get_transactions"|"get_outputs"|"get_height"|"get_sync_status")&&!app.state::<TerminalState>().session.accepts(ticket){Err(err(&command,"STALE_WALLET_SESSION","Discarded response from previous wallet"))}else{result};
         result.map_err(|e| {
             // The shipped frontend's direct AI/Gateway adapters use String(error),
             // matching desktop's Result<_, String>; keep their failure readable.

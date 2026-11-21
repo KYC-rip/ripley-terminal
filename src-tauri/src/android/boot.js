@@ -68,7 +68,7 @@ if(window===window.top){
  const browser={open:(url,x,y,w,h,bg)=>invoke('browser_embed_open',{url,x,y,w,h,bg}),bounds:(x,y,w,h)=>invoke('browser_embed_bounds',{x,y,w,h}),navigate:url=>invoke('browser_embed_navigate',{url}),visible:visible=>invoke('browser_embed_visible',{visible}),setZoom:zoom=>invoke('browser_embed_zoom',{zoom}),close:()=>invoke('browser_embed_close')};
  const clipboardRead=()=>invoke('android_clipboard_read').then(r=>r.text);
  const clipboardWrite=text=>invoke('android_clipboard_write',{text:String(text)}).then(()=>{});
- try{Object.defineProperty(navigator.clipboard,'readText',{value:clipboardRead});Object.defineProperty(navigator.clipboard,'writeText',{value:clipboardWrite});}catch(e){console.warn('Native clipboard adapter unavailable');}
+ try{if(!navigator.clipboard)Object.defineProperty(navigator,'clipboard',{value:{}});Object.defineProperty(navigator.clipboard,'readText',{value:clipboardRead});Object.defineProperty(navigator.clipboard,'writeText',{value:clipboardWrite});}catch(e){console.warn('Native clipboard adapter unavailable');}
  window.__rosNative={clipboardRead,clipboardWrite,notify:(title,body)=>{invoke('android_notify',{title,body}).catch(e=>console.warn('Native notification refused'));},runtime:'tauri',caps:{tor:false,monero:false,browser:true,keychain:false,browserMode:'isolated-activity',nativeWalletTestMode:window.__ANDROID_STAGENET_DEBUG__===true},
  appVersion:()=>invoke('android_runtime_status').then(s=>s.appVersion),fetch:req=>invoke('ros_native_fetch',{req}),fetchBytes:req=>invoke('ros_native_fetch_bytes',{req}),
  getConfig:()=>invoke('get_config'),setConfig:config=>invoke('save_config',{config}),torStatus:async()=>({status:'disconnected',supported:false}),

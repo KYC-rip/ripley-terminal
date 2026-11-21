@@ -1,6 +1,6 @@
 {
   "desktopRegistered": 138,
-  "androidMatchArms": 50,
+  "androidMatchArms": 51,
   "rows": [
     {
       "command": "agent_gateway_rotate_key",
@@ -20,7 +20,7 @@
     },
     {
       "command": "agent_gateway_status",
-      "android": "implemented handler",
+      "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:913"
@@ -52,7 +52,7 @@
     },
     {
       "command": "browser_embed_bounds",
-      "android": "implemented handler",
+      "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:485"
@@ -92,7 +92,7 @@
     },
     {
       "command": "browser_embed_visible",
-      "android": "implemented handler",
+      "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:487"
@@ -100,7 +100,7 @@
     },
     {
       "command": "browser_embed_zoom",
-      "android": "implemented handler",
+      "android": "compatibility response explicitly reports not embedded / layout not applied",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:488"
@@ -349,7 +349,7 @@
     },
     {
       "command": "get_tor_status",
-      "android": "implemented handler",
+      "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:427"
@@ -475,7 +475,7 @@
     },
     {
       "command": "local_ai_status",
-      "android": "implemented handler",
+      "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:944"
@@ -932,7 +932,7 @@
     },
     {
       "command": "vpn_status",
-      "android": "implemented handler",
+      "android": "status-only: explicitly unavailable",
       "allowed": true,
       "frontendCallsites": [
         "os/platform/native.ts:439"
