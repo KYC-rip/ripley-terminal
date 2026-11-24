@@ -8,6 +8,7 @@ mod android_chain;
 mod android_net;
 mod android_policy;
 mod boot;
+pub mod migration;
 mod tor;
 mod updater;
 mod wallet;
@@ -365,7 +366,14 @@ pub extern "system" fn Java_run_ripley_terminal_MainActivity_nativeBrowserEvent(
     ) {
         if matches!(
             src.as_str(),
-            "BROWSER_LOAD" | "BROWSER_URI" | "XAPP_LOAD" | "XAPP_URI" | "XAPP_EXTERNAL" | "XAPP_NOTE"
+            "BROWSER_LOAD"
+                | "BROWSER_URI"
+                | "BROWSER_THEME"
+                | "XAPP_LOAD"
+                | "XAPP_URI"
+                | "XAPP_EXTERNAL"
+                | "XAPP_NOTE"
+                | "XAPP_THEME"
         ) {
             if let Some(app) = ANDROID_APP.get() {
                 emit_log(app, &src, "info", &msg);
@@ -601,6 +609,130 @@ async fn android_bio_unseal(
 async fn android_bio_clear(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
     require_local(&webview)?;
     run_native_io(&app, "bioClear", json!({})).await
+}
+
+// ── Sovereign Full-Device Migration (Mac ↔ Pixel, Offline .ripley-migrate + Direct LAN QR) ──
+
+#[tauri::command]
+async fn migration_export_bundle(
+    app: AppHandle,
+    webview: WebviewWindow,
+    passphrase: String,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let bundle = migration::pack_bundle(&data_dir)?;
+        let encrypted = migration::encrypt_with_passphrase(&bundle, &passphrase)?;
+        let preview = migration::preview_bundle(&bundle, encrypted.len());
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&encrypted);
+        let ts = chrono::Utc::now().format("%Y%m%d-%H%M");
+        Ok::<Value, String>(json!({
+            "filename": format!("ripley-device-{ts}.ripley-migrate"),
+            "base64": b64,
+            "preview": preview,
+        }))
+    })
+    .await
+    .map_err(|_| "migration worker failed".to_string())?
+}
+
+#[tauri::command]
+async fn migration_inspect_bundle(
+    webview: WebviewWindow,
+    base64_data: String,
+    passphrase: String,
+) -> Result<migration::MigrationPreview, String> {
+    require_local(&webview)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(base64_data.trim())
+            .map_err(|e| format!("invalid archive encoding: {e}"))?;
+        let bundle = migration::decrypt_with_passphrase(&raw, &passphrase)?;
+        Ok(migration::preview_bundle(&bundle, raw.len()))
+    })
+    .await
+    .map_err(|_| "migration worker failed".to_string())?
+}
+
+#[tauri::command]
+async fn migration_import_bundle(
+    app: AppHandle,
+    webview: WebviewWindow,
+    base64_data: String,
+    passphrase: String,
+) -> Result<migration::MigrationPreview, String> {
+    require_local(&webview)?;
+    // Close any open Monero wallet before overwriting vaults on disk.
+    if let Some(ws) = app.try_state::<wallet::WalletState>() {
+        ws.lock().await;
+    }
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(base64_data.trim())
+            .map_err(|e| format!("invalid archive encoding: {e}"))?;
+        let bundle = migration::decrypt_with_passphrase(&raw, &passphrase)?;
+        let mut preview = migration::apply_bundle(&data_dir, &bundle)?;
+        preview.bundle_bytes = raw.len();
+        Ok(preview)
+    })
+    .await
+    .map_err(|_| "migration worker failed".to_string())?
+}
+
+#[tauri::command]
+async fn migration_lan_start(
+    app: AppHandle,
+    webview: WebviewWindow,
+) -> Result<migration::LanSessionInfo, String> {
+    require_local(&webview)?;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    migration::start_managed_lan_sender(&data_dir).await
+}
+
+#[tauri::command]
+async fn migration_lan_stop(webview: WebviewWindow) -> Result<Value, String> {
+    require_local(&webview)?;
+    migration::stop_managed_lan_sender();
+    Ok(json!({ "stopped": true }))
+}
+
+#[tauri::command]
+async fn migration_lan_fetch(
+    webview: WebviewWindow,
+    uri: String,
+) -> Result<migration::LanFetchedTransfer, String> {
+    require_local(&webview)?;
+    migration::fetch_and_stage_lan(&uri).await
+}
+
+#[tauri::command]
+async fn migration_lan_apply(
+    app: AppHandle,
+    webview: WebviewWindow,
+    transfer_id: String,
+) -> Result<migration::MigrationPreview, String> {
+    require_local(&webview)?;
+    if let Some(ws) = app.try_state::<wallet::WalletState>() {
+        ws.lock().await;
+    }
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    tauri::async_runtime::spawn_blocking(move || migration::apply_staged_lan(&data_dir, &transfer_id))
+        .await
+        .map_err(|_| "migration worker failed".to_string())?
 }
 
 #[tauri::command]
@@ -1220,6 +1352,13 @@ pub fn run() {
             android_bio_seal,
             android_bio_unseal,
             android_bio_clear,
+            migration_export_bundle,
+            migration_inspect_bundle,
+            migration_import_bundle,
+            migration_lan_start,
+            migration_lan_stop,
+            migration_lan_fetch,
+            migration_lan_apply,
             app_version,
             // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
             commands::wallet::create_wallet,

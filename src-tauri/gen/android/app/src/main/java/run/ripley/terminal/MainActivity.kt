@@ -183,6 +183,106 @@ class MainActivity : TauriActivity() {
       lower.startsWith("monero-signin:")
   }
 
+  private val themeProbeJs = """
+    (function(){
+      try {
+        var metas = document.querySelectorAll('meta[name="theme-color" i]');
+        var themeColor = '';
+        for (var i = 0; i < metas.length; i++) {
+          var m = metas[i];
+          var c = (m.getAttribute('content') || '').trim();
+          if (!c) continue;
+          var media = (m.getAttribute('media') || '').trim();
+          if (!media || (window.matchMedia && window.matchMedia(media).matches)) {
+            themeColor = c;
+            break;
+          }
+        }
+        var pick = function(el) {
+          if (!el) return '';
+          var bg = getComputedStyle(el).backgroundColor || '';
+          if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)') return '';
+          var m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/i);
+          if (m && m[4] !== undefined && parseFloat(m[4]) < 0.15) return '';
+          return bg;
+        };
+        var bg = themeColor || pick(document.body) || pick(document.documentElement);
+        if (!bg) {
+          var cs = (getComputedStyle(document.documentElement).colorScheme || '').toLowerCase();
+          bg = cs.indexOf('dark') >= 0 ? '#000000' : '#ffffff';
+        }
+        return bg;
+      } catch (e) {
+        return '';
+      }
+    })();
+  """.trimIndent()
+
+  private fun parseCssColorToHexAndDark(raw: String): String? {
+    val s = raw.trim().trim('"').trim().lowercase()
+    if (s.isEmpty() || s == "null" || s == "undefined" || s == "transparent") return null
+    var r = -1
+    var g = -1
+    var b = -1
+    if (s.startsWith("#")) {
+      val hex = s.substring(1)
+      when (hex.length) {
+        3 -> {
+          r = hex.substring(0, 1).repeat(2).toIntOrNull(16) ?: return null
+          g = hex.substring(1, 2).repeat(2).toIntOrNull(16) ?: return null
+          b = hex.substring(2, 3).repeat(2).toIntOrNull(16) ?: return null
+        }
+        6, 8 -> {
+          r = hex.substring(0, 2).toIntOrNull(16) ?: return null
+          g = hex.substring(2, 4).toIntOrNull(16) ?: return null
+          b = hex.substring(4, 6).toIntOrNull(16) ?: return null
+        }
+        else -> return null
+      }
+    } else if (s.startsWith("rgb")) {
+      val inner = s.substringAfter('(', "").substringBefore(')', "")
+      val parts = inner.split(',', '/', ' ').map { it.trim() }.filter { it.isNotEmpty() }
+      if (parts.size < 3) return null
+      r = parts[0].toFloatOrNull()?.toInt() ?: return null
+      g = parts[1].toFloatOrNull()?.toInt() ?: return null
+      b = parts[2].toFloatOrNull()?.toInt() ?: return null
+    } else {
+      try {
+        val c = Color.parseColor(s)
+        r = Color.red(c)
+        g = Color.green(c)
+        b = Color.blue(c)
+      } catch (_: Exception) {
+        return null
+      }
+    }
+    r = r.coerceIn(0, 255)
+    g = g.coerceIn(0, 255)
+    b = b.coerceIn(0, 255)
+    val hex = String.format("#%02x%02x%02x", r, g, b)
+    val lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+    val tone = if (lum < 0.45) "dark" else "light"
+    return "$hex|$tone"
+  }
+
+  private fun sampleWebViewTheme(view: WebView?, eventSource: String) {
+    val wv = view ?: return
+    if ((eventSource == "BROWSER_THEME" && wv !== embedWeb) ||
+        (eventSource == "XAPP_THEME" && wv !== xappWeb)) return
+    wv.evaluateJavascript(themeProbeJs) { result ->
+      if (result.isNullOrBlank()) return@evaluateJavascript
+      val parsed = parseCssColorToHexAndDark(result) ?: return@evaluateJavascript
+      nativeBrowserEvent(eventSource, parsed)
+    }
+  }
+
+  private fun scheduleThemeSample(view: WebView?, eventSource: String) {
+    sampleWebViewTheme(view, eventSource)
+    handler.postDelayed({ sampleWebViewTheme(view, eventSource) }, 450)
+    handler.postDelayed({ sampleWebViewTheme(view, eventSource) }, 1400)
+    handler.postDelayed({ sampleWebViewTheme(view, eventSource) }, 2800)
+  }
+
   @SuppressLint("SetJavaScriptEnabled")
   fun embedOpen(url: String, x: Double, y: Double, w: Double, h: Double, bg: String?, zoom: Double?, allowOnion: Boolean, onDone: (Result<Unit>) -> Unit) {
     if (!isSafeBrowserUrl(url, allowOnion)) {
@@ -220,6 +320,11 @@ class MainActivity : TauriActivity() {
             }
             override fun onPageFinished(view: WebView?, u: String?) {
               if (!u.isNullOrBlank()) nativeBrowserEvent("BROWSER_LOAD", "end|$u")
+              scheduleThemeSample(view, "BROWSER_THEME")
+            }
+            override fun doUpdateVisitedHistory(view: WebView?, u: String?, isReload: Boolean) {
+              super.doUpdateVisitedHistory(view, u, isReload)
+              scheduleThemeSample(view, "BROWSER_THEME")
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
               val target = request?.url?.toString() ?: return true
@@ -466,6 +571,11 @@ class MainActivity : TauriActivity() {
             }
             override fun onPageFinished(view: WebView?, u: String?) {
               if (!u.isNullOrBlank()) nativeBrowserEvent("XAPP_LOAD", "end|$u")
+              scheduleThemeSample(view, "XAPP_THEME")
+            }
+            override fun doUpdateVisitedHistory(view: WebView?, u: String?, isReload: Boolean) {
+              super.doUpdateVisitedHistory(view, u, isReload)
+              scheduleThemeSample(view, "XAPP_THEME")
             }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
               val target = request?.url?.toString() ?: return true

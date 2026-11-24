@@ -205,6 +205,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-clipboard-manager = "2"
 open = "5"
+qrcode = { version = "0.14", default-features = false }
 arti-client = { version = "0.40", default-features = false, features = ["native-tls"] }
 reqwest = { version = "0.12", features = ["default-tls"] }
 

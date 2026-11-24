@@ -190,6 +190,13 @@ const ANDROID_COMMANDS: &[&str] = &[
     "android_bio_seal",
     "android_bio_unseal",
     "android_bio_clear",
+    "migration_export_bundle",
+    "migration_inspect_bundle",
+    "migration_import_bundle",
+    "migration_lan_start",
+    "migration_lan_stop",
+    "migration_lan_fetch",
+    "migration_lan_apply",
     "app_version",
     // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
     "create_wallet",
