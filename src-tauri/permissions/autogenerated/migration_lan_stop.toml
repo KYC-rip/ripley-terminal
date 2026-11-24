@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-migration-lan-stop"
+description = "Enables the migration_lan_stop command without any pre-configured scope."
+commands.allow = ["migration_lan_stop"]
+
+[[permission]]
+identifier = "deny-migration-lan-stop"
+description = "Denies the migration_lan_stop command without any pre-configured scope."
+commands.deny = ["migration_lan_stop"]

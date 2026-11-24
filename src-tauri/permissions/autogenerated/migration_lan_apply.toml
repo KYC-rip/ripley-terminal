@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-migration-lan-apply"
+description = "Enables the migration_lan_apply command without any pre-configured scope."
+commands.allow = ["migration_lan_apply"]
+
+[[permission]]
+identifier = "deny-migration-lan-apply"
+description = "Denies the migration_lan_apply command without any pre-configured scope."
+commands.deny = ["migration_lan_apply"]

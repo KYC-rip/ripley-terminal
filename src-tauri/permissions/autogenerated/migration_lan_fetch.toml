@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-migration-lan-fetch"
+description = "Enables the migration_lan_fetch command without any pre-configured scope."
+commands.allow = ["migration_lan_fetch"]
+
+[[permission]]
+identifier = "deny-migration-lan-fetch"
+description = "Denies the migration_lan_fetch command without any pre-configured scope."
+commands.deny = ["migration_lan_fetch"]
