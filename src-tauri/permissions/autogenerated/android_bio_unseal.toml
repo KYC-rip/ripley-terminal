@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-bio-unseal"
+description = "Enables the android_bio_unseal command without any pre-configured scope."
+commands.allow = ["android_bio_unseal"]
+
+[[permission]]
+identifier = "deny-android-bio-unseal"
+description = "Denies the android_bio_unseal command without any pre-configured scope."
+commands.deny = ["android_bio_unseal"]

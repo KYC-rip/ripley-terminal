@@ -433,6 +433,7 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
             "pinShortcut": true,
             "secureScreen": true,
             "appIcon": true,
+            "nativeBiometric": true,
             "nativePreferences": true,
             "nativeClipboardText": true,
             "nativeNotifications": true,
@@ -515,6 +516,16 @@ async fn android_set_secure_screen(
 }
 
 #[tauri::command]
+async fn android_set_system_bars(
+    app: AppHandle,
+    webview: WebviewWindow,
+    light: bool,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(&app, "setSystemBars", json!({ "light": light })).await
+}
+
+#[tauri::command]
 async fn android_list_app_icons(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
     require_local(&webview)?;
     run_native_io(&app, "listAppIcons", json!({})).await
@@ -534,6 +545,62 @@ async fn android_set_app_icon(
             .ok_or_else(|| "Invalid icon id".to_string())?
     };
     run_native_io(&app, "setAppIcon", json!({ "iconId": clean })).await
+}
+
+#[tauri::command]
+async fn android_bio_status(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(&app, "bioStatus", json!({})).await
+}
+
+#[tauri::command]
+async fn android_bio_seal(
+    app: AppHandle,
+    webview: WebviewWindow,
+    secret_base64: String,
+    title: Option<String>,
+    subtitle: Option<String>,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(
+        &app,
+        "bioSeal",
+        json!({
+            "secretBase64": secret_base64,
+            "title": title.unwrap_or_else(|| "Biometric unlock".into()),
+            "subtitle": subtitle,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn android_bio_unseal(
+    app: AppHandle,
+    webview: WebviewWindow,
+    iv_base64: String,
+    ct_base64: String,
+    title: Option<String>,
+    subtitle: Option<String>,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(
+        &app,
+        "bioUnseal",
+        json!({
+            "ivBase64": iv_base64,
+            "ctBase64": ct_base64,
+            "title": title.unwrap_or_else(|| "Unlock".into()),
+            "subtitle": subtitle,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn android_bio_clear(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(&app, "bioClear", json!({})).await
 }
 
 #[tauri::command]
@@ -1146,8 +1213,13 @@ pub fn run() {
             android_save_export,
             android_pin_shortcut,
             android_set_secure_screen,
+            android_set_system_bars,
             android_list_app_icons,
             android_set_app_icon,
+            android_bio_status,
+            android_bio_seal,
+            android_bio_unseal,
+            android_bio_clear,
             app_version,
             // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
             commands::wallet::create_wallet,

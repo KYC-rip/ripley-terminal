@@ -105,6 +105,15 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  fun setSystemBars(light: Boolean) {
+    runOnUiThread {
+      WindowCompat.getInsetsController(window, window.decorView).apply {
+        isAppearanceLightStatusBars = light
+        isAppearanceLightNavigationBars = light
+      }
+    }
+  }
+
   fun applyWebViewProxy(proxyUrl: String?, onDone: (Boolean) -> Unit) {
     if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
       onDone(false)

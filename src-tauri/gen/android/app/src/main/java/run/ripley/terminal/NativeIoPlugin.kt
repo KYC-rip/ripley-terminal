@@ -12,12 +12,18 @@ import android.net.Uri
 import android.os.Build
 import android.os.PersistableBundle
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import android.util.Base64
 import androidx.activity.result.ActivityResult
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.fragment.app.FragmentActivity
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -27,6 +33,7 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import java.security.SecureRandom
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -41,6 +48,7 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg class BrowserArgs { lateinit var url: String }
 @InvokeArg class ExportArgs { lateinit var name: String; lateinit var base64: String; var mime: String = "application/octet-stream" }
 @InvokeArg class SecureScreenArgs { var enabled: Boolean = false }
+@InvokeArg class SystemBarsArgs { var light: Boolean = false }
 @InvokeArg class AppIconArgs { lateinit var iconId: String }
 @InvokeArg class ProxyArgs { var proxyUrl: String? = null }
 @InvokeArg class PinShortcutArgs {
@@ -83,11 +91,23 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg class XappNavArgs { lateinit var url: String }
 @InvokeArg class XappHistoryArgs { lateinit var action: String }
 @InvokeArg class XappEvalArgs { lateinit var js: String }
+@InvokeArg class BioSealArgs {
+  lateinit var secretBase64: String
+  var title: String = "Biometric unlock"
+  var subtitle: String? = null
+}
+@InvokeArg class BioUnsealArgs {
+  lateinit var ivBase64: String
+  lateinit var ctBase64: String
+  var title: String = "Unlock"
+  var subtitle: String? = null
+}
 
 @TauriPlugin
 class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   companion object {
     private const val KEYSTORE_ALIAS = "ripley_watch_key_v1"
+    private const val BIO_KEYSTORE_ALIAS = "ripley_bio_unlock_v1"
     private const val PREFS_NAME = "ripley_keystore_watch_v1"
     private const val PREF_CT = "watch_root_ct"
     private const val PREF_IV = "watch_root_iv"
@@ -126,6 +146,14 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
       mainActivity()?.setSecureScreen(a.enabled)
       invoke.resolve(JSObject().put("enabled", a.enabled))
     } catch (e: Exception) { invoke.reject(e.message ?: "Secure screen update failed") }
+  }
+
+  @Command fun setSystemBars(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(SystemBarsArgs::class.java)
+      mainActivity()?.setSystemBars(a.light)
+      invoke.resolve(JSObject().put("light", a.light))
+    } catch (e: Exception) { invoke.reject(e.message ?: "System bars update failed") }
   }
 
   private fun currentActiveIconId(): String {
@@ -468,6 +496,225 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   @Command fun xappClose(invoke: Invoke) {
     mainActivity()?.xappClose()
     invoke.resolve(JSObject().put("closed", true))
+  }
+
+  // ── Pure AOSP Hardware Biometric Unlock (Zero Google / GMS — GrapheneOS & Pixel Titan M2) ──
+
+  private fun deleteBioKey() {
+    try {
+      val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+      if (ks.containsAlias(BIO_KEYSTORE_ALIAS)) {
+        ks.deleteEntry(BIO_KEYSTORE_ALIAS)
+      }
+    } catch (_: Exception) { }
+  }
+
+  private fun generateBioKey(strongBox: Boolean): SecretKey {
+    val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    val builder = KeyGenParameterSpec.Builder(
+      BIO_KEYSTORE_ALIAS,
+      KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+    )
+      .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+      .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+      .setKeySize(256)
+      .setUserAuthenticationRequired(true)
+      .setInvalidatedByBiometricEnrollment(true)
+    if (Build.VERSION.SDK_INT >= 30) {
+      builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+    } else {
+      @Suppress("DEPRECATION")
+      builder.setUserAuthenticationValidityDurationSeconds(-1)
+    }
+    if (strongBox && Build.VERSION.SDK_INT >= 28) {
+      builder.setIsStrongBoxBacked(true)
+    }
+    gen.init(builder.build())
+    return gen.generateKey()
+  }
+
+  private fun createHardwareBioKey(): SecretKey {
+    deleteBioKey()
+    if (Build.VERSION.SDK_INT >= 28) {
+      try {
+        return generateBioKey(strongBox = true)
+      } catch (_: StrongBoxUnavailableException) {
+        deleteBioKey()
+      } catch (_: ProviderException) {
+        deleteBioKey()
+      }
+    }
+    return generateBioKey(strongBox = false)
+  }
+
+  @Command fun bioStatus(invoke: Invoke) {
+    try {
+      val res = BiometricManager.from(activity)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      invoke.resolve(
+        JSObject()
+          .put("supported", res == BiometricManager.BIOMETRIC_SUCCESS)
+          .put("status", res)
+      )
+    } catch (e: Exception) {
+      invoke.resolve(JSObject().put("supported", false).put("status", -1))
+    }
+  }
+
+  @Command fun bioSeal(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(BioSealArgs::class.java)
+      val plain = Base64.decode(a.secretBase64, Base64.DEFAULT)
+      require(plain.isNotEmpty() && plain.size <= 4096) { "Invalid secret size" }
+      val fa = activity as? FragmentActivity
+      if (fa == null) {
+        invoke.resolve(JSObject().put("status", "unsupported"))
+        return
+      }
+      val can = BiometricManager.from(fa)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      if (can != BiometricManager.BIOMETRIC_SUCCESS) {
+        invoke.resolve(JSObject().put("status", "unsupported"))
+        return
+      }
+      val key = createHardwareBioKey()
+      val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
+        init(Cipher.ENCRYPT_MODE, key)
+      }
+      val settled = AtomicBoolean(false)
+      val finish = { obj: JSObject ->
+        if (settled.compareAndSet(false, true)) invoke.resolve(obj)
+      }
+      fa.runOnUiThread {
+        try {
+          val prompt = BiometricPrompt(
+            fa,
+            ContextCompat.getMainExecutor(fa),
+            object : BiometricPrompt.AuthenticationCallback() {
+              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                try {
+                  val c = result.cryptoObject?.cipher ?: error("No crypto object")
+                  val ct = c.doFinal(plain)
+                  val iv = c.iv
+                  plain.fill(0)
+                  finish(
+                    JSObject()
+                      .put("status", "ok")
+                      .put("ivBase64", Base64.encodeToString(iv, Base64.NO_WRAP))
+                      .put("ctBase64", Base64.encodeToString(ct, Base64.NO_WRAP))
+                  )
+                } catch (_: Exception) {
+                  plain.fill(0)
+                  deleteBioKey()
+                  finish(JSObject().put("status", "unsupported"))
+                }
+              }
+              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                plain.fill(0)
+                val cancelled = errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                  errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                  errorCode == BiometricPrompt.ERROR_CANCELED ||
+                  errorCode == BiometricPrompt.ERROR_LOCKOUT ||
+                  errorCode == BiometricPrompt.ERROR_LOCKOUT_PERMANENT
+                if (!cancelled) deleteBioKey()
+                finish(JSObject().put("status", if (cancelled) "cancelled" else "unsupported"))
+              }
+            }
+          )
+          val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(a.title.ifBlank { "Biometric unlock" })
+            .apply { if (!a.subtitle.isNullOrBlank()) setSubtitle(a.subtitle) }
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setNegativeButtonText("Cancel")
+            .build()
+          prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+        } catch (_: Exception) {
+          plain.fill(0)
+          deleteBioKey()
+          finish(JSObject().put("status", "unsupported"))
+        }
+      }
+    } catch (_: Exception) {
+      deleteBioKey()
+      invoke.resolve(JSObject().put("status", "unsupported"))
+    }
+  }
+
+  @Command fun bioUnseal(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(BioUnsealArgs::class.java)
+      val iv = Base64.decode(a.ivBase64, Base64.DEFAULT)
+      val ct = Base64.decode(a.ctBase64, Base64.DEFAULT)
+      if (iv.size != 12 || ct.size < 17 || ct.size > 4200) {
+        invoke.resolve(JSObject().put("status", "gone"))
+        return
+      }
+      val fa = activity as? FragmentActivity
+      if (fa == null) {
+        invoke.resolve(JSObject().put("status", "gone"))
+        return
+      }
+      val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+      val key = ks.getKey(BIO_KEYSTORE_ALIAS, null) as? SecretKey
+      if (key == null) {
+        invoke.resolve(JSObject().put("status", "gone"))
+        return
+      }
+      val cipher = try {
+        Cipher.getInstance("AES/GCM/NoPadding").apply {
+          init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        }
+      } catch (_: KeyPermanentlyInvalidatedException) {
+        deleteBioKey()
+        invoke.resolve(JSObject().put("status", "gone"))
+        return
+      }
+      val settled = AtomicBoolean(false)
+      val finish = { obj: JSObject ->
+        if (settled.compareAndSet(false, true)) invoke.resolve(obj)
+      }
+      fa.runOnUiThread {
+        try {
+          val prompt = BiometricPrompt(
+            fa,
+            ContextCompat.getMainExecutor(fa),
+            object : BiometricPrompt.AuthenticationCallback() {
+              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                try {
+                  val c = result.cryptoObject?.cipher ?: error("No crypto object")
+                  val plain = c.doFinal(ct)
+                  val b64 = Base64.encodeToString(plain, Base64.NO_WRAP)
+                  plain.fill(0)
+                  finish(JSObject().put("status", "ok").put("secretBase64", b64))
+                } catch (_: Exception) {
+                  deleteBioKey()
+                  finish(JSObject().put("status", "gone"))
+                }
+              }
+              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                finish(JSObject().put("status", "cancelled"))
+              }
+            }
+          )
+          val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(a.title.ifBlank { "Unlock" })
+            .apply { if (!a.subtitle.isNullOrBlank()) setSubtitle(a.subtitle) }
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setNegativeButtonText("Use passcode")
+            .build()
+          prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+        } catch (_: Exception) {
+          finish(JSObject().put("status", "cancelled"))
+        }
+      }
+    } catch (_: Exception) {
+      invoke.resolve(JSObject().put("status", "gone"))
+    }
+  }
+
+  @Command fun bioClear(invoke: Invoke) {
+    deleteBioKey()
+    invoke.resolve(JSObject().put("cleared", true))
   }
 
   @Command fun saveExport(invoke: Invoke) {

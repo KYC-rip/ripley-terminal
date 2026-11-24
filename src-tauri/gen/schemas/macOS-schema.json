@@ -2211,6 +2211,30 @@
           "markdownDescription": "Enables the agent_web_read command without any pre-configured scope."
         },
         {
+          "description": "Enables the android_bio_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-clear",
+          "markdownDescription": "Enables the android_bio_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_seal command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-seal",
+          "markdownDescription": "Enables the android_bio_seal command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-status",
+          "markdownDescription": "Enables the android_bio_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_unseal command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-unseal",
+          "markdownDescription": "Enables the android_bio_unseal command without any pre-configured scope."
+        },
+        {
           "description": "Enables the android_clipboard_read command without any pre-configured scope.",
           "type": "string",
           "const": "allow-android-clipboard-read",
@@ -3151,6 +3175,30 @@
           "type": "string",
           "const": "deny-agent-web-read",
           "markdownDescription": "Denies the agent_web_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-clear",
+          "markdownDescription": "Denies the android_bio_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_seal command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-seal",
+          "markdownDescription": "Denies the android_bio_seal command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-status",
+          "markdownDescription": "Denies the android_bio_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_unseal command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-unseal",
+          "markdownDescription": "Denies the android_bio_unseal command without any pre-configured scope."
         },
         {
           "description": "Denies the android_clipboard_read command without any pre-configured scope.",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-bio-clear"
+description = "Enables the android_bio_clear command without any pre-configured scope."
+commands.allow = ["android_bio_clear"]
+
+[[permission]]
+identifier = "deny-android-bio-clear"
+description = "Denies the android_bio_clear command without any pre-configured scope."
+commands.deny = ["android_bio_clear"]

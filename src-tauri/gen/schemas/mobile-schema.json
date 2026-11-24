@@ -201,6 +201,30 @@
           "markdownDescription": "Enables the agent_web_read command without any pre-configured scope."
         },
         {
+          "description": "Enables the android_bio_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-clear",
+          "markdownDescription": "Enables the android_bio_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_seal command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-seal",
+          "markdownDescription": "Enables the android_bio_seal command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-status",
+          "markdownDescription": "Enables the android_bio_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_bio_unseal command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-bio-unseal",
+          "markdownDescription": "Enables the android_bio_unseal command without any pre-configured scope."
+        },
+        {
           "description": "Enables the android_clipboard_read command without any pre-configured scope.",
           "type": "string",
           "const": "allow-android-clipboard-read",
@@ -295,6 +319,12 @@
           "type": "string",
           "const": "allow-android-set-secure-screen",
           "markdownDescription": "Enables the android_set_secure_screen command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_set_system_bars command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-set-system-bars",
+          "markdownDescription": "Enables the android_set_system_bars command without any pre-configured scope."
         },
         {
           "description": "Enables the app_version command without any pre-configured scope.",
@@ -1143,6 +1173,30 @@
           "markdownDescription": "Denies the agent_web_read command without any pre-configured scope."
         },
         {
+          "description": "Denies the android_bio_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-clear",
+          "markdownDescription": "Denies the android_bio_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_seal command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-seal",
+          "markdownDescription": "Denies the android_bio_seal command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-status",
+          "markdownDescription": "Denies the android_bio_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_bio_unseal command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-bio-unseal",
+          "markdownDescription": "Denies the android_bio_unseal command without any pre-configured scope."
+        },
+        {
           "description": "Denies the android_clipboard_read command without any pre-configured scope.",
           "type": "string",
           "const": "deny-android-clipboard-read",
@@ -1237,6 +1291,12 @@
           "type": "string",
           "const": "deny-android-set-secure-screen",
           "markdownDescription": "Denies the android_set_secure_screen command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_set_system_bars command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-set-system-bars",
+          "markdownDescription": "Denies the android_set_system_bars command without any pre-configured scope."
         },
         {
           "description": "Denies the app_version command without any pre-configured scope.",
