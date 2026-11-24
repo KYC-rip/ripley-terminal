@@ -309,7 +309,19 @@ fn main() {
         let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         let fallback = manifest_dir.join("resources/ros-fallback.tar.zst");
         let debug_manifest = manifest_dir.join("target/ros-android-debug.manifest");
+        let local_release_manifest = manifest_dir.join("target/ros-android-local.manifest");
         println!("cargo:rerun-if-changed={}", debug_manifest.display());
+        println!("cargo:rerun-if-changed={}", local_release_manifest.display());
+        let read_manifest = |path: &std::path::Path| -> Option<(String, String, String)> {
+            let raw = std::fs::read_to_string(path).ok()?;
+            let mut lines = raw.lines().map(str::trim).filter(|l| !l.is_empty());
+            match (lines.next(), lines.next(), lines.next()) {
+                (Some(p), Some(h), Some(r)) if std::path::Path::new(p).exists() => {
+                    Some((p.to_string(), h.to_string(), r.to_string()))
+                }
+                _ => None,
+            }
+        };
         let env_or_manifest = if debug {
             if let Ok(p) = std::env::var("ROS_ANDROID_DEBUG_BUNDLE") {
                 Some((
@@ -317,19 +329,11 @@ fn main() {
                     std::env::var("ROS_ANDROID_DEBUG_BUNDLE_SHA256").expect("debug bundle pin required"),
                     std::env::var("ROS_ANDROID_UI_REVISION").expect("debug UI revision required"),
                 ))
-            } else if let Ok(raw) = std::fs::read_to_string(&debug_manifest) {
-                let mut lines = raw.lines().map(str::trim).filter(|l| !l.is_empty());
-                match (lines.next(), lines.next(), lines.next()) {
-                    (Some(p), Some(h), Some(r)) if std::path::Path::new(p).exists() => {
-                        Some((p.to_string(), h.to_string(), r.to_string()))
-                    }
-                    _ => None,
-                }
             } else {
-                None
+                read_manifest(&debug_manifest)
             }
         } else {
-            None
+            read_manifest(&local_release_manifest)
         };
         let generated = if let Some((raw_path, hash, rev)) = env_or_manifest {
             let path = std::fs::canonicalize(raw_path).expect("debug UI archive");

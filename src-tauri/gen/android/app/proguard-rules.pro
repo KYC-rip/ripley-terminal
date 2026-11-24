@@ -1,21 +1,20 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Preserve Tauri runtime, Wry WebView JNI bindings, and RipleyOS Android host classes
+# so R8 minification in release builds never strips or renames JNI / @Command / @InvokeArg targets.
+-keep class app.tauri.** { *; }
+-keep class run.ripley.terminal.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+-keepclassmembers class * {
+    native <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-keep @app.tauri.annotation.TauriPlugin class * { *; }
+-keep @app.tauri.annotation.InvokeArg class * { *; }
+-keepclassmembers class * {
+    @app.tauri.annotation.Command <methods>;
+}
+
+# Tauri Android Invoke.parseArgs uses Jackson reflection
+-keep class com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**

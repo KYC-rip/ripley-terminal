@@ -15,6 +15,7 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 36
+    ndkVersion = "27.1.12297006"
     namespace = "run.ripley.terminal"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
@@ -23,6 +24,17 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            val ksPath = System.getenv("RIPLEY_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("RIPLEY_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("RIPLEY_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("RIPLEY_KEY_PASSWORD") ?: ""
+            }
+        }
     }
     packaging {
         jniLibs {
@@ -33,16 +45,19 @@ android {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
-            isJniDebuggable = true
+            isJniDebuggable = false
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
-                jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86/*.so")
-                jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
-            }
         }
         getByName("release") {
             isMinifyEnabled = true
+            isShrinkResources = true
+            val hasReleaseKeystore = !System.getenv("RIPLEY_KEYSTORE_PATH").isNullOrBlank() &&
+                file(System.getenv("RIPLEY_KEYSTORE_PATH")).exists()
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
