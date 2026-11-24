@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-set-app-icon"
+description = "Enables the android_set_app_icon command without any pre-configured scope."
+commands.allow = ["android_set_app_icon"]
+
+[[permission]]
+identifier = "deny-android-set-app-icon"
+description = "Denies the android_set_app_icon command without any pre-configured scope."
+commands.deny = ["android_set_app_icon"]

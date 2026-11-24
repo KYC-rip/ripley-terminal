@@ -213,6 +213,12 @@
           "markdownDescription": "Enables the android_clipboard_write command without any pre-configured scope."
         },
         {
+          "description": "Enables the android_list_app_icons command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-list-app-icons",
+          "markdownDescription": "Enables the android_list_app_icons command without any pre-configured scope."
+        },
+        {
           "description": "Enables the android_notify command without any pre-configured scope.",
           "type": "string",
           "const": "allow-android-notify",
@@ -277,6 +283,12 @@
           "type": "string",
           "const": "allow-android-save-export",
           "markdownDescription": "Enables the android_save_export command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_set_app_icon command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-set-app-icon",
+          "markdownDescription": "Enables the android_set_app_icon command without any pre-configured scope."
         },
         {
           "description": "Enables the android_set_secure_screen command without any pre-configured scope.",
@@ -1143,6 +1155,12 @@
           "markdownDescription": "Denies the android_clipboard_write command without any pre-configured scope."
         },
         {
+          "description": "Denies the android_list_app_icons command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-list-app-icons",
+          "markdownDescription": "Denies the android_list_app_icons command without any pre-configured scope."
+        },
+        {
           "description": "Denies the android_notify command without any pre-configured scope.",
           "type": "string",
           "const": "deny-android-notify",
@@ -1207,6 +1225,12 @@
           "type": "string",
           "const": "deny-android-save-export",
           "markdownDescription": "Denies the android_save_export command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_set_app_icon command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-set-app-icon",
+          "markdownDescription": "Denies the android_set_app_icon command without any pre-configured scope."
         },
         {
           "description": "Denies the android_set_secure_screen command without any pre-configured scope.",

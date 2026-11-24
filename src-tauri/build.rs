@@ -183,6 +183,8 @@ const ANDROID_COMMANDS: &[&str] = &[
     "android_save_export",
     "android_pin_shortcut",
     "android_set_secure_screen",
+    "android_list_app_icons",
+    "android_set_app_icon",
     "app_version",
     // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
     "create_wallet",

@@ -24,11 +24,6 @@
             android:label="@string/main_activity_title"
             android:name=".MainActivity"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
 
             <!-- Deep links: SOLO shortcuts, Sign-in-with-Ripley, XMR402, payment URIs -->
             <intent-filter>
@@ -81,6 +76,826 @@
             
             <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
         </activity>
+
+        <!-- BEGIN GENERATED APP ICON ALIASES -->
+        <activity-alias
+            android:name=".LauncherDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="RipleyOS"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_agent"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_agent"
+            android:roundIcon="@mipmap/ic_ros_app_agent"
+            android:label="Gateway"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_authenticator"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_authenticator"
+            android:roundIcon="@mipmap/ic_ros_app_authenticator"
+            android:label="2FA Codes"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_browser"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_browser"
+            android:roundIcon="@mipmap/ic_ros_app_browser"
+            android:label="Browser"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_calc"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_calc"
+            android:roundIcon="@mipmap/ic_ros_app_calc"
+            android:label="Calculator"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_canary"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_canary"
+            android:roundIcon="@mipmap/ic_ros_app_canary"
+            android:label="Dead Switch"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_chain"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_chain"
+            android:roundIcon="@mipmap/ic_ros_app_chain"
+            android:label="Chain Tools"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_chat"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_chat"
+            android:roundIcon="@mipmap/ic_ros_app_chat"
+            android:label="Chat"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_cipher"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_cipher"
+            android:roundIcon="@mipmap/ic_ros_app_cipher"
+            android:label="Cipher"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_clock"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_clock"
+            android:roundIcon="@mipmap/ic_ros_app_clock"
+            android:label="Clock"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_crypto"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_crypto"
+            android:roundIcon="@mipmap/ic_ros_app_crypto"
+            android:label="Crypto Toolkit"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_deaddrop"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_deaddrop"
+            android:roundIcon="@mipmap/ic_ros_app_deaddrop"
+            android:label="Dead Drop"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_decoy"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_decoy"
+            android:roundIcon="@mipmap/ic_ros_app_decoy"
+            android:label="Decoy"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_directory"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_directory"
+            android:roundIcon="@mipmap/ic_ros_app_directory"
+            android:label="Directory"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_disperse"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_disperse"
+            android:roundIcon="@mipmap/ic_ros_app_disperse"
+            android:label="Disperse"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_drop"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_drop"
+            android:roundIcon="@mipmap/ic_ros_app_drop"
+            android:label="Drop ⬇"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_energy"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_energy"
+            android:roundIcon="@mipmap/ic_ros_app_energy"
+            android:label="Energy"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_engine"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_engine"
+            android:roundIcon="@mipmap/ic_ros_app_engine"
+            android:label="Auto"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_exchange"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_exchange"
+            android:roundIcon="@mipmap/ic_ros_app_exchange"
+            android:label="Exchange"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_explorer"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_explorer"
+            android:roundIcon="@mipmap/ic_ros_app_explorer"
+            android:label="Explorer"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_files"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_files"
+            android:roundIcon="@mipmap/ic_ros_app_files"
+            android:label="Files"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_game"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_game"
+            android:roundIcon="@mipmap/ic_ros_app_game"
+            android:label="2048"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_globe"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_globe"
+            android:roundIcon="@mipmap/ic_ros_app_globe"
+            android:label="Network Globe"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_graveyard"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_graveyard"
+            android:roundIcon="@mipmap/ic_ros_app_graveyard"
+            android:label="Graveyard"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_identity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_identity"
+            android:roundIcon="@mipmap/ic_ros_app_identity"
+            android:label="Identity"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_image"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_image"
+            android:roundIcon="@mipmap/ic_ros_app_image"
+            android:label="Image Viewer"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_mail"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_mail"
+            android:roundIcon="@mipmap/ic_ros_app_mail"
+            android:label="Ghost Mail"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_markets"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_markets"
+            android:roundIcon="@mipmap/ic_ros_app_markets"
+            android:label="Markets"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_merge"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_merge"
+            android:roundIcon="@mipmap/ic_ros_app_merge"
+            android:label="Merge ⦿"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_mochi"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_mochi"
+            android:roundIcon="@mipmap/ic_ros_app_mochi"
+            android:label="Mochi"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_music"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_music"
+            android:roundIcon="@mipmap/ic_ros_app_music"
+            android:label="Music"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_nostr"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_nostr"
+            android:roundIcon="@mipmap/ic_ros_app_nostr"
+            android:label="Nostr"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_notepad"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_notepad"
+            android:roundIcon="@mipmap/ic_ros_app_notepad"
+            android:label="Notepad"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_pay"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_pay"
+            android:roundIcon="@mipmap/ic_ros_app_pay"
+            android:label="Pay"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_planner"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_planner"
+            android:roundIcon="@mipmap/ic_ros_app_planner"
+            android:label="Planner"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_privacy"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_privacy"
+            android:roundIcon="@mipmap/ic_ros_app_privacy"
+            android:label="Privacy"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_radar"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_radar"
+            android:roundIcon="@mipmap/ic_ros_app_radar"
+            android:label="Radar"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_reader"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_reader"
+            android:roundIcon="@mipmap/ic_ros_app_reader"
+            android:label="Reader"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_safari"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_safari"
+            android:roundIcon="@mipmap/ic_ros_app_safari"
+            android:label="Animal Ladder"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_settings"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_settings"
+            android:roundIcon="@mipmap/ic_ros_app_settings"
+            android:label="Settings"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_snake"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_snake"
+            android:roundIcon="@mipmap/ic_ros_app_snake"
+            android:label="Snake"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_store"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_store"
+            android:roundIcon="@mipmap/ic_ros_app_store"
+            android:label="Store"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_sudoku"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_sudoku"
+            android:roundIcon="@mipmap/ic_ros_app_sudoku"
+            android:label="Sudoku"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_terminal"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_terminal"
+            android:roundIcon="@mipmap/ic_ros_app_terminal"
+            android:label="Ripley"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_translator"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_translator"
+            android:roundIcon="@mipmap/ic_ros_app_translator"
+            android:label="Translator"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_vault"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_vault"
+            android:roundIcon="@mipmap/ic_ros_app_vault"
+            android:label="Vault"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_vpn"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_vpn"
+            android:roundIcon="@mipmap/ic_ros_app_vpn"
+            android:label="VPN"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_wallet"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_wallet"
+            android:roundIcon="@mipmap/ic_ros_app_wallet"
+            android:label="Wallet"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_wallpaper"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_wallpaper"
+            android:roundIcon="@mipmap/ic_ros_app_wallpaper"
+            android:label="Wallpaper"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_weather"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_weather"
+            android:roundIcon="@mipmap/ic_ros_app_weather"
+            android:label="Weather"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <activity-alias
+            android:name=".Launcher_x"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_x"
+            android:roundIcon="@mipmap/ic_ros_app_x"
+            android:label="X"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+        <!-- END GENERATED APP ICON ALIASES -->
 
         <provider
           android:name="androidx.core.content.FileProvider"

@@ -211,6 +211,13 @@ pub fn android_sync_proxy(app: &AppHandle) {
     });
 }
 
+/// Synchronize the Android launcher icon & label (`<activity-alias>`) with the persisted
+/// `bootApp` + `appIcon` settings (default ROS icon, auto-following startup app, or explicit override).
+pub async fn android_sync_launcher_icon(app: &AppHandle) {
+    let target = commands::config::read_effective_launcher_icon(app);
+    let _ = run_native_io(app, "setAppIcon", json!({ "iconId": target })).await;
+}
+
 /// Hardware-backed Android Keystore watch root for `watchSync` view-only files
 /// (called by `wallet::device_key::ensure_watch_key`).
 pub async fn android_ensure_watch_key(app: &AppHandle) -> Option<Zeroizing<[u8; 32]>> {
@@ -399,6 +406,7 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
             "keystore": true,
             "pinShortcut": true,
             "secureScreen": true,
+            "appIcon": true,
             "nativePreferences": true,
             "nativeClipboardText": true,
             "nativeNotifications": true,
@@ -478,6 +486,28 @@ async fn android_set_secure_screen(
 ) -> Result<Value, String> {
     require_local(&webview)?;
     run_native_io(&app, "setSecureScreen", json!({ "enabled": enabled })).await
+}
+
+#[tauri::command]
+async fn android_list_app_icons(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(&app, "listAppIcons", json!({})).await
+}
+
+#[tauri::command]
+async fn android_set_app_icon(
+    app: AppHandle,
+    webview: WebviewWindow,
+    icon_id: String,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    let clean = if icon_id.trim().eq_ignore_ascii_case("default") {
+        "default".to_string()
+    } else {
+        commands::config::sanitize_boot_app_id(&icon_id)
+            .ok_or_else(|| "Invalid icon id".to_string())?
+    };
+    run_native_io(&app, "setAppIcon", json!({ "iconId": clean })).await
 }
 
 #[tauri::command]
@@ -835,8 +865,12 @@ pub fn run() {
             app.manage(wallet::SyncPool::new());
 
             // 3. Apply initial WebView ProxyController policy (fail-closed sink when mode=tor
-            // before Arti finishes bootstrapping) before loading the ROS WebView.
+            // before Arti finishes bootstrapping) and sync launcher icon before loading ROS.
             android_sync_proxy(app.handle());
+            let icon_boot = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                android_sync_launcher_icon(&icon_boot).await;
+            });
 
             // 4. Bootstrap Arti Tor in background (so .onion APIs & Tor mode are ready).
             let tor_boot = app.handle().clone();
@@ -919,6 +953,8 @@ pub fn run() {
             android_save_export,
             android_pin_shortcut,
             android_set_secure_screen,
+            android_list_app_icons,
+            android_set_app_icon,
             app_version,
             // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
             commands::wallet::create_wallet,

@@ -32,6 +32,10 @@ fi
 # Android 15+ 16 KB page alignment for native shared libraries (keep Tauri's Android link libs).
 export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-z,max-page-size=16384"
 
+if [[ -d "$ROS_DIR/dist/m" && -f "$ROOT_DIR/scripts/sync-android-icons.py" ]]; then
+  ROS_DIR="$ROS_DIR" python3 "$ROOT_DIR/scripts/sync-android-icons.py"
+fi
+
 if [[ "$MODE" == "debug" && -d "$ROS_DIR/dist" ]]; then
   BUNDLE_OUT="$ROOT_DIR/src-tauri/target/ros-android-debug.tar.zst"
   MANIFEST_OUT="$ROOT_DIR/src-tauri/target/ros-android-debug.manifest"

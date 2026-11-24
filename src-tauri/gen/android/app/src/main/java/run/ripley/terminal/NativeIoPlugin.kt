@@ -3,8 +3,10 @@ package run.ripley.terminal
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
@@ -39,6 +41,7 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg class BrowserArgs { lateinit var url: String }
 @InvokeArg class ExportArgs { lateinit var name: String; lateinit var base64: String; var mime: String = "application/octet-stream" }
 @InvokeArg class SecureScreenArgs { var enabled: Boolean = false }
+@InvokeArg class AppIconArgs { lateinit var iconId: String }
 @InvokeArg class ProxyArgs { var proxyUrl: String? = null }
 @InvokeArg class PinShortcutArgs {
   lateinit var appId: String
@@ -110,6 +113,86 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
       mainActivity()?.setSecureScreen(a.enabled)
       invoke.resolve(JSObject().put("enabled", a.enabled))
     } catch (e: Exception) { invoke.reject(e.message ?: "Secure screen update failed") }
+  }
+
+  private fun currentActiveIconId(): String {
+    val pm = activity.packageManager
+    val pkg = activity.packageName
+    for (entry in LauncherIcons.ALL) {
+      val cn = ComponentName(pkg, entry.aliasClass)
+      val state = pm.getComponentEnabledSetting(cn)
+      if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+        return entry.id
+      }
+      if (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.id == LauncherIcons.DEFAULT_ID) {
+        return entry.id
+      }
+    }
+    return LauncherIcons.DEFAULT_ID
+  }
+
+  @Command fun listAppIcons(invoke: Invoke) {
+    try {
+      val active = currentActiveIconId()
+      val arr = org.json.JSONArray()
+      for (entry in LauncherIcons.ALL) {
+        arr.put(JSObject().put("id", entry.id).put("label", entry.label))
+      }
+      invoke.resolve(JSObject().put("activeIcon", active).put("icons", arr))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Failed to list launcher icons") }
+  }
+
+  /** Switch the Android launcher icon & label via <activity-alias>.
+   *  Enables the target alias BEFORE disabling others so the app never has zero launcher entries,
+   *  and passes DONT_KILL_APP so Tor/Wallet stays alive while the launcher refreshes. */
+  @Command fun setAppIcon(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(AppIconArgs::class.java)
+      val requested = a.iconId.trim().lowercase()
+      val target = LauncherIcons.BY_ID[requested] ?: LauncherIcons.BY_ID.getValue(LauncherIcons.DEFAULT_ID)
+      val pm = activity.packageManager
+      val pkg = activity.packageName
+
+      val targetCn = ComponentName(pkg, target.aliasClass)
+      val targetState = pm.getComponentEnabledSetting(targetCn)
+      val alreadySoleActive = (targetState == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+        (targetState == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && target.id == LauncherIcons.DEFAULT_ID)) &&
+        LauncherIcons.ALL.all { entry ->
+          if (entry.id == target.id) true
+          else {
+            val st = pm.getComponentEnabledSetting(ComponentName(pkg, entry.aliasClass))
+            st == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
+              (st == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.id != LauncherIcons.DEFAULT_ID)
+          }
+        }
+
+      if (alreadySoleActive) {
+        invoke.resolve(JSObject().put("applied", true).put("changed", false).put("activeIcon", target.id))
+        return
+      }
+
+      // 1. Enable target first so the package always has at least one LAUNCHER component.
+      pm.setComponentEnabledSetting(
+        targetCn,
+        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+        PackageManager.DONT_KILL_APP
+      )
+      // 2. Disable all other aliases.
+      for (entry in LauncherIcons.ALL) {
+        if (entry.id == target.id) continue
+        val cn = ComponentName(pkg, entry.aliasClass)
+        val st = pm.getComponentEnabledSetting(cn)
+        val isImplicitlyDisabled = st == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.id != LauncherIcons.DEFAULT_ID
+        if (st != PackageManager.COMPONENT_ENABLED_STATE_DISABLED && !isImplicitlyDisabled) {
+          pm.setComponentEnabledSetting(
+            cn,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP
+          )
+        }
+      }
+      invoke.resolve(JSObject().put("applied", true).put("changed", true).put("activeIcon", target.id))
+    } catch (e: Exception) { invoke.reject(e.message ?: "App icon switch failed") }
   }
 
   @Command fun applyProxy(invoke: Invoke) {

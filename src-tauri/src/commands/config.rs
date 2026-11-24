@@ -292,6 +292,47 @@ pub fn read_boot_app(app: &AppHandle) -> Option<String> {
     sanitize_boot_app_id(boot)
 }
 
+/// Resolve which Android launcher icon alias should be active:
+/// - `appIcon == Some("default")` → `"default"` (explicit ROS icon)
+/// - `appIcon == Some("<id>")` (not `"auto"`) → that explicit embedded app icon
+/// - `appIcon == None | Some("") | Some("auto")` → follow `bootApp` when it names a specific
+///   app (not Desktop or `"last"`), otherwise `"default"` (ROS icon).
+pub fn effective_launcher_icon(boot_app: Option<&str>, app_icon: Option<&str>) -> String {
+    if let Some(raw_icon) = app_icon.map(str::trim).filter(|s| !s.is_empty()) {
+        if raw_icon.eq_ignore_ascii_case("default") {
+            return "default".to_string();
+        }
+        if !raw_icon.eq_ignore_ascii_case("auto") {
+            if let Some(clean) = sanitize_boot_app_id(raw_icon) {
+                return clean;
+            }
+        }
+    }
+    if let Some(raw_boot) = boot_app.map(str::trim).filter(|s| !s.is_empty()) {
+        if !raw_boot.eq_ignore_ascii_case("last") {
+            if let Some(clean) = sanitize_boot_app_id(raw_boot) {
+                return clean;
+            }
+        }
+    }
+    "default".to_string()
+}
+
+pub fn read_effective_launcher_icon(app: &AppHandle) -> String {
+    let cfg = std::fs::read_to_string(config_path(app))
+        .ok()
+        .and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok());
+    let boot = cfg
+        .as_ref()
+        .and_then(|c| c.get("bootApp"))
+        .and_then(|v| v.as_str());
+    let icon = cfg
+        .as_ref()
+        .and_then(|c| c.get("appIcon"))
+        .and_then(|v| v.as_str());
+    effective_launcher_icon(boot, icon)
+}
+
 /// App metadata + on-disk storage locations for the Settings → Data Storage
 /// panel (the renderer showed "Loading..." because the bridge returned empty
 /// paths). appDataPath holds config/nodes/Tor state; walletsPath holds the
@@ -447,7 +488,10 @@ pub async fn save_config(app: AppHandle, mut config: serde_json::Value) -> Resul
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
     std::fs::write(&path, data).map_err(|e| format!("Failed to write config: {}", e))?;
     #[cfg(target_os = "android")]
-    crate::android_sync_proxy_now(&app).await;
+    {
+        crate::android_sync_proxy_now(&app).await;
+        crate::android_sync_launcher_icon(&app).await;
+    }
     Ok(())
 }
 
@@ -696,5 +740,25 @@ mod reveal_guard_tests {
                 "{name} should be refused"
             );
         }
+    }
+
+    #[test]
+    fn effective_launcher_icon_follows_boot_app_and_explicit_override() {
+        use super::effective_launcher_icon;
+        // Default: desktop boot + no icon override -> default ROS icon
+        assert_eq!(effective_launcher_icon(None, None), "default");
+        assert_eq!(effective_launcher_icon(Some(""), Some("auto")), "default");
+        assert_eq!(effective_launcher_icon(Some("last"), None), "default");
+        // Changing startup app uses that app's icon by default (auto)
+        assert_eq!(effective_launcher_icon(Some("markets"), None), "markets");
+        assert_eq!(effective_launcher_icon(Some("calc"), Some("auto")), "calc");
+        // Explicit override wins over bootApp
+        assert_eq!(effective_launcher_icon(Some("wallet"), Some("calc")), "calc");
+        assert_eq!(effective_launcher_icon(None, Some("notepad")), "notepad");
+        // Explicit "default" forces ROS icon even when bootApp is a SOLO app
+        assert_eq!(effective_launcher_icon(Some("markets"), Some("default")), "default");
+        // Traversal/invalid values fail closed to default
+        assert_eq!(effective_launcher_icon(Some("../evil"), None), "default");
+        assert_eq!(effective_launcher_icon(None, Some("a/b")), "default");
     }
 }

@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Ripley Terminal</string>
-    <string name="main_activity_title">Ripley Terminal</string>
+    <string name="app_name">RipleyOS</string>
+    <string name="main_activity_title">RipleyOS</string>
     <string name="shortcut_wallet">Wallet</string>
     <string name="shortcut_wallet_long">Open Wallet (SOLO)</string>
     <string name="shortcut_exchange">Exchange</string>
