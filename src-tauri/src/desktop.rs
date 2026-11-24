@@ -777,4 +777,45 @@ mod ipc_manifest_tests {
             }
         }
     }
+
+    /// Every command registered in android.rs must be listed in build.rs ANDROID_COMMANDS
+    /// AND granted in permissions/android-terminal.toml so no Android IPC is silently denied.
+    #[test]
+    fn every_android_registered_command_is_listed_and_permitted() {
+        let android_src = include_str!("android.rs");
+        let start = android_src.find("generate_handler![").expect("android handler list") + "generate_handler![".len();
+        let body = &android_src[start..start + android_src[start..].find(']').unwrap()];
+        let registered: Vec<String> = body
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with("//") && !l.starts_with("tauri::generate_handler"))
+            .map(|l| l.trim_end_matches(',').rsplit("::").next().unwrap().to_string())
+            .filter(|t| !t.is_empty())
+            .collect();
+        let build = include_str!("../build.rs");
+        let bstart = build.find("ANDROID_COMMANDS").expect("ANDROID_COMMANDS");
+        let bbody = &build[bstart..bstart + build[bstart..].find("];").unwrap()];
+        let listed: Vec<String> = bbody
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.starts_with('"'))
+            .map(|l| l.trim_end_matches(',').trim_matches('"').to_string())
+            .collect();
+        let perm = include_str!("../permissions/android-terminal.toml");
+        let permitted: Vec<String> = perm
+            .lines()
+            .map(str::trim)
+            .filter(|l| l.starts_with('"'))
+            .map(|l| l.trim_end_matches(',').trim_matches('"').to_string())
+            .collect();
+        assert!(registered.len() > 80 && listed.len() > 80, "android command parser found too few entries");
+        let missing_build: Vec<_> = registered.iter().filter(|c| !listed.contains(c)).collect();
+        let extra_build: Vec<_> = listed.iter().filter(|c| !registered.contains(c)).collect();
+        let missing_perm: Vec<_> = registered.iter().filter(|c| !permitted.contains(c)).collect();
+        let extra_perm: Vec<_> = permitted.iter().filter(|c| !registered.contains(c)).collect();
+        assert!(missing_build.is_empty(), "in android.rs but missing from build.rs ANDROID_COMMANDS: {missing_build:?}");
+        assert!(extra_build.is_empty(), "in build.rs ANDROID_COMMANDS but not registered in android.rs: {extra_build:?}");
+        assert!(missing_perm.is_empty(), "in android.rs but missing from permissions/android-terminal.toml: {missing_perm:?}");
+        assert!(extra_perm.is_empty(), "in permissions/android-terminal.toml but not registered in android.rs: {extra_perm:?}");
+    }
 }

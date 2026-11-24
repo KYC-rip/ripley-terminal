@@ -2211,6 +2211,90 @@
           "markdownDescription": "Enables the agent_web_read command without any pre-configured scope."
         },
         {
+          "description": "Enables the android_clipboard_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-clipboard-read",
+          "markdownDescription": "Enables the android_clipboard_read command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_clipboard_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-clipboard-write",
+          "markdownDescription": "Enables the android_clipboard_write command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_notify command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-notify",
+          "markdownDescription": "Enables the android_notify command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_pin_shortcut command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-pin-shortcut",
+          "markdownDescription": "Enables the android_pin_shortcut command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_attacks command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-attacks",
+          "markdownDescription": "Enables the android_poc_attacks command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_confirmation command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-confirmation",
+          "markdownDescription": "Enables the android_poc_confirmation command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_lock command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-lock",
+          "markdownDescription": "Enables the android_poc_lock command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-scan",
+          "markdownDescription": "Enables the android_poc_scan command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_tor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-tor",
+          "markdownDescription": "Enables the android_poc_tor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_poc_wallet command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-poc-wallet",
+          "markdownDescription": "Enables the android_poc_wallet command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_renderer_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-renderer-ready",
+          "markdownDescription": "Enables the android_renderer_ready command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_runtime_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-runtime-status",
+          "markdownDescription": "Enables the android_runtime_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_save_export command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-save-export",
+          "markdownDescription": "Enables the android_save_export command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_set_secure_screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-set-secure-screen",
+          "markdownDescription": "Enables the android_set_secure_screen command without any pre-configured scope."
+        },
+        {
           "description": "Enables the app_version command without any pre-configured scope.",
           "type": "string",
           "const": "allow-app-version",
@@ -3027,6 +3111,12 @@
           "markdownDescription": "Enables the xapp_zoom command without any pre-configured scope."
         },
         {
+          "description": "Production Android RipleyOS host surface: sovereign Monero wallet, Arti Tor, CORS-free fetch, overlay browser, SOLO shortcuts, secure screen, KV, wallpapers, signed OTA.",
+          "type": "string",
+          "const": "android-terminal",
+          "markdownDescription": "Production Android RipleyOS host surface: sovereign Monero wallet, Arti Tor, CORS-free fetch, overlay browser, SOLO shortcuts, secure screen, KV, wallpapers, signed OTA."
+        },
+        {
           "description": "Denies the agent_gateway_rotate_key command without any pre-configured scope.",
           "type": "string",
           "const": "deny-agent-gateway-rotate-key",
@@ -3049,6 +3139,90 @@
           "type": "string",
           "const": "deny-agent-web-read",
           "markdownDescription": "Denies the agent_web_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_clipboard_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-clipboard-read",
+          "markdownDescription": "Denies the android_clipboard_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_clipboard_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-clipboard-write",
+          "markdownDescription": "Denies the android_clipboard_write command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_notify command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-notify",
+          "markdownDescription": "Denies the android_notify command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_pin_shortcut command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-pin-shortcut",
+          "markdownDescription": "Denies the android_pin_shortcut command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_attacks command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-attacks",
+          "markdownDescription": "Denies the android_poc_attacks command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_confirmation command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-confirmation",
+          "markdownDescription": "Denies the android_poc_confirmation command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_lock command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-lock",
+          "markdownDescription": "Denies the android_poc_lock command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-scan",
+          "markdownDescription": "Denies the android_poc_scan command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_tor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-tor",
+          "markdownDescription": "Denies the android_poc_tor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_poc_wallet command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-poc-wallet",
+          "markdownDescription": "Denies the android_poc_wallet command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_renderer_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-renderer-ready",
+          "markdownDescription": "Denies the android_renderer_ready command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_runtime_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-runtime-status",
+          "markdownDescription": "Denies the android_runtime_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_save_export command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-save-export",
+          "markdownDescription": "Denies the android_save_export command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_set_secure_screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-set-secure-screen",
+          "markdownDescription": "Denies the android_set_secure_screen command without any pre-configured scope."
         },
         {
           "description": "Denies the app_version command without any pre-configured scope.",

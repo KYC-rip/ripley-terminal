@@ -25,7 +25,7 @@
 //! Subkeys are HKDF-SHA256-derived with distinct info strings, so no AEAD context
 //! ever reuses a raw root key.
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -36,14 +36,14 @@ use sha2::Sha256;
 use tauri::{AppHandle, Manager};
 use zeroize::Zeroizing;
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 const KEYRING_SERVICE: &str = "ripley-terminal";
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 const KEYRING_ENTRY: &str = "watch-key-v1";
 const CACHE_KEY_FILE: &str = "device.key";
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 const WATCH_KEY_SLOT_FILE: &str = "watch-key.slot";
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 const MAX_WATCH_KEY_SLOT: u32 = 64;
 
 /// File-backed root for the cache key. Loaded once at boot; None only if the
@@ -130,7 +130,21 @@ pub async fn ensure_watch_key(app: &AppHandle) -> bool {
         return false;
     }
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(all(not(debug_assertions), target_os = "android"))]
+    {
+        let loaded = crate::android_ensure_watch_key(app).await;
+        match loaded {
+            Some(k) => {
+                if let Ok(mut g) = WATCH_ROOT.lock() {
+                    *g = Some(k);
+                }
+                true
+            }
+            None => false,
+        }
+    }
+
+    #[cfg(all(not(debug_assertions), not(target_os = "android")))]
     {
         let slot_path = app
             .path()
@@ -156,7 +170,7 @@ pub async fn ensure_watch_key(app: &AppHandle) -> bool {
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 fn load_or_create_keychain_key(slot_path: &Path) -> Option<Zeroizing<[u8; 32]>> {
     let slot = read_watch_key_slot(slot_path);
     let entry_name = watch_key_entry_name(slot);
@@ -182,7 +196,7 @@ fn load_or_create_keychain_key(slot_path: &Path) -> Option<Zeroizing<[u8; 32]>> 
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 fn load_or_create_keychain_key_for(entry_name: &str) -> Option<Zeroizing<[u8; 32]>> {
     let entry = match keyring::Entry::new(KEYRING_SERVICE, entry_name) {
         Ok(e) => e,
@@ -232,7 +246,7 @@ fn load_or_create_keychain_key_for(entry_name: &str) -> Option<Zeroizing<[u8; 32
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 fn watch_key_entry_name(slot: u32) -> String {
     if slot == 0 {
         KEYRING_ENTRY.to_string()
@@ -241,7 +255,7 @@ fn watch_key_entry_name(slot: u32) -> String {
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 fn read_watch_key_slot(path: &Path) -> u32 {
     std::fs::read_to_string(path)
         .ok()
@@ -250,7 +264,7 @@ fn read_watch_key_slot(path: &Path) -> u32 {
         .unwrap_or(0)
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), not(target_os = "android")))]
 fn write_watch_key_slot(path: &Path, slot: u32) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);

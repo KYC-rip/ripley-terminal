@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-renderer-ready"
+description = "Enables the android_renderer_ready command without any pre-configured scope."
+commands.allow = ["android_renderer_ready"]
+
+[[permission]]
+identifier = "deny-android-renderer-ready"
+description = "Denies the android_renderer_ready command without any pre-configured scope."
+commands.deny = ["android_renderer_ready"]

@@ -1,4 +1,4 @@
-package run.ripley.androidpoc
+package run.ripley.terminal
 
 import android.app.Activity
 import android.os.Bundle

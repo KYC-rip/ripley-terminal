@@ -1,0 +1,344 @@
+package run.ripley.terminal
+
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.os.Build
+import android.os.PersistableBundle
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import androidx.activity.result.ActivityResult
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import app.tauri.annotation.ActivityCallback
+import app.tauri.annotation.Command
+import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
+import app.tauri.plugin.Plugin
+import java.security.GeneralSecurityException
+import java.security.KeyStore
+import java.security.SecureRandom
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import android.os.Handler
+import android.os.Looper
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+@InvokeArg class ClipboardArgs { lateinit var text: String }
+@InvokeArg class BrowserArgs { lateinit var url: String }
+@InvokeArg class ExportArgs { lateinit var name: String; lateinit var base64: String; var mime: String = "application/octet-stream" }
+@InvokeArg class SecureScreenArgs { var enabled: Boolean = false }
+@InvokeArg class ProxyArgs { var proxyUrl: String? = null }
+@InvokeArg class PinShortcutArgs {
+  lateinit var appId: String
+  lateinit var label: String
+  var iconBase64: String? = null
+}
+@InvokeArg class EmbedOpenArgs {
+  lateinit var url: String
+  var x: Double = 0.0
+  var y: Double = 0.0
+  var w: Double = 360.0
+  var h: Double = 600.0
+  var bg: String? = null
+  var zoom: Double? = null
+  var allowOnion: Boolean = false
+}
+@InvokeArg class EmbedBoundsArgs {
+  var x: Double = 0.0
+  var y: Double = 0.0
+  var w: Double = 360.0
+  var h: Double = 600.0
+}
+@InvokeArg class EmbedNavArgs {
+  lateinit var url: String
+  var allowOnion: Boolean = false
+}
+@InvokeArg class EmbedVisibleArgs { var visible: Boolean = true }
+@InvokeArg class EmbedZoomArgs { var zoom: Double = 1.0 }
+
+@TauriPlugin
+class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
+  companion object {
+    private const val KEYSTORE_ALIAS = "ripley_watch_key_v1"
+    private const val PREFS_NAME = "ripley_keystore_watch_v1"
+    private const val PREF_CT = "watch_root_ct"
+    private const val PREF_IV = "watch_root_iv"
+  }
+
+  private val ioExecutor = Executors.newSingleThreadExecutor()
+  private val mainHandler = Handler(Looper.getMainLooper())
+
+  private fun mainActivity(): MainActivity? = activity as? MainActivity
+
+  @Command fun readClipboard(invoke: Invoke) {
+    try {
+      val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+      val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString() ?: ""
+      require(text.length <= 65536) { "Clipboard exceeds 64 KiB text limit" }
+      invoke.resolve(JSObject().put("text", text))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Clipboard read failed") }
+  }
+
+  @Command fun writeClipboard(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(ClipboardArgs::class.java)
+      require(a.text.length <= 65536) { "Clipboard exceeds 64 KiB text limit" }
+      val clip = ClipData.newPlainText("ROS", a.text)
+      if (Build.VERSION.SDK_INT >= 24) {
+        clip.description.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+      }
+      (activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+      invoke.resolve(JSObject().put("written", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Clipboard write failed") }
+  }
+
+  @Command fun setSecureScreen(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(SecureScreenArgs::class.java)
+      mainActivity()?.setSecureScreen(a.enabled)
+      invoke.resolve(JSObject().put("enabled", a.enabled))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Secure screen update failed") }
+  }
+
+  @Command fun applyProxy(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(ProxyArgs::class.java)
+      val host = mainActivity()
+      if (host == null) {
+        invoke.resolve(JSObject().put("applied", false))
+        return
+      }
+      val done = AtomicBoolean(false)
+      val timeout = Runnable {
+        if (done.compareAndSet(false, true)) {
+          invoke.resolve(JSObject().put("applied", false))
+        }
+      }
+      mainHandler.postDelayed(timeout, 3000)
+      host.applyWebViewProxy(a.proxyUrl) { ok ->
+        mainHandler.removeCallbacks(timeout)
+        if (done.compareAndSet(false, true)) {
+          invoke.resolve(JSObject().put("applied", ok))
+        }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "Proxy update failed") }
+  }
+
+  @Command fun pinShortcut(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(PinShortcutArgs::class.java)
+      require(Regex("^[a-z0-9_-]{1,32}$").matches(a.appId)) { "Invalid appId" }
+      require(a.label.isNotBlank() && a.label.length <= 64) { "Invalid label" }
+      if (!ShortcutManagerCompat.isRequestPinShortcutSupported(activity)) {
+        invoke.reject("Launcher does not support pinned shortcuts")
+        return
+      }
+      val launchIntent = Intent(Intent.ACTION_VIEW, Uri.parse("ripley://solo/${a.appId}"), activity, MainActivity::class.java).apply {
+        putExtra("ripley_solo_app", a.appId)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      }
+      val icon = a.iconBase64?.takeIf { it.isNotBlank() }?.let { b64 ->
+        try {
+          val bytes = Base64.decode(b64, Base64.DEFAULT)
+          BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { IconCompat.createWithAdaptiveBitmap(it) }
+        } catch (_: Exception) { null }
+      } ?: IconCompat.createWithResource(activity, R.mipmap.ic_launcher)
+
+      val info = ShortcutInfoCompat.Builder(activity, "ros-solo-${a.appId}")
+        .setShortLabel(a.label)
+        .setLongLabel("${a.label} · RipleyOS")
+        .setIcon(icon)
+        .setIntent(launchIntent)
+        .build()
+      mainActivity()?.suppressNextAutoLock = true
+      val requested = ShortcutManagerCompat.requestPinShortcut(activity, info, null)
+      invoke.resolve(JSObject().put("pinned", requested))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Pin shortcut failed") }
+  }
+
+  /** Hardware-backed Android Keystore wrapper for the regenerable watch-only sync root.
+   *  NEVER used for spend vaults (those remain password-portable Argon2id + ChaCha20-Poly1305). */
+  @Command fun ensureWatchKey(invoke: Invoke) {
+    try {
+      val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+      val secretKey = (ks.getKey(KEYSTORE_ALIAS, null) as? SecretKey) ?: run {
+        val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        val spec = KeyGenParameterSpec.Builder(
+          KEYSTORE_ALIAS,
+          KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+          .setKeySize(256)
+          .apply { if (Build.VERSION.SDK_INT >= 28) setUnlockedDeviceRequired(true) }
+          .build()
+        kg.init(spec)
+        kg.generateKey()
+      }
+      val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val existingCt = prefs.getString(PREF_CT, null)
+      val existingIv = prefs.getString(PREF_IV, null)
+      var rawKey: ByteArray? = null
+      if (existingCt != null && existingIv != null) {
+        try {
+          val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+          cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, Base64.decode(existingIv, Base64.NO_WRAP)))
+          val decrypted = cipher.doFinal(Base64.decode(existingCt, Base64.NO_WRAP))
+          if (decrypted.size == 32) {
+            rawKey = decrypted
+          }
+        } catch (_: GeneralSecurityException) {
+          // Keystore key was invalidated or reset; clear stale ciphertext and regenerate the
+          // watch root below (watch files are regenerable from the wallet on next unlock).
+          prefs.edit().remove(PREF_CT).remove(PREF_IV).apply()
+        } catch (_: IllegalArgumentException) {
+          prefs.edit().remove(PREF_CT).remove(PREF_IV).apply()
+        }
+      }
+      if (rawKey == null) {
+        val fresh = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        val ct = cipher.doFinal(fresh)
+        prefs.edit()
+          .putString(PREF_CT, Base64.encodeToString(ct, Base64.NO_WRAP))
+          .putString(PREF_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+          .apply()
+        rawKey = fresh
+      }
+      invoke.resolve(JSObject().put("keyBase64", Base64.encodeToString(rawKey, Base64.NO_WRAP)))
+    } catch (e: Exception) {
+      invoke.reject(e.message ?: "Android Keystore unavailable")
+    }
+  }
+
+  @Command fun openExternalUrl(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(BrowserArgs::class.java)
+      val u = Uri.parse(args.url)
+      val s = u.scheme?.lowercase()
+      require((s == "https" || s == "http") && u.userInfo == null && args.url.length <= 2048) {
+        "Only valid http(s) URLs without credentials are allowed"
+      }
+      activity.startActivity(Intent(Intent.ACTION_VIEW, u).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      invoke.resolve(JSObject().put("opened", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Could not open external URL") }
+  }
+
+  @Command fun openBrowser(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(BrowserArgs::class.java)
+      require(IsolatedBrowserActivity.allowed(args.url)) { "Public HTTPS only; Tor/local/private URLs are not supported" }
+      activity.startActivity(Intent(activity, IsolatedBrowserActivity::class.java).putExtra("url", args.url))
+      invoke.resolve(JSObject().put("mode", "isolated-activity").put("walletBridge", false))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Browser could not open") }
+  }
+
+  @Command fun closeBrowser(invoke: Invoke) {
+    activity.runOnUiThread {
+      IsolatedBrowserActivity.current?.get()?.finish()
+      mainActivity()?.embedClose()
+      invoke.resolve(JSObject().put("closed", true))
+    }
+  }
+
+  @Command fun embedOpen(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedOpenArgs::class.java)
+      val host = mainActivity() ?: return invoke.reject("MainActivity unavailable")
+      host.embedOpen(a.url, a.x, a.y, a.w, a.h, a.bg, a.zoom, a.allowOnion) { res ->
+        res.onSuccess { invoke.resolve(JSObject().put("opened", true)) }
+          .onFailure { invoke.reject(it.message ?: "Embedded browser open failed") }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "Embedded browser open failed") }
+  }
+
+  @Command fun embedBounds(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedBoundsArgs::class.java)
+      mainActivity()?.embedBounds(a.x, a.y, a.w, a.h)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Bounds update failed") }
+  }
+
+  @Command fun embedNavigate(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedNavArgs::class.java)
+      val host = mainActivity() ?: return invoke.reject("MainActivity unavailable")
+      host.embedNavigate(a.url, a.allowOnion) { res ->
+        res.onSuccess { invoke.resolve(JSObject().put("ok", true)) }
+          .onFailure { invoke.reject(it.message ?: "Navigate failed") }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "Navigate failed") }
+  }
+
+  @Command fun embedVisible(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedVisibleArgs::class.java)
+      mainActivity()?.embedVisible(a.visible)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Visible update failed") }
+  }
+
+  @Command fun embedZoom(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedZoomArgs::class.java)
+      mainActivity()?.embedZoom(a.zoom)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "Zoom update failed") }
+  }
+
+  @Command fun embedClose(invoke: Invoke) {
+    mainActivity()?.embedClose()
+    invoke.resolve(JSObject().put("closed", true))
+  }
+
+  @Command fun saveExport(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(ExportArgs::class.java)
+      require(a.name.length in 1..120 && !a.name.contains('/') && !a.name.contains('\\')) { "Invalid export name" }
+      require(a.base64.length <= 24 * 1024 * 1024) { "Export exceeds size limit" }
+      val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = a.mime
+        putExtra(Intent.EXTRA_TITLE, a.name)
+      }
+      mainActivity()?.suppressNextAutoLock = true
+      startActivityForResult(invoke, intent, "exportResult")
+    } catch (e: Exception) { invoke.reject(e.message ?: "Save picker failed") }
+  }
+
+  @ActivityCallback fun exportResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      invoke.resolve(JSObject().put("saved", false).put("cancelled", true))
+      return
+    }
+    try {
+      val a = invoke.parseArgs(ExportArgs::class.java)
+      val uri = result.data?.data ?: error("No destination")
+      ioExecutor.execute {
+        try {
+          val bytes = Base64.decode(a.base64, Base64.DEFAULT)
+          require(bytes.size <= 16 * 1024 * 1024) { "Export exceeds size limit" }
+          activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+            ?: error("Destination cannot be written")
+          invoke.resolve(JSObject().put("saved", true).put("bytes", bytes.size).put("uri", uri.toString()))
+        } catch (e: Exception) {
+          invoke.reject(e.message ?: "Export write failed")
+        }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "Export write failed") }
+  }
+}

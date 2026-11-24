@@ -304,6 +304,118 @@ pub async fn socks_get_capped(proxy: &str, url: &str, limit: usize) -> Result<Ve
         .map_err(|_| format!("SOCKS GET to {host} timed out"))?
 }
 
+/// General HTTP/HTTPS request over Arti Tor supporting any HTTP method (GET/POST/PUT/DELETE),
+/// custom headers, request body, and response size cap. Returns `(status_code, body_bytes)`.
+pub async fn tor_request_with_headers(
+    tor: &TorClient<PreferredRuntime>,
+    method: Method,
+    url: &str,
+    body: Vec<u8>,
+    extra_headers: &[(String, String)],
+    limit: Option<usize>,
+) -> Result<(u16, Vec<u8>), String> {
+    let (https, host, port, path) = parse_url(url)?;
+    let exchange = async {
+        let stream = tor
+            .connect((host.as_str(), port))
+            .await
+            .map_err(|e| format!("Tor connect to {host}:{port} failed: {e}"))?;
+        let mut builder = Request::builder()
+            .method(method)
+            .uri(&path)
+            .header(hyper::header::HOST, &host)
+            .header(
+                hyper::header::USER_AGENT,
+                concat!("ripley-terminal/", env!("CARGO_PKG_VERSION")),
+            )
+            .header(hyper::header::CONNECTION, "close");
+        let mut has_ct = false;
+        for (k, v) in extra_headers {
+            if [
+                "host",
+                "content-length",
+                "connection",
+                "transfer-encoding",
+                "upgrade",
+            ]
+            .iter()
+            .any(|b| k.eq_ignore_ascii_case(b))
+            {
+                continue;
+            }
+            if k.eq_ignore_ascii_case("content-type") {
+                has_ct = true;
+            }
+            if let (Ok(name), Ok(val)) = (
+                hyper::header::HeaderName::from_bytes(k.as_bytes()),
+                hyper::header::HeaderValue::from_str(v),
+            ) {
+                builder = builder.header(name, val);
+            }
+        }
+        if !body.is_empty() && !has_ct {
+            let trimmed = body.iter().copied().find(|b| !b.is_ascii_whitespace());
+            if matches!(trimmed, Some(b'{') | Some(b'[')) {
+                builder = builder.header(hyper::header::CONTENT_TYPE, "application/json");
+            }
+        }
+        let request = builder
+            .body(Full::new(Bytes::from(body)))
+            .map_err(|e| format!("Failed to build request: {e}"))?;
+        if https {
+            let server_name = ServerName::try_from(host.clone())
+                .map_err(|_| format!("invalid TLS server name: {host}"))?;
+            let tls_stream = tls_connector()
+                .connect(server_name, stream)
+                .await
+                .map_err(|e| format!("TLS handshake with {host} failed: {e}"))?;
+            http_over_stream_status(tls_stream, request, limit).await
+        } else {
+            http_over_stream_status(stream, request, limit).await
+        }
+    };
+    tokio::time::timeout(TOR_REQUEST_TIMEOUT, exchange)
+        .await
+        .map_err(|_| format!("Tor request to {host} timed out"))?
+}
+
+/// Drive a single HTTP/1.1 request over any byte stream and return `(status_code, bytes)`
+/// without failing on non-2xx HTTP responses (so `ros_native_fetch` preserves exact status).
+async fn http_over_stream_status<S>(
+    stream: S,
+    request: Request<Full<Bytes>>,
+    size_limit: Option<usize>,
+) -> Result<(u16, Vec<u8>), String>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
+    let io = TokioIo::new(stream);
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(io)
+        .await
+        .map_err(|e| format!("HTTP handshake failed: {e}"))?;
+    let conn_task = AbortOnDrop(tokio::spawn(async move {
+        let _ = conn.await;
+    }));
+    let response = sender
+        .send_request(request)
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+    let status = response.status().as_u16();
+    let incoming = response.into_body();
+    let result = match size_limit {
+        Some(limit) => Limited::new(incoming, limit)
+            .collect()
+            .await
+            .map_err(|e| format!("Response body error (limit {limit}): {e}")),
+        None => incoming
+            .collect()
+            .await
+            .map_err(|e| format!("Response body error: {e}")),
+    };
+    drop(conn_task);
+    Ok((status, result?.to_bytes().to_vec()))
+}
+
 /// Like `tor_get` but attaches caller-supplied request headers (e.g. a DoH
 /// `Accept: application/dns-message`). Same graceful-degradation contract.
 pub async fn tor_get_with_headers(
@@ -474,8 +586,10 @@ fn tls_connector() -> TlsConnector {
             for cert in loaded.certs {
                 let _ = roots.add(cert);
             }
-            if roots.is_empty() {
-                log::warn!("rustls: no native root certificates loaded; HTTPS-over-Tor will fail");
+            // Android APEX cert stores can return empty from rustls-native-certs;
+            // seed Mozilla's bundled webpki-roots as a reliable pure-Rust fallback.
+            if roots.is_empty() || cfg!(target_os = "android") {
+                roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
             }
             let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
             let config = ClientConfig::builder_with_provider(provider)
@@ -501,9 +615,11 @@ pub fn parse_url(url: &str) -> Result<(bool, String, u16, String), String> {
             crate::wallet::reqwest_transport::redact_url(url)
         ));
     };
-    let (authority, path) = match rest.find('/') {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, "/"),
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let (authority, path) = match rest.find(['/', '?']) {
+        Some(i) if rest.as_bytes()[i] == b'/' => (&rest[..i], rest[i..].to_string()),
+        Some(i) => (&rest[..i], format!("/{}", &rest[i..])),
+        None => (rest, "/".to_string()),
     };
     if authority.is_empty() {
         return Err(format!(
@@ -523,7 +639,7 @@ pub fn parse_url(url: &str) -> Result<(bool, String, u16, String), String> {
         }
         None => (authority.to_string(), if https { 443 } else { 80 }),
     };
-    Ok((https, host, port, path.to_string()))
+    Ok((https, host, port, path))
 }
 
 /// Parse a node URL into (host, port). Accepts `scheme://host:port`, `host:port`,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-wallpaper-url"
+description = "Enables the wallpaper_url command without any pre-configured scope."
+commands.allow = ["wallpaper_url"]
+
+[[permission]]
+identifier = "deny-wallpaper-url"
+description = "Denies the wallpaper_url command without any pre-configured scope."
+commands.deny = ["wallpaper_url"]

@@ -1,6 +1,0 @@
-{
-  "identifier": "android-diagnostics", "platforms": ["android"],
-  "description": "Explicit DEBUG-only stagenet diagnostic page; commands additionally check origin/path/build.",
-  "webviews": ["ros-android"],
-  "permissions": ["allow-android-poc-wallet", "allow-android-poc-scan", "allow-android-poc-tor", "allow-android-poc-confirmation", "allow-android-poc-lock", "allow-android-poc-attacks"]
-}

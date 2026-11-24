@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="solo_wallet"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_wallet"
+        android:shortcutLongLabel="@string/shortcut_wallet_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="run.ripley.terminal"
+            android:targetClass="run.ripley.terminal.MainActivity"
+            android:data="ripley://solo/wallet" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="solo_exchange"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_exchange"
+        android:shortcutLongLabel="@string/shortcut_exchange_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="run.ripley.terminal"
+            android:targetClass="run.ripley.terminal.MainActivity"
+            android:data="ripley://solo/exchange" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="solo_markets"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_markets"
+        android:shortcutLongLabel="@string/shortcut_markets_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="run.ripley.terminal"
+            android:targetClass="run.ripley.terminal.MainActivity"
+            android:data="ripley://solo/markets" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="solo_nostr"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_nostr"
+        android:shortcutLongLabel="@string/shortcut_nostr_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="run.ripley.terminal"
+            android:targetClass="run.ripley.terminal.MainActivity"
+            android:data="ripley://solo/nostr" />
+    </shortcut>
+</shortcuts>

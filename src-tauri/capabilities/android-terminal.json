@@ -3,7 +3,7 @@
   "platforms": [
     "android"
   ],
-  "description": "Local bundle only; native URL guard independently enforces origin and debug test custody",
+  "description": "Local verified https://ros.localhost bundle only (webview ros-android). No shell/fs plugins linked on Android.",
   "webviews": [
     "ros-android"
   ],
@@ -11,7 +11,6 @@
     "android-terminal",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "notification:allow-is-permission-granted",
-    "notification:allow-request-permission"
+    "notification:default"
   ]
 }

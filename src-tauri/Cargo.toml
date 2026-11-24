@@ -93,14 +93,15 @@ libsqlite3-sys = { version = "0.36", features = ["bundled"] }
 # Tor as library (no bundled binary)
 # onion-service-client is REQUIRED to dial .onion nodes (all our mainnet.tor
 # nodes are .onion); without it arti rejects onion addresses at runtime.
-arti-client = { version = "0.40", default-features = false, features = ["tokio", "native-tls", "onion-service-client"] }
+# Desktop uses native-tls; Android uses pure-Rust rustls (see target sections below).
+arti-client = { version = "0.40", default-features = false, features = ["tokio", "onion-service-client"] }
 tor-rtcompat = { version = "0.40", features = ["tokio"] }
 
 # Time
 chrono = "0.4"
 
-# HTTP client (for daemon RPC)
-reqwest = { version = "0.12", features = ["json", "socks", "stream"] }
+# HTTP client (for daemon RPC & fetch) — desktop keeps default TLS; Android uses rustls.
+reqwest = { version = "0.12", default-features = false, features = ["json", "socks", "stream"] }
 
 # HTTP over arti DataStream (Tor transport). hyper decodes Content-Length AND
 # chunked transfer-encoding, so no hand-rolled HTTP parser is needed. Already in
@@ -110,10 +111,11 @@ hyper-util = { version = "0.1", features = ["tokio", "client-proxy-system"] }
 http-body-util = "0.1"
 bytes = "1"
 encoding_rs = "0.8"
-# TLS over the arti stream for HTTPS GETs (nodes.json, price). Pure-Rust rustls
-# (ring provider, enabled by tokio-rustls default features); native cert store.
+# TLS over the arti stream for HTTPS GETs/POSTs. Pure-Rust rustls (ring provider)
+# with OS roots + webpki-roots fallback (Android APEX roots can return empty).
 tokio-rustls = "0.26"
 rustls-native-certs = "0.8"
+webpki-roots = "0.26"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -193,13 +195,17 @@ opt-level = 3
 # Android uses the same Rust wallet/network libraries, not desktop shell/AI plugins.
 [target.'cfg(not(target_os = "android"))'.dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-proxy", "unstable"] }
+tauri-plugin-deep-link = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
-tauri-plugin-deep-link = "2"
 tauri-plugin-clipboard-manager = "2"
 open = "5"
+arti-client = { version = "0.40", default-features = false, features = ["native-tls"] }
+reqwest = { version = "0.12", features = ["default-tls"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-# Android has no system OpenSSL/sqlite development libraries.
-arti-client = { version = "0.40", default-features = false, features = ["static"] }
+# Pure-Rust TLS on Android (ring + webpki-roots) — avoids NDK OpenSSL cross-builds.
+arti-client = { version = "0.40", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "rustls-tls-webpki-roots"] }
 tor-config-path = "0.40"
+jni = "0.21"

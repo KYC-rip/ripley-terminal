@@ -14,7 +14,7 @@ pub use transport::{ArtiTransport, SocksTransport};
 #[allow(unused_imports)]
 pub use transport::{
     parse_url, socks_get, socks_get_capped, socks_get_with_headers, tor_get, tor_get_capped,
-    tor_get_with_headers, tor_http,
+    tor_get_with_headers, tor_http, tor_request_with_headers,
 };
 
 /// Surface Tor bootstrap status to the renderer's status chip. Piggybacks on
@@ -94,10 +94,42 @@ impl TorState {
             let note = (attempt > 1).then(|| format!("retry {attempt}/{MAX_ATTEMPTS}"));
             emit_tor_status(app, "bootstrapping", Some(0), note.as_deref());
 
+            // Build TorClientConfig: Android has no $HOME/XDG directory and its
+            // /data/user/0 parent permissions trip fs-mistrust, so point Arti explicitly
+            // at the app-private data/cache directories inside the UID sandbox.
+            #[cfg(target_os = "android")]
+            let tor_config = {
+                use tauri::Manager;
+                let data_dir = app
+                    .path()
+                    .app_data_dir()
+                    .map_err(|e| format!("Tor data dir unavailable: {e}"))?
+                    .join("arti-state");
+                let cache_dir = app
+                    .path()
+                    .app_cache_dir()
+                    .unwrap_or_else(|_| data_dir.with_file_name("arti-cache"))
+                    .join("arti-cache");
+                let _ = std::fs::create_dir_all(&data_dir);
+                let _ = std::fs::create_dir_all(&cache_dir);
+                let mut builder = TorClientConfig::builder();
+                builder
+                    .storage()
+                    .state_dir(tor_config_path::CfgPath::new_literal(data_dir))
+                    .cache_dir(tor_config_path::CfgPath::new_literal(cache_dir))
+                    .permissions()
+                    .dangerously_trust_everyone();
+                builder
+                    .build()
+                    .map_err(|e| format!("Tor config build failed: {e}"))?
+            };
+            #[cfg(not(target_os = "android"))]
+            let tor_config = TorClientConfig::default();
+
             // Fresh UNBOOTSTRAPPED client each attempt so we can stream progress
             // to the UI (first run can take 30-120s).
             let client = match TorClient::with_runtime(runtime.clone())
-                .config(TorClientConfig::default())
+                .config(tor_config)
                 .create_unbootstrapped()
             {
                 Ok(c) => c,
@@ -143,6 +175,8 @@ impl TorState {
                     if let Err(e) = socks::ensure(self.inner.clone()).await {
                         log::warn!("[tor-socks] proxy start failed: {e}");
                     }
+                    #[cfg(target_os = "android")]
+                    crate::android_sync_proxy(app);
                     emit_tor_status(app, "connected", Some(100), None);
                     log::info!("Tor connected via arti (pure Rust) on attempt {attempt}");
                     return Ok(());
@@ -185,5 +219,23 @@ impl TorState {
         inner.client = None;
         inner.status = TorStatus::Disconnected;
         log::info!("Tor disconnected");
+    }
+
+    /// Reconnect Arti cleanly after an OS network transition (e.g. Android Wi-Fi ↔ cellular)
+    /// when a client was already connected or bootstrapping.
+    #[cfg(target_os = "android")]
+    pub async fn refresh_after_network_change(&self, app: &AppHandle) {
+        let should_reconnect = {
+            let inner = self.inner.read().await;
+            matches!(
+                inner.status,
+                TorStatus::Connected | TorStatus::Bootstrapping { .. } | TorStatus::Error { .. }
+            )
+        };
+        if !should_reconnect {
+            return;
+        }
+        self.disconnect().await;
+        let _ = self.connect(app).await;
     }
 }

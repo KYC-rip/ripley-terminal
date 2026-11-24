@@ -1,16 +1,17 @@
-//! Pure Android POC IPC policy. Inputs come from the native WebView URL, never JS.
-pub const ORIGIN: &str = "http://ros.localhost";
+//! Pure Android IPC policy. Inputs come from the native WebView URL, never JS.
+pub const ORIGIN: &str = "https://ros.localhost";
 pub const DIAGNOSTICS: &str = "/__android_poc.html";
 pub fn diagnostic_allowed(debug: bool, label: &str, origin: &str, path: &str) -> bool {
     debug && label == "ros-android" && origin == ORIGIN && path == DIAGNOSTICS
 }
-// Wry maps ros://localhost to http://ros.localhost on Android. In particular,
-// ros://local would map to http://ros.local, a different origin.
+// With use_https_scheme(true), wry maps ros://localhost to https://ros.localhost on
+// Android (a Secure Context for WebCrypto + QR camera, classified as local by Tauri).
+// In particular, ros://local would map to https://ros.local (Origin::Remote, zero IPC).
 pub fn trusted_location(scheme: &str, host: &str, port: Option<u16>, userinfo: bool) -> bool {
     !userinfo
         && port.is_none()
         && ((scheme == "ros" && host == "localhost")
-            || (scheme == "http" && host == "ros.localhost"))
+            || (scheme == "https" && host == "ros.localhost"))
 }
 #[cfg(test)]
 mod tests {
@@ -18,19 +19,20 @@ mod tests {
     #[test]
     fn wry_android_origin_mapping_is_exact() {
         assert!(trusted_location("ros", "localhost", None, false));
-        assert!(trusted_location("http", "ros.localhost", None, false));
+        assert!(trusted_location("https", "ros.localhost", None, false));
         assert!(!trusted_location("ros", "local", None, false));
-        assert!(!trusted_location("http", "ros.local", None, false));
+        assert!(!trusted_location("https", "ros.local", None, false));
+        assert!(!trusted_location("http", "ros.localhost", None, false));
     }
     #[test]
     fn scheme_host_prefixes_are_not_authority() {
-        assert!(!trusted_location("https", "ros.localhost", None, false));
-        assert!(!trusted_location("http", "ros.localhost.evil", None, false));
+        assert!(!trusted_location("http", "ros.localhost", None, false));
+        assert!(!trusted_location("https", "ros.localhost.evil", None, false));
         assert!(!trusted_location("ros", "localhost.evil", None, false));
     }
     #[test]
     fn credentials_and_nonstandard_ports_refused() {
-        assert!(!trusted_location("http", "ros.localhost", Some(81), false));
+        assert!(!trusted_location("https", "ros.localhost", Some(81), false));
         assert!(!trusted_location("ros", "localhost", None, true));
     }
     #[test]
@@ -51,8 +53,9 @@ mod tests {
         for origin in [
             "https://app.ros.rip",
             "https://example.com",
-            "http://ros.localhost.evil",
-            "http://ros.localhost:81",
+            "http://ros.localhost",
+            "https://ros.localhost.evil",
+            "https://ros.localhost:81",
             "null",
         ] {
             assert!(!diagnostic_allowed(

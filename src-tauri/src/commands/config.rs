@@ -219,8 +219,77 @@ pub async fn set_ui_mode(app: AppHandle, mode: String) -> Result<(), String> {
         "info",
         &format!("Switching interface to {mode} — relaunching..."),
     );
-    // Diverges (never returns): the process relaunches into the new mode.
-    app.restart()
+    #[cfg(not(target_os = "android"))]
+    {
+        // Diverges (never returns): the process relaunches into the new mode.
+        app.restart()
+    }
+    #[cfg(target_os = "android")]
+    {
+        Err("Classic desktop mode is not supported on Android".into())
+    }
+}
+
+/// Strictly validate a startup SOLO app id (`[a-z0-9_-]{1,32}`), preventing path
+/// traversal or external origin injection when building `ros://localhost/<appId>`.
+pub fn sanitize_boot_app_id(raw: &str) -> Option<String> {
+    let s = raw.trim().to_ascii_lowercase();
+    if s.is_empty() || s.len() > 32 {
+        return None;
+    }
+    if s.bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    {
+        Some(s)
+    } else {
+        None
+    }
+}
+
+/// Validate a cold-start SOLO path: either `<appId>` or `<appId>/<safe-subpath>`
+/// (rejecting traversal, queries/fragments, or control chars).
+pub fn sanitize_solo_boot_path(raw: &str) -> Option<String> {
+    let trimmed = raw.trim().trim_start_matches('/');
+    let (app_part, rest) = match trimmed.split_once('/') {
+        Some((a, r)) => (a, Some(r)),
+        None => (trimmed, None),
+    };
+    let clean_app = sanitize_boot_app_id(app_part)?;
+    let Some(sub) = rest else {
+        return Some(clean_app);
+    };
+    let sub = sub.trim_end_matches('/');
+    if sub.is_empty() {
+        return Some(clean_app);
+    }
+    if sub.len() > 256 || sub.contains("..") || sub.contains('\\') {
+        return None;
+    }
+    if !sub.bytes().all(|b| {
+        b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_' | b'.' | b':' | b'@' | b'~')
+    }) {
+        return None;
+    }
+    Some(format!("{clean_app}/{sub}"))
+}
+
+/// Read the configured startup SOLO app id from `config.json`.
+/// - `bootApp: null / ""` → `None` (boot into RipleyOS Desktop `/`)
+/// - `bootApp: "last"` → resolves `lastApp` (if valid)
+/// - `bootApp: "<appId>"` → `Some("<appId>")`
+pub fn read_boot_app(app: &AppHandle) -> Option<String> {
+    let cfg = std::fs::read_to_string(config_path(app))
+        .ok()
+        .and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok())?;
+    let boot = cfg.get("bootApp").and_then(|v| v.as_str())?.trim();
+    if boot.is_empty() {
+        return None;
+    }
+    if boot.eq_ignore_ascii_case("last") {
+        let last = cfg.get("lastApp").and_then(|v| v.as_str())?;
+        return sanitize_boot_app_id(last);
+    }
+    sanitize_boot_app_id(boot)
 }
 
 /// App metadata + on-disk storage locations for the Settings → Data Storage
@@ -314,18 +383,26 @@ pub async fn reveal_path(app: AppHandle, path: String) -> Result<(), String> {
     let requested = std::fs::canonicalize(&path).map_err(|_| "Path does not exist".to_string())?;
     reveal_guard(&requested, &allowed)?;
 
-    #[cfg(target_os = "macos")]
-    let program = "open";
-    #[cfg(target_os = "windows")]
-    let program = "explorer";
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let program = "xdg-open";
+    #[cfg(target_os = "android")]
+    {
+        let _ = requested;
+        return Err("Revealing files in a desktop file manager is not supported on Android".into());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        #[cfg(target_os = "macos")]
+        let program = "open";
+        #[cfg(target_os = "windows")]
+        let program = "explorer";
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let program = "xdg-open";
 
-    std::process::Command::new(program)
-        .arg(&requested)
-        .spawn()
-        .map_err(|e| format!("Failed to open {}: {e}", requested.display()))?;
-    Ok(())
+        std::process::Command::new(program)
+            .arg(&requested)
+            .spawn()
+            .map_err(|e| format!("Failed to open {}: {e}", requested.display()))?;
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -369,6 +446,8 @@ pub async fn save_config(app: AppHandle, mut config: serde_json::Value) -> Resul
     let data = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
     std::fs::write(&path, data).map_err(|e| format!("Failed to write config: {}", e))?;
+    #[cfg(target_os = "android")]
+    crate::android_sync_proxy_now(&app).await;
     Ok(())
 }
 
@@ -551,6 +630,17 @@ mod ui_mode_tests {
                 "{bad:?} should be rejected"
             );
             assert_eq!(c["ui_mode"], "classic", "{bad:?} must not change the mode");
+        }
+    }
+
+    #[test]
+    fn sanitize_boot_app_id_enforces_strict_slugs() {
+        use super::sanitize_boot_app_id;
+        assert_eq!(sanitize_boot_app_id("wallet").as_deref(), Some("wallet"));
+        assert_eq!(sanitize_boot_app_id("  Markets ").as_deref(), Some("markets"));
+        assert_eq!(sanitize_boot_app_id("auto-dca_1").as_deref(), Some("auto-dca_1"));
+        for bad in ["", "   ", "../etc", "wallet/btc", "https://evil.com", "a?b=1", "a#b", "a b"] {
+            assert_eq!(sanitize_boot_app_id(bad), None, "{bad:?} must be rejected");
         }
     }
 }

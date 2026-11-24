@@ -1,4 +1,12 @@
 <resources>
-    <string name="app_name">"ROS Android POC"</string>
-    <string name="main_activity_title">"ROS Android POC"</string>
+    <string name="app_name">Ripley Terminal</string>
+    <string name="main_activity_title">Ripley Terminal</string>
+    <string name="shortcut_wallet">Wallet</string>
+    <string name="shortcut_wallet_long">Open Wallet (SOLO)</string>
+    <string name="shortcut_exchange">Exchange</string>
+    <string name="shortcut_exchange_long">Open Exchange (SOLO)</string>
+    <string name="shortcut_markets">Markets</string>
+    <string name="shortcut_markets_long">Open Markets (SOLO)</string>
+    <string name="shortcut_nostr">Nostr</string>
+    <string name="shortcut_nostr_long">Open Nostr (SOLO)</string>
 </resources>

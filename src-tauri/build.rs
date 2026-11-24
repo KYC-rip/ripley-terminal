@@ -175,68 +175,117 @@ const APP_COMMANDS: &[&str] = &[
 ];
 
 const ANDROID_COMMANDS: &[&str] = &[
-    "agent_gateway_rotate_key",
-    "agent_gateway_set_config",
-    "agent_gateway_status",
-    "android_poc_attacks",
-    "android_poc_confirmation",
-    "android_poc_lock",
-    "android_poc_scan",
-    "android_poc_tor",
-    "android_poc_wallet",
+    // Android host & SOLO native commands
     "android_runtime_status",
+    "android_renderer_ready",
+    "android_clipboard_read",
+    "android_clipboard_write",
     "android_save_export",
-        "android_clipboard_read", "android_clipboard_write", "android_notify",
-    "browser_embed_bounds",
-    "browser_embed_close",
-    "browser_embed_navigate",
-    "browser_embed_open",
-    "browser_embed_visible",
-    "browser_embed_zoom",
-    "close_wallet",
-    "create_account",
-    "create_subaddress",
+    "android_pin_shortcut",
+    "android_set_secure_screen",
+    "app_version",
+    // Monero wallet lifecycle, accounts, addresses, proofs, transfers, cold signing
     "create_wallet",
-    "get_accounts",
-    "get_balance",
-    "get_config",
-    "get_height",
-    "get_identities",
-    "get_mnemonic",
-    "get_outputs",
-    "get_subaddresses",
-    "get_sync_status",
-    "get_tor_status",
-    "get_transactions",
-    "get_wallet_keys",
-    "local_ai_clear_all",
-    "local_ai_complete",
-    "local_ai_download",
-    "local_ai_load",
-    "local_ai_remove",
-    "local_ai_status",
-    "open_external_url",
-    "open_native_browser",
     "open_wallet",
+    "close_wallet",
+    "get_mnemonic",
+    "get_wallet_keys",
+    "get_accounts",
+    "create_account",
+    "rename_account",
+    "get_balance",
+    "get_height",
+    "get_subaddresses",
+    "find_address_owner",
+    "create_subaddress",
+    "set_subaddress_label",
+    "estimate_fees",
     "prepare_transfer",
     "relay_transfer",
-    "rename_account",
-    "rescan",
+    "sweep_all",
+    "sweep_single",
     "reselect_node",
+    "get_transactions",
+    "get_outputs",
+    "get_tx_key",
+    "get_tx_proof",
+    "sign_message",
+    "check_tx_key",
+    "check_tx_proof",
+    "get_sync_status",
+    "refresh",
+    "set_vigil_hot",
+    "verify_password",
+    "change_wallet_password",
+    "rescan",
+    "import_watch_only",
+    "export_watch_only",
+    "export_unsigned_transfer",
+    "sign_offline_transfer",
+    "import_signed_transfer",
+    "inspect_seed",
+    "import_view_only",
+    // Identities
+    "get_identities",
+    "save_identities",
+    "switch_identity",
+    "delete_identity",
+    // Transfer grants
+    "arm_transfer_grant",
+    "relay_transfer_grant",
+    "revoke_transfer_grant",
+    "revoke_all_transfer_grants",
+    "transfer_grant_status",
+    // Tor
+    "get_tor_status",
+    "tor_circuit",
     "restart_tor",
-    "ros_native_fetch",
-    "ros_native_fetch_bytes",
+    // Config & Signed OTA
+    "get_config",
     "save_config",
     "save_config_and_reload",
-    "save_identities",
-    "set_subaddress_label",
-    "sign_message",
-    "sign_offline_transfer",
-    "switch_identity",
-    "tor_circuit",
-    "verify_password",
-    "vpn_open_window",
+    "watch_sync_set",
+    "check_ros_update",
+    "ros_channel_status",
+    // Persistence: Disk KV, Wallpapers, XMR402
+    "ros_kv_load",
+    "ros_kv_set",
+    "ros_kv_remove",
+    "ros_kv_clear",
+    "wallpaper_save",
+    "wallpaper_url",
+    "wallpaper_clear",
+    "save_xmr402_payment",
+    "get_xmr402_payment",
+    "get_all_xmr402_payments",
+    // Network
+    "ros_native_fetch",
+    "ros_native_fetch_bytes",
+    "agent_web_read",
+    "resolve_openalias",
+    // Embedded Overlay Browser & External URL
+    "open_external_url",
+    "open_native_browser",
+    "browser_embed_open",
+    "browser_embed_bounds",
+    "browser_embed_navigate",
+    "browser_embed_visible",
+    "browser_embed_zoom",
+    "browser_embed_close",
+    "browser_embed_deliver_xmr402",
+    // Desktop-only feature stubs
     "vpn_status",
+    "vpn_open_window",
+    "vpn_set_locale",
+    "agent_gateway_status",
+    "agent_gateway_set_config",
+    "agent_gateway_rotate_key",
+    "local_ai_status",
+    "local_ai_download",
+    "local_ai_load",
+    "local_ai_complete",
+    "local_ai_remove",
+    "local_ai_clear_all",
 ];
 
 fn main() {
@@ -255,14 +304,33 @@ fn main() {
     }
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
         let debug = std::env::var("PROFILE").as_deref() == Ok("debug");
-        let fallback = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-            .join("resources/ros-fallback.tar.zst");
-        let generated = if debug && std::env::var_os("ROS_ANDROID_DEBUG_BUNDLE").is_some() {
-            let path = std::fs::canonicalize(std::env::var("ROS_ANDROID_DEBUG_BUNDLE").unwrap())
-                .expect("debug UI archive");
-            let hash = std::env::var("ROS_ANDROID_DEBUG_BUNDLE_SHA256")
-                .expect("debug bundle pin required");
-            let rev = std::env::var("ROS_ANDROID_UI_REVISION").expect("debug UI revision required");
+        let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        let fallback = manifest_dir.join("resources/ros-fallback.tar.zst");
+        let debug_manifest = manifest_dir.join("target/ros-android-debug.manifest");
+        println!("cargo:rerun-if-changed={}", debug_manifest.display());
+        let env_or_manifest = if debug {
+            if let Ok(p) = std::env::var("ROS_ANDROID_DEBUG_BUNDLE") {
+                Some((
+                    p,
+                    std::env::var("ROS_ANDROID_DEBUG_BUNDLE_SHA256").expect("debug bundle pin required"),
+                    std::env::var("ROS_ANDROID_UI_REVISION").expect("debug UI revision required"),
+                ))
+            } else if let Ok(raw) = std::fs::read_to_string(&debug_manifest) {
+                let mut lines = raw.lines().map(str::trim).filter(|l| !l.is_empty());
+                match (lines.next(), lines.next(), lines.next()) {
+                    (Some(p), Some(h), Some(r)) if std::path::Path::new(p).exists() => {
+                        Some((p.to_string(), h.to_string(), r.to_string()))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let generated = if let Some((raw_path, hash, rev)) = env_or_manifest {
+            let path = std::fs::canonicalize(raw_path).expect("debug UI archive");
             assert!(hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()));
             assert!(rev.len() == 40 && rev.bytes().all(|b| b.is_ascii_hexdigit()));
             println!("cargo:rerun-if-changed={}", path.display());

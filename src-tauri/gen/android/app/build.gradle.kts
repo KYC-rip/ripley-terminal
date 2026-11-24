@@ -15,14 +15,19 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 36
-    namespace = "run.ripley.androidpoc"
+    namespace = "run.ripley.terminal"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "run.ripley.androidpoc"
+        applicationId = "run.ripley.terminal"
         minSdk = 24
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
     buildTypes {
         getByName("debug") {
