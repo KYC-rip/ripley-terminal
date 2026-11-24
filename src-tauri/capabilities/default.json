@@ -146,6 +146,13 @@
     "allow-local-ai-remove",
     "allow-local-ai-clear-all",
     "allow-capture-window-png",
-    "allow-clipboard-write-image"
+    "allow-clipboard-write-image",
+    "allow-migration-export-bundle",
+    "allow-migration-inspect-bundle",
+    "allow-migration-import-bundle",
+    "allow-migration-lan-start",
+    "allow-migration-lan-stop",
+    "allow-migration-lan-fetch",
+    "allow-migration-lan-apply"
   ]
 }

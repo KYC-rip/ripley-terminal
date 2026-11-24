@@ -172,6 +172,14 @@ const APP_COMMANDS: &[&str] = &[
     "local_ai_complete",
     "local_ai_remove",
     "local_ai_clear_all",
+    // Sovereign full-device migration (LAN QR + offline .ripley-migrate)
+    "migration_export_bundle",
+    "migration_inspect_bundle",
+    "migration_import_bundle",
+    "migration_lan_start",
+    "migration_lan_stop",
+    "migration_lan_fetch",
+    "migration_lan_apply",
 ];
 
 const ANDROID_COMMANDS: &[&str] = &[

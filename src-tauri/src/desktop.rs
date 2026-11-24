@@ -620,6 +620,14 @@ pub fn run() {
             commands::local_ai::local_ai_complete,
             commands::local_ai::local_ai_remove,
             commands::local_ai::local_ai_clear_all,
+            // Sovereign full-device migration (LAN QR + offline .ripley-migrate)
+            commands::migration::migration_export_bundle,
+            commands::migration::migration_inspect_bundle,
+            commands::migration::migration_import_bundle,
+            commands::migration::migration_lan_start,
+            commands::migration::migration_lan_stop,
+            commands::migration::migration_lan_fetch,
+            commands::migration::migration_lan_apply,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

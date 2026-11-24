@@ -113,6 +113,13 @@
     "allow-wallpaper-save",
     "allow-wallpaper-url",
     "allow-wallpaper-clear",
+    "allow-migration-export-bundle",
+    "allow-migration-inspect-bundle",
+    "allow-migration-import-bundle",
+    "allow-migration-lan-start",
+    "allow-migration-lan-stop",
+    "allow-migration-lan-fetch",
+    "allow-migration-lan-apply",
     "notification:default"
   ]
 }

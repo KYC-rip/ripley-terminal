@@ -2685,6 +2685,48 @@
           "markdownDescription": "Enables the local_ai_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the migration_export_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-export-bundle",
+          "markdownDescription": "Enables the migration_export_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_import_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-import-bundle",
+          "markdownDescription": "Enables the migration_import_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_inspect_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-inspect-bundle",
+          "markdownDescription": "Enables the migration_inspect_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_lan_apply command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-lan-apply",
+          "markdownDescription": "Enables the migration_lan_apply command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_lan_fetch command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-lan-fetch",
+          "markdownDescription": "Enables the migration_lan_fetch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_lan_start command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-lan-start",
+          "markdownDescription": "Enables the migration_lan_start command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the migration_lan_stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-migration-lan-stop",
+          "markdownDescription": "Enables the migration_lan_stop command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_external_url command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-external-url",
@@ -3655,6 +3697,48 @@
           "type": "string",
           "const": "deny-local-ai-status",
           "markdownDescription": "Denies the local_ai_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_export_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-export-bundle",
+          "markdownDescription": "Denies the migration_export_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_import_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-import-bundle",
+          "markdownDescription": "Denies the migration_import_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_inspect_bundle command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-inspect-bundle",
+          "markdownDescription": "Denies the migration_inspect_bundle command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_lan_apply command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-lan-apply",
+          "markdownDescription": "Denies the migration_lan_apply command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_lan_fetch command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-lan-fetch",
+          "markdownDescription": "Denies the migration_lan_fetch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_lan_start command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-lan-start",
+          "markdownDescription": "Denies the migration_lan_start command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the migration_lan_stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-migration-lan-stop",
+          "markdownDescription": "Denies the migration_lan_stop command without any pre-configured scope."
         },
         {
           "description": "Denies the open_external_url command without any pre-configured scope.",

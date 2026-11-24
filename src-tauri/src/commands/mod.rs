@@ -2,6 +2,7 @@ pub mod agent_gateway;
 pub mod config;
 pub mod identity;
 pub mod kvstore;
+pub mod migration;
 pub mod ros_kv;
 pub mod local_ai;
 pub mod system;
