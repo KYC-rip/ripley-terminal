@@ -10,12 +10,14 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.os.CancellationSignal
 import android.os.PersistableBundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
 import android.util.Base64
+import android.util.Log
 import androidx.activity.result.ActivityResult
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -533,30 +535,54 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
     return gen.generateKey()
   }
 
-  private fun createHardwareBioKey(): SecretKey {
+  private fun createHardwareBioKeyAndCipher(): Pair<SecretKey, Cipher> {
     deleteBioKey()
     if (Build.VERSION.SDK_INT >= 28) {
       try {
-        return generateBioKey(strongBox = true)
-      } catch (_: StrongBoxUnavailableException) {
-        deleteBioKey()
-      } catch (_: ProviderException) {
+        val k = generateBioKey(strongBox = true)
+        val c = Cipher.getInstance("AES/GCM/NoPadding").apply {
+          init(Cipher.ENCRYPT_MODE, k)
+        }
+        return k to c
+      } catch (e: Exception) {
+        Log.w("RipleyBio", "StrongBox key/cipher unavailable, falling back to TEE Keystore: ${e.javaClass.simpleName}: ${e.message}")
         deleteBioKey()
       }
     }
-    return generateBioKey(strongBox = false)
+    val k = generateBioKey(strongBox = false)
+    val c = Cipher.getInstance("AES/GCM/NoPadding").apply {
+      init(Cipher.ENCRYPT_MODE, k)
+    }
+    return k to c
+  }
+
+  private fun checkStrongBiometric(): Int {
+    return if (Build.VERSION.SDK_INT >= 30) {
+      val bm = activity.getSystemService(android.hardware.biometrics.BiometricManager::class.java)
+      bm?.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        ?: android.hardware.biometrics.BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+    } else if (Build.VERSION.SDK_INT == 29) {
+      val bm = activity.getSystemService(android.hardware.biometrics.BiometricManager::class.java)
+      @Suppress("DEPRECATION")
+      bm?.canAuthenticate()
+        ?: android.hardware.biometrics.BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+    } else {
+      BiometricManager.from(activity)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+    }
   }
 
   @Command fun bioStatus(invoke: Invoke) {
     try {
-      val res = BiometricManager.from(activity)
-        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      val res = checkStrongBiometric()
+      val ok = res == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
       invoke.resolve(
         JSObject()
-          .put("supported", res == BiometricManager.BIOMETRIC_SUCCESS)
+          .put("supported", ok)
           .put("status", res)
       )
     } catch (e: Exception) {
+      Log.w("RipleyBio", "bioStatus error: ${e.javaClass.simpleName}: ${e.message}")
       invoke.resolve(JSObject().put("supported", false).put("status", -1))
     }
   }
@@ -566,77 +592,93 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
       val a = invoke.parseArgs(BioSealArgs::class.java)
       val plain = Base64.decode(a.secretBase64, Base64.DEFAULT)
       require(plain.isNotEmpty() && plain.size <= 4096) { "Invalid secret size" }
-      val fa = activity as? FragmentActivity
-      if (fa == null) {
-        invoke.resolve(JSObject().put("status", "unsupported"))
+      val can = checkStrongBiometric()
+      if (can != android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) {
+        plain.fill(0)
+        invoke.resolve(JSObject().put("status", "unsupported").put("message", "No strong biometric enrolled (code $can)"))
         return
       }
-      val can = BiometricManager.from(fa)
-        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-      if (can != BiometricManager.BIOMETRIC_SUCCESS) {
-        invoke.resolve(JSObject().put("status", "unsupported"))
-        return
-      }
-      val key = createHardwareBioKey()
-      val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
-        init(Cipher.ENCRYPT_MODE, key)
-      }
+      val (_, cipher) = createHardwareBioKeyAndCipher()
       val settled = AtomicBoolean(false)
       val finish = { obj: JSObject ->
+        mainActivity()?.suppressNextAutoLock = false
         if (settled.compareAndSet(false, true)) invoke.resolve(obj)
       }
-      fa.runOnUiThread {
+      activity.runOnUiThread {
         try {
-          val prompt = BiometricPrompt(
-            fa,
-            ContextCompat.getMainExecutor(fa),
-            object : BiometricPrompt.AuthenticationCallback() {
-              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                try {
-                  val c = result.cryptoObject?.cipher ?: error("No crypto object")
-                  val ct = c.doFinal(plain)
-                  val iv = c.iv
+          mainActivity()?.suppressNextAutoLock = true
+          if (Build.VERSION.SDK_INT >= 28) {
+            // Pure AOSP framework BiometricPrompt (API 28+): zero FragmentManager / ViewModel / R8 dependency.
+            val exec = ContextCompat.getMainExecutor(activity)
+            val cancel = CancellationSignal()
+            val builder = android.hardware.biometrics.BiometricPrompt.Builder(activity)
+              .setTitle(a.title.ifBlank { "Biometric unlock" })
+              .apply { a.subtitle?.takeIf { it.isNotBlank() }?.let { setSubtitle(it) } }
+              .setNegativeButton("Cancel", exec) { _, _ ->
+                plain.fill(0)
+                finish(JSObject().put("status", "cancelled"))
+              }
+            if (Build.VERSION.SDK_INT >= 30) {
+              builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            }
+            val prompt = builder.build()
+            prompt.authenticate(
+              android.hardware.biometrics.BiometricPrompt.CryptoObject(cipher),
+              cancel,
+              exec,
+              object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
+                  try {
+                    val c = result.cryptoObject?.cipher ?: error("No crypto object")
+                    val ct = c.doFinal(plain)
+                    val iv = c.iv
+                    plain.fill(0)
+                    finish(
+                      JSObject()
+                        .put("status", "ok")
+                        .put("ivBase64", Base64.encodeToString(iv, Base64.NO_WRAP))
+                        .put("ctBase64", Base64.encodeToString(ct, Base64.NO_WRAP))
+                    )
+                  } catch (e: Exception) {
+                    Log.w("RipleyBio", "bioSeal doFinal failed: ${e.javaClass.simpleName}: ${e.message}")
+                    plain.fill(0)
+                    deleteBioKey()
+                    finish(JSObject().put("status", "unsupported").put("message", e.message ?: "Seal failed"))
+                  }
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                  Log.w("RipleyBio", "bioSeal auth error $errorCode: $errString")
                   plain.fill(0)
+                  val cancelled = errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED ||
+                    errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED ||
+                    errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT ||
+                    errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT_PERMANENT
+                  if (!cancelled) deleteBioKey()
                   finish(
                     JSObject()
-                      .put("status", "ok")
-                      .put("ivBase64", Base64.encodeToString(iv, Base64.NO_WRAP))
-                      .put("ctBase64", Base64.encodeToString(ct, Base64.NO_WRAP))
+                      .put("status", if (cancelled) "cancelled" else "unsupported")
+                      .put("errorCode", errorCode)
+                      .put("message", errString.toString())
                   )
-                } catch (_: Exception) {
-                  plain.fill(0)
-                  deleteBioKey()
-                  finish(JSObject().put("status", "unsupported"))
                 }
               }
-              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                plain.fill(0)
-                val cancelled = errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
-                  errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                  errorCode == BiometricPrompt.ERROR_CANCELED ||
-                  errorCode == BiometricPrompt.ERROR_LOCKOUT ||
-                  errorCode == BiometricPrompt.ERROR_LOCKOUT_PERMANENT
-                if (!cancelled) deleteBioKey()
-                finish(JSObject().put("status", if (cancelled) "cancelled" else "unsupported"))
-              }
-            }
-          )
-          val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(a.title.ifBlank { "Biometric unlock" })
-            .apply { if (!a.subtitle.isNullOrBlank()) setSubtitle(a.subtitle) }
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .setNegativeButtonText("Cancel")
-            .build()
-          prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
-        } catch (_: Exception) {
+            )
+          } else {
+            plain.fill(0)
+            deleteBioKey()
+            finish(JSObject().put("status", "unsupported").put("message", "Requires Android 9+"))
+          }
+        } catch (e: Exception) {
+          Log.w("RipleyBio", "bioSeal prompt failed: ${e.javaClass.simpleName}: ${e.message}")
           plain.fill(0)
           deleteBioKey()
-          finish(JSObject().put("status", "unsupported"))
+          finish(JSObject().put("status", "unsupported").put("message", e.message ?: "Biometric prompt failed"))
         }
       }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w("RipleyBio", "bioSeal setup failed: ${e.javaClass.simpleName}: ${e.message}")
       deleteBioKey()
-      invoke.resolve(JSObject().put("status", "unsupported"))
+      invoke.resolve(JSObject().put("status", "unsupported").put("message", e.message ?: "Biometric setup failed"))
     }
   }
 
@@ -646,18 +688,13 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
       val iv = Base64.decode(a.ivBase64, Base64.DEFAULT)
       val ct = Base64.decode(a.ctBase64, Base64.DEFAULT)
       if (iv.size != 12 || ct.size < 17 || ct.size > 4200) {
-        invoke.resolve(JSObject().put("status", "gone"))
-        return
-      }
-      val fa = activity as? FragmentActivity
-      if (fa == null) {
-        invoke.resolve(JSObject().put("status", "gone"))
+        invoke.resolve(JSObject().put("status", "gone").put("message", "Invalid biometric record"))
         return
       }
       val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
       val key = ks.getKey(BIO_KEYSTORE_ALIAS, null) as? SecretKey
       if (key == null) {
-        invoke.resolve(JSObject().put("status", "gone"))
+        invoke.resolve(JSObject().put("status", "gone").put("message", "Biometric key not found"))
         return
       }
       val cipher = try {
@@ -666,49 +703,77 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
         }
       } catch (_: KeyPermanentlyInvalidatedException) {
         deleteBioKey()
-        invoke.resolve(JSObject().put("status", "gone"))
+        invoke.resolve(JSObject().put("status", "gone").put("message", "Biometrics changed on this device"))
+        return
+      } catch (e: Exception) {
+        Log.w("RipleyBio", "bioUnseal cipher init failed: ${e.javaClass.simpleName}: ${e.message}")
+        deleteBioKey()
+        invoke.resolve(JSObject().put("status", "gone").put("message", e.message ?: "Biometric key unusable"))
         return
       }
       val settled = AtomicBoolean(false)
       val finish = { obj: JSObject ->
+        mainActivity()?.suppressNextAutoLock = false
         if (settled.compareAndSet(false, true)) invoke.resolve(obj)
       }
-      fa.runOnUiThread {
+      activity.runOnUiThread {
         try {
-          val prompt = BiometricPrompt(
-            fa,
-            ContextCompat.getMainExecutor(fa),
-            object : BiometricPrompt.AuthenticationCallback() {
-              override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                try {
-                  val c = result.cryptoObject?.cipher ?: error("No crypto object")
-                  val plain = c.doFinal(ct)
-                  val b64 = Base64.encodeToString(plain, Base64.NO_WRAP)
-                  plain.fill(0)
-                  finish(JSObject().put("status", "ok").put("secretBase64", b64))
-                } catch (_: Exception) {
-                  deleteBioKey()
-                  finish(JSObject().put("status", "gone"))
-                }
-              }
-              override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+          mainActivity()?.suppressNextAutoLock = true
+          if (Build.VERSION.SDK_INT >= 28) {
+            // Pure AOSP framework BiometricPrompt (API 28+): zero FragmentManager / ViewModel / R8 dependency.
+            val exec = ContextCompat.getMainExecutor(activity)
+            val cancel = CancellationSignal()
+            val builder = android.hardware.biometrics.BiometricPrompt.Builder(activity)
+              .setTitle(a.title.ifBlank { "Unlock" })
+              .apply { a.subtitle?.takeIf { it.isNotBlank() }?.let { setSubtitle(it) } }
+              .setNegativeButton("Use passcode", exec) { _, _ ->
                 finish(JSObject().put("status", "cancelled"))
               }
+            if (Build.VERSION.SDK_INT >= 30) {
+              builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
             }
-          )
-          val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(a.title.ifBlank { "Unlock" })
-            .apply { if (!a.subtitle.isNullOrBlank()) setSubtitle(a.subtitle) }
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .setNegativeButtonText("Use passcode")
-            .build()
-          prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
-        } catch (_: Exception) {
-          finish(JSObject().put("status", "cancelled"))
+            val prompt = builder.build()
+            prompt.authenticate(
+              android.hardware.biometrics.BiometricPrompt.CryptoObject(cipher),
+              cancel,
+              exec,
+              object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
+                  try {
+                    val c = result.cryptoObject?.cipher ?: error("No crypto object")
+                    val plain = c.doFinal(ct)
+                    val b64 = Base64.encodeToString(plain, Base64.NO_WRAP)
+                    plain.fill(0)
+                    finish(JSObject().put("status", "ok").put("secretBase64", b64))
+                  } catch (e: Exception) {
+                    Log.w("RipleyBio", "bioUnseal doFinal failed: ${e.javaClass.simpleName}: ${e.message}")
+                    deleteBioKey()
+                    finish(JSObject().put("status", "gone").put("message", e.message ?: "Decrypt failed"))
+                  }
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                  Log.w("RipleyBio", "bioUnseal auth error $errorCode: $errString")
+                  val isUserCancel = errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED ||
+                    errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
+                  val obj = JSObject().put("status", "cancelled").put("errorCode", errorCode)
+                  if (!isUserCancel && errString.isNotBlank()) {
+                    obj.put("message", errString.toString())
+                  }
+                  finish(obj)
+                }
+              }
+            )
+          } else {
+            finish(JSObject().put("status", "gone").put("message", "Requires Android 9+"))
+          }
+        } catch (e: Exception) {
+          Log.w("RipleyBio", "bioUnseal prompt failed: ${e.javaClass.simpleName}: ${e.message}")
+          finish(JSObject().put("status", "cancelled").put("message", e.message ?: "Biometric prompt error"))
         }
       }
-    } catch (_: Exception) {
-      invoke.resolve(JSObject().put("status", "gone"))
+    } catch (e: Exception) {
+      Log.w("RipleyBio", "bioUnseal outer failed: ${e.javaClass.simpleName}: ${e.message}")
+      invoke.resolve(JSObject().put("status", "gone").put("message", e.message ?: "Biometric error"))
     }
   }
 

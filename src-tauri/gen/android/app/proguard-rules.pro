@@ -18,3 +18,6 @@
 # Tauri Android Invoke.parseArgs uses Jackson reflection
 -keep class com.fasterxml.jackson.** { *; }
 -dontwarn com.fasterxml.jackson.**
+
+# Keep biometric / lifecycle ViewModel constructors on release R8 builds
+-keep class androidx.biometric.** { *; }
