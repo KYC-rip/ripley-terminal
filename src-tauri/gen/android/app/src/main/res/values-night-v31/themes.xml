@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Android 12+ SplashScreen: use a neutral dark background with no logo so disguised
+         launcher icons never flash the RipleyOS mark on cold start. -->
+    <style name="Theme.ripley_terminal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">#FF08080B</item>
+        <item name="android:windowSplashScreenBackground">#FF08080B</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_blank</item>
+        <item name="android:windowSplashScreenBrandingImage">@drawable/ic_splash_blank</item>
+    </style>
+</resources>

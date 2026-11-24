@@ -70,6 +70,19 @@ import javax.crypto.spec.GCMParameterSpec
 }
 @InvokeArg class EmbedVisibleArgs { var visible: Boolean = true }
 @InvokeArg class EmbedZoomArgs { var zoom: Double = 1.0 }
+@InvokeArg class XappOpenArgs {
+  lateinit var url: String
+  var script: String? = null
+  var x: Double = 0.0
+  var y: Double = 0.0
+  var w: Double = 360.0
+  var h: Double = 600.0
+  var bg: String? = null
+  var zoom: Double? = null
+}
+@InvokeArg class XappNavArgs { lateinit var url: String }
+@InvokeArg class XappHistoryArgs { lateinit var action: String }
+@InvokeArg class XappEvalArgs { lateinit var js: String }
 
 @TauriPlugin
 class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
@@ -167,6 +180,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
         }
 
       if (alreadySoleActive) {
+        LauncherIcons.applyTaskDescription(activity, target)
         invoke.resolve(JSObject().put("applied", true).put("changed", false).put("activeIcon", target.id))
         return
       }
@@ -191,6 +205,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
           )
         }
       }
+      LauncherIcons.applyTaskDescription(activity, target)
       invoke.resolve(JSObject().put("applied", true).put("changed", true).put("activeIcon", target.id))
     } catch (e: Exception) { invoke.reject(e.message ?: "App icon switch failed") }
   }
@@ -385,6 +400,73 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command fun embedClose(invoke: Invoke) {
     mainActivity()?.embedClose()
+    invoke.resolve(JSObject().put("closed", true))
+  }
+
+  @Command fun xappOpen(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(XappOpenArgs::class.java)
+      val host = mainActivity() ?: return invoke.reject("MainActivity unavailable")
+      host.xappOpen(a.url, a.script, a.x, a.y, a.w, a.h, a.bg, a.zoom) { res ->
+        res.onSuccess { invoke.resolve(JSObject().put("opened", true)) }
+          .onFailure { invoke.reject(it.message ?: "X view open failed") }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "X view open failed") }
+  }
+
+  @Command fun xappBounds(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedBoundsArgs::class.java)
+      mainActivity()?.xappBounds(a.x, a.y, a.w, a.h)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "X bounds update failed") }
+  }
+
+  @Command fun xappNavigate(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(XappNavArgs::class.java)
+      val host = mainActivity() ?: return invoke.reject("MainActivity unavailable")
+      host.xappNavigate(a.url) { res ->
+        res.onSuccess { invoke.resolve(JSObject().put("ok", true)) }
+          .onFailure { invoke.reject(it.message ?: "X navigate failed") }
+      }
+    } catch (e: Exception) { invoke.reject(e.message ?: "X navigate failed") }
+  }
+
+  @Command fun xappVisible(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedVisibleArgs::class.java)
+      mainActivity()?.xappVisible(a.visible)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "X visibility update failed") }
+  }
+
+  @Command fun xappZoom(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(EmbedZoomArgs::class.java)
+      mainActivity()?.xappZoom(a.zoom)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "X zoom update failed") }
+  }
+
+  @Command fun xappHistory(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(XappHistoryArgs::class.java)
+      mainActivity()?.xappHistory(a.action)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "X history failed") }
+  }
+
+  @Command fun xappEval(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(XappEvalArgs::class.java)
+      mainActivity()?.xappEval(a.js)
+      invoke.resolve(JSObject().put("ok", true))
+    } catch (e: Exception) { invoke.reject(e.message ?: "X eval failed") }
+  }
+
+  @Command fun xappClose(invoke: Invoke) {
+    mainActivity()?.xappClose()
     invoke.resolve(JSObject().put("closed", true))
   }
 

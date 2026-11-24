@@ -275,6 +275,16 @@ const ANDROID_COMMANDS: &[&str] = &[
     "browser_embed_zoom",
     "browser_embed_close",
     "browser_embed_deliver_xmr402",
+    // Built-in X App Overlay & XMRadar Bridge
+    "xapp_open",
+    "xapp_bounds",
+    "xapp_navigate",
+    "xapp_visible",
+    "xapp_zoom",
+    "xapp_history",
+    "xapp_close",
+    "xapp_push",
+    "xapp_bridge_reply",
     // Desktop-only feature stubs
     "vpn_status",
     "vpn_open_window",

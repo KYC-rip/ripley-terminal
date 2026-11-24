@@ -363,9 +363,35 @@ pub extern "system" fn Java_run_ripley_terminal_MainActivity_nativeBrowserEvent(
         jstring_to_rust(&mut env, source),
         jstring_to_rust(&mut env, message),
     ) {
-        if matches!(src.as_str(), "BROWSER_LOAD" | "BROWSER_URI") {
+        if matches!(
+            src.as_str(),
+            "BROWSER_LOAD" | "BROWSER_URI" | "XAPP_LOAD" | "XAPP_URI" | "XAPP_EXTERNAL" | "XAPP_NOTE"
+        ) {
             if let Some(app) = ANDROID_APP.get() {
                 emit_log(app, &src, "info", &msg);
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_MainActivity_nativeXappBridge(
+    mut env: JNIEnv,
+    _this: JObject,
+    id: jni::sys::jlong,
+    request: JString,
+) {
+    if id <= 0 {
+        return;
+    }
+    if let Some(req) = jstring_to_rust(&mut env, request) {
+        if req.len() <= 16 * 1024 {
+            if let Some(app) = ANDROID_APP.get() {
+                let _ = app.emit_to(
+                    tauri::EventTarget::webview("ros-android"),
+                    "xapp-bridge",
+                    json!({ "id": id, "request": req }),
+                );
             }
         }
     }
@@ -400,7 +426,7 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
             "wsTunneled": WS_TUNNELED.load(Ordering::SeqCst),
             "browser": true,
             "browserMode": "overlay",
-            "xApp": false,
+            "xApp": true,
             "vpnWindow": false,
             "classicUi": false,
             "keystore": true,
@@ -685,6 +711,168 @@ async fn browser_embed_deliver_xmr402(_txid: String, _proof: String) -> Result<(
     Err("Embedded XMR402 auto-delivery is not yet supported on Android — copy the proof manually".into())
 }
 
+// ── Built-in X App Overlay Commands (with XMRadar document-start script + bridge) ──
+
+fn is_x_host(host: &str) -> bool {
+    let h = host.trim_end_matches('.').to_ascii_lowercase();
+    h == "x.com" || h == "twitter.com" || h.ends_with(".x.com") || h.ends_with(".twitter.com")
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn xapp_open(
+    app: AppHandle,
+    webview: WebviewWindow,
+    url: String,
+    script: Option<String>,
+    mode: Option<String>,
+    _proxy: Option<String>,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    bg: Option<String>,
+    zoom: Option<f64>,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
+    match parsed.host_str() {
+        Some(host) if parsed.scheme() == "https" && is_x_host(host) => {}
+        _ => return Err("The X app only opens x.com.".into()),
+    }
+    let _ = allow_onion_for_browser(&app, mode.as_deref())?;
+    run_native_io(
+        &app,
+        "xappOpen",
+        json!({
+            "url": parsed.to_string(),
+            "script": script,
+            "x": x,
+            "y": y,
+            "w": w,
+            "h": h,
+            "bg": bg,
+            "zoom": zoom,
+        }),
+    )
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_bounds(
+    app: AppHandle,
+    webview: WebviewWindow,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    run_native_io(&app, "xappBounds", json!({ "x": x, "y": y, "w": w, "h": h })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_navigate(
+    app: AppHandle,
+    webview: WebviewWindow,
+    url: String,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("invalid url: {e}"))?;
+    match parsed.host_str() {
+        Some(host) if parsed.scheme() == "https" && is_x_host(host) => {}
+        _ => return Err("The X app only opens x.com.".into()),
+    }
+    let _ = allow_onion_for_browser(&app, None)?;
+    run_native_io(&app, "xappNavigate", json!({ "url": parsed.to_string() })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_visible(
+    app: AppHandle,
+    webview: WebviewWindow,
+    visible: bool,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    run_native_io(&app, "xappVisible", json!({ "visible": visible })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_zoom(
+    app: AppHandle,
+    webview: WebviewWindow,
+    zoom: f64,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    run_native_io(&app, "xappZoom", json!({ "zoom": zoom })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_history(
+    app: AppHandle,
+    webview: WebviewWindow,
+    action: String,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    if !matches!(action.as_str(), "reload" | "back" | "forward") {
+        return Err("unknown history action".into());
+    }
+    let _ = allow_onion_for_browser(&app, None)?;
+    run_native_io(&app, "xappHistory", json!({ "action": action })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_close(app: AppHandle, webview: WebviewWindow) -> Result<(), String> {
+    require_local(&webview)?;
+    run_native_io(&app, "xappClose", json!({})).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_push(
+    app: AppHandle,
+    webview: WebviewWindow,
+    state: String,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    if state.len() > 64 * 1024 {
+        return Err("state too large".into());
+    }
+    let v: Value = serde_json::from_str(&state).map_err(|_| "state isn't JSON")?;
+    if !v.is_object() {
+        return Err("state must be an object".into());
+    }
+    let lit = serde_json::to_string(&state).map_err(|e| e.to_string())?;
+    let js = format!("window.dispatchEvent(new CustomEvent('xmradar:state',{{detail:JSON.parse({lit})}}))");
+    run_native_io(&app, "xappEval", json!({ "js": js })).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn xapp_bridge_reply(
+    app: AppHandle,
+    webview: WebviewWindow,
+    id: u64,
+    answer: String,
+) -> Result<(), String> {
+    require_local(&webview)?;
+    let safe_answer = if answer.len() > 64 * 1024 {
+        r#"{"ok":false,"error":"answer too large"}"#.to_string()
+    } else {
+        answer
+    };
+    let lit = serde_json::to_string(&safe_answer).map_err(|e| e.to_string())?;
+    let js = format!("window.__ripleyXBridgeDeliver && window.__ripleyXBridgeDeliver({id}, {lit})");
+    run_native_io(&app, "xappEval", json!({ "js": js })).await?;
+    Ok(())
+}
+
 // ── Desktop-Only Feature Stubs (honest structured degradation) ──
 
 #[tauri::command]
@@ -805,11 +993,16 @@ pub fn run() {
                 .map(|u| u.path().to_string())
                 .unwrap_or_default();
             let (mime, body, status) = match path.as_str() {
-                "/__android_boot.js" => (
-                    "text/javascript",
-                    include_bytes!("android/boot.js").to_vec(),
-                    200,
-                ),
+                "/__android_boot.js" => {
+                    let active_icon = commands::config::read_effective_launcher_icon(ctx.app_handle());
+                    let prefix = format!(
+                        "window.__ROS_ANDROID_ICON__={};\n",
+                        serde_json::to_string(&active_icon).unwrap_or_else(|_| "\"default\"".into())
+                    );
+                    let mut script = prefix.into_bytes();
+                    script.extend_from_slice(include_bytes!("android/boot.js"));
+                    ("text/javascript", script, 200)
+                }
                 _ => {
                     let r = ctx
                         .app_handle()
@@ -1045,6 +1238,16 @@ pub fn run() {
             browser_embed_zoom,
             browser_embed_close,
             browser_embed_deliver_xmr402,
+            // Built-in X App Overlay & XMRadar Bridge
+            xapp_open,
+            xapp_bounds,
+            xapp_navigate,
+            xapp_visible,
+            xapp_zoom,
+            xapp_history,
+            xapp_close,
+            xapp_push,
+            xapp_bridge_reply,
             // Honest stubs for desktop-only features
             vpn_status,
             vpn_open_window,

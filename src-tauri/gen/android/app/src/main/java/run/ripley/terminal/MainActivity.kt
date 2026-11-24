@@ -20,6 +20,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
 import android.webkit.PermissionRequest
@@ -41,6 +43,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
 class MainActivity : TauriActivity() {
@@ -59,10 +62,12 @@ class MainActivity : TauriActivity() {
   private external fun nativeSetLaunchSoloApp(appPath: String)
   private external fun nativeDeepLink(uri: String)
   private external fun nativeBrowserEvent(source: String, message: String)
+  private external fun nativeXappBridge(id: Long, request: String)
 
   @Volatile var suppressNextAutoLock: Boolean = false
   private var web: WebView? = null
   private var embedWeb: WebView? = null
+  private var xappWeb: WebView? = null
   private var insetTop = 0
   private var insetBottom = 0
   private var insetLeft = 0
@@ -297,6 +302,289 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  // ── Built-in X App Overlay WebView (independent from Browser's embedWeb) ──
+
+  private fun isXHost(host: String): Boolean {
+    val h = host.trimEnd('.').lowercase()
+    return h == "x.com" || h == "twitter.com" || h.endsWith(".x.com") || h.endsWith(".twitter.com")
+  }
+
+  private fun isXTopLevelHost(host: String): Boolean {
+    val h = host.trimEnd('.').lowercase()
+    return isXHost(h) || h == "twimg.com" || h.endsWith(".twimg.com") ||
+      h == "accounts.google.com" || h == "appleid.apple.com"
+  }
+
+  private fun isHttpsXUrl(raw: String?): Boolean {
+    if (raw.isNullOrBlank()) return false
+    val u = try { Uri.parse(raw) } catch (_: Exception) { return false }
+    return u.scheme?.lowercase() == "https" && u.userInfo == null && u.host?.let { isXHost(it) } == true
+  }
+
+  private inner class XappJsBridge {
+    @JavascriptInterface
+    fun post(idStr: String, request: String) {
+      val callId = idStr.toLongOrNull() ?: return
+      if (request.length > 16384) return
+      runOnUiThread {
+        val currentUrl = xappWeb?.url
+        if (isHttpsXUrl(currentUrl)) {
+          nativeXappBridge(callId, request)
+        }
+      }
+    }
+  }
+
+  private val xappBridgeShim = """
+    (function(){
+      if (window !== window.top || window.__ripleyXBridgeReady) return;
+      window.__ripleyXBridgeReady = true;
+      var nextId = 1, pending = new Map();
+      window.__ripleyXBridgeDeliver = function(id, answer) {
+        var entry = pending.get(id);
+        if (!entry) return;
+        pending.delete(id);
+        clearTimeout(entry.t);
+        entry.resolve(answer);
+      };
+      var inv = function(cmd, args) {
+        if (cmd !== 'xapp_bridge') return Promise.reject(new Error('not allowed'));
+        if (!window.__RipleyXBridge || typeof window.__RipleyXBridge.post !== 'function') {
+          return Promise.reject(new Error('bridge unavailable'));
+        }
+        var req = args && typeof args.request === 'string' ? args.request : '';
+        if (req.length > 16384) return Promise.reject(new Error('request too large'));
+        var id = nextId++;
+        return new Promise(function(resolve, reject) {
+          var t = setTimeout(function() { pending.delete(id); reject(new Error('RipleyOS didn’t answer')); }, 20000);
+          pending.set(id, { resolve: resolve, reject: reject, t: t });
+          try { window.__RipleyXBridge.post(String(id), req); }
+          catch (e) { pending.delete(id); clearTimeout(t); reject(e); }
+        });
+      };
+      window.__TAURI_INTERNALS__ = { invoke: inv };
+    })();
+  """.trimIndent()
+
+  @SuppressLint("SetJavaScriptEnabled")
+  fun xappOpen(
+    url: String,
+    script: String?,
+    x: Double,
+    y: Double,
+    w: Double,
+    h: Double,
+    bg: String?,
+    zoom: Double?,
+    onDone: (Result<Unit>) -> Unit
+  ) {
+    if (!isHttpsXUrl(url)) {
+      onDone(Result.failure(IllegalArgumentException("The X app only opens x.com.")))
+      return
+    }
+    runOnUiThread {
+      try {
+        val root = findViewById<FrameLayout>(android.R.id.content)
+        xappWeb?.let { old ->
+          (old.parent as? ViewGroup)?.removeView(old)
+          old.destroy()
+        }
+        val child = WebView(this).apply {
+          settings.javaScriptEnabled = true
+          settings.domStorageEnabled = true
+          settings.databaseEnabled = true
+          settings.allowFileAccess = false
+          settings.allowContentAccess = false
+          settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+          settings.useWideViewPort = true
+          settings.loadWithOverviewMode = true
+          settings.mediaPlaybackRequiresUserGesture = false
+          settings.setSupportMultipleWindows(true)
+          if (zoom != null && zoom > 0.2 && zoom <= 3.0) {
+            settings.textZoom = (zoom * 100.0).toInt().coerceIn(50, 250)
+          }
+          if (!bg.isNullOrBlank()) {
+            val rgb = bg.split(",").mapNotNull { it.trim().toIntOrNull() }
+            if (rgb.size >= 3) {
+              setBackgroundColor(Color.rgb(rgb[0].coerceIn(0, 255), rgb[1].coerceIn(0, 255), rgb[2].coerceIn(0, 255)))
+            }
+          }
+          CookieManager.getInstance().setAcceptCookie(true)
+          CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+          addJavascriptInterface(XappJsBridge(), "__RipleyXBridge")
+
+          val docStartScript = if (!script.isNullOrBlank()) {
+            "$xappBridgeShim\n$script"
+          } else {
+            xappBridgeShim
+          }
+          if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(
+              this,
+              docStartScript,
+              setOf("https://x.com", "https://*.x.com", "https://twitter.com", "https://*.twitter.com")
+            )
+          }
+
+          setDownloadListener { _, _, _, _, _ ->
+            nativeBrowserEvent("XAPP_NOTE", "download")
+          }
+
+          webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+              if (view == null) return false
+              val extra = view.hitTestResult.extra
+              if (!extra.isNullOrBlank()) {
+                val u = try { Uri.parse(extra) } catch (_: Exception) { null }
+                val scheme = u?.scheme?.lowercase()
+                val host = u?.host?.lowercase() ?: ""
+                if (scheme == "https" && isXHost(host)) {
+                  view.loadUrl(extra)
+                } else if (scheme == "http" && isXHost(host)) {
+                  view.loadUrl(extra.replaceFirst("http://", "https://", ignoreCase = true))
+                } else if (scheme == "https" || scheme == "http") {
+                  nativeBrowserEvent("XAPP_EXTERNAL", extra)
+                }
+                return true
+              }
+              return false
+            }
+          }
+
+          webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, u: String?, favicon: android.graphics.Bitmap?) {
+              if (!u.isNullOrBlank()) nativeBrowserEvent("XAPP_LOAD", "start|$u")
+            }
+            override fun onPageFinished(view: WebView?, u: String?) {
+              if (!u.isNullOrBlank()) nativeBrowserEvent("XAPP_LOAD", "end|$u")
+            }
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+              val target = request?.url?.toString() ?: return true
+              if (isWalletScheme(target)) {
+                if (request.hasGesture()) {
+                  nativeBrowserEvent("XAPP_URI", target)
+                }
+                return true
+              }
+              val u = request.url ?: return true
+              val scheme = u.scheme?.lowercase() ?: return true
+              val host = u.host?.lowercase() ?: ""
+              if (scheme == "http" && isXHost(host)) {
+                view?.loadUrl(target.replaceFirst("http://", "https://", ignoreCase = true))
+                return true
+              }
+              if (scheme == "https" && isXTopLevelHost(host)) {
+                return false
+              }
+              if (scheme == "https" || scheme == "http") {
+                if (request.isForMainFrame) {
+                  nativeBrowserEvent("XAPP_EXTERNAL", target)
+                  return true
+                }
+                return !isSafeBrowserUrl(target, false)
+              }
+              return true
+            }
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+              val target = request?.url?.toString() ?: return null
+              val lower = target.lowercase()
+              if (lower.startsWith("data:") || lower.startsWith("blob:")) return null
+              if (!isSafeBrowserUrl(target, false)) {
+                return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+              }
+              return null
+            }
+          }
+        }
+        val d = resources.displayMetrics.density
+        val lp = FrameLayout.LayoutParams(
+          (w * d).toInt().coerceAtLeast(1),
+          (h * d).toInt().coerceAtLeast(1)
+        ).apply {
+          leftMargin = (x * d).toInt().coerceAtLeast(0)
+          topMargin = (y * d).toInt().coerceAtLeast(0)
+        }
+        root.addView(child, lp)
+        xappWeb = child
+        child.loadUrl(url)
+        onDone(Result.success(Unit))
+      } catch (e: Exception) {
+        onDone(Result.failure(e))
+      }
+    }
+  }
+
+  fun xappBounds(x: Double, y: Double, w: Double, h: Double) {
+    runOnUiThread {
+      val child = xappWeb ?: return@runOnUiThread
+      val d = resources.displayMetrics.density
+      val lp = (child.layoutParams as? FrameLayout.LayoutParams) ?: FrameLayout.LayoutParams(1, 1)
+      lp.width = (w * d).toInt().coerceAtLeast(1)
+      lp.height = (h * d).toInt().coerceAtLeast(1)
+      lp.leftMargin = (x * d).toInt().coerceAtLeast(0)
+      lp.topMargin = (y * d).toInt().coerceAtLeast(0)
+      child.layoutParams = lp
+    }
+  }
+
+  fun xappNavigate(url: String, onDone: (Result<Unit>) -> Unit) {
+    if (!isHttpsXUrl(url)) {
+      onDone(Result.failure(IllegalArgumentException("The X app only opens x.com.")))
+      return
+    }
+    runOnUiThread {
+      val child = xappWeb
+      if (child == null) {
+        onDone(Result.failure(IllegalStateException("X view not open")))
+      } else {
+        child.loadUrl(url)
+        onDone(Result.success(Unit))
+      }
+    }
+  }
+
+  fun xappVisible(visible: Boolean) {
+    runOnUiThread {
+      xappWeb?.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+  }
+
+  fun xappZoom(zoom: Double) {
+    runOnUiThread {
+      xappWeb?.settings?.textZoom = (zoom * 100.0).toInt().coerceIn(50, 250)
+    }
+  }
+
+  fun xappHistory(action: String) {
+    runOnUiThread {
+      val child = xappWeb ?: return@runOnUiThread
+      when (action) {
+        "reload" -> child.reload()
+        "back" -> if (child.canGoBack()) child.goBack()
+        "forward" -> if (child.canGoForward()) child.goForward()
+      }
+    }
+  }
+
+  fun xappEval(js: String) {
+    runOnUiThread {
+      val child = xappWeb ?: return@runOnUiThread
+      if (isHttpsXUrl(child.url)) {
+        child.evaluateJavascript(js, null)
+      }
+    }
+  }
+
+  fun xappClose() {
+    runOnUiThread {
+      xappWeb?.let { child ->
+        (child.parent as? ViewGroup)?.removeView(child)
+        child.destroy()
+      }
+      xappWeb = null
+    }
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     web = webView
@@ -455,6 +743,7 @@ class MainActivity : TauriActivity() {
     // Capture cold-start SOLO shortcut / deep link BEFORE Tauri setup creates the WebView.
     handleLaunchIntent(intent, coldStart = true)
     super.onCreate(state)
+    LauncherIcons.applyTaskDescription(this)
     // Edge-to-edge: the WebView reaches the screen edges; the insets go to the web app as
     // --sa-* (its topbar/nav/panes already reserve those), instead of padding the content.
     WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -484,6 +773,11 @@ class MainActivity : TauriActivity() {
     // backgrounds cleanly to Android Home (keeping Tor/wallet process warm).
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
+        val xw = xappWeb
+        if (xw != null && xw.visibility == View.VISIBLE && xw.canGoBack()) {
+          xw.goBack()
+          return
+        }
         val child = embedWeb
         if (child != null && child.visibility == View.VISIBLE && child.canGoBack()) {
           child.goBack()
@@ -507,6 +801,7 @@ class MainActivity : TauriActivity() {
   override fun onDestroy() {
     handler.removeCallbacks(pump)
     embedClose()
+    xappClose()
     networkCallback?.let { cb ->
       try {
         (getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager)?.unregisterNetworkCallback(cb)
@@ -519,6 +814,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     suppressNextAutoLock = false
+    LauncherIcons.applyTaskDescription(this)
     nativeResume()
   }
   override fun onPause() {
