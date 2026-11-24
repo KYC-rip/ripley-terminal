@@ -412,18 +412,44 @@ async fn native_io(app: &tauri::AppHandle, c: &str, method: &str, args: Value) -
     .await
     .map_err(|_| err(c, "ANDROID_IO_ERROR", "Native IO worker failed"))?
 }
+/// Debug builds mirror the PWA's network needs (3 MB currency lists, large market snapshots);
+/// release keeps the POC's tight 2 MiB read-only cap.
+#[cfg(debug_assertions)]
+const FETCH_MAX_RESPONSE: usize = 32 * 1024 * 1024;
+#[cfg(not(debug_assertions))]
+const FETCH_MAX_RESPONSE: usize = 2 * 1024 * 1024;
+#[cfg(debug_assertions)]
+const FETCH_MAX_REQUEST: usize = 8 * 1024 * 1024;
+#[cfg(not(debug_assertions))]
+const FETCH_MAX_REQUEST: usize = 0;
+
 async fn fetch(app: &tauri::AppHandle, c: &str, args: &Value) -> ResultValue {
     let req = &args["req"];
     let u = strarg(req, "url")?;
     let url: tauri::Url = u
         .parse()
         .map_err(|_| err(c, "INVALID_URL", "Invalid URL"))?;
-    if req["method"].as_str().is_some_and(|m| m != "GET") {
+    let method = req["method"]
+        .as_str()
+        .map(|m| m.to_ascii_uppercase())
+        .unwrap_or_else(|| "GET".to_string());
+    let method_ok = method == "GET" || (cfg!(debug_assertions) && method == "POST");
+    if !method_ok {
         return Err(err(
             c,
             "UNSUPPORTED_METHOD",
-            "Only public HTTPS GET is enabled; no transaction or arbitrary POST relay",
+            if cfg!(debug_assertions) {
+                "Only public HTTPS GET/POST is enabled"
+            } else {
+                "Only public HTTPS GET is enabled; no transaction or arbitrary POST relay"
+            },
         ));
+    }
+    // Debug parity with the PWA: JSON POSTs (Hyperliquid info, exchange create) are part of the
+    // normal app. Release stays a GET-only read shell. Request bodies are size-capped.
+    let body = req["body"].as_str().unwrap_or("");
+    if body.len() > FETCH_MAX_REQUEST {
+        return Err(err(c, "REQUEST_TOO_LARGE", "Request body exceeds the debug cap"));
     }
     let host = url.host_str().unwrap_or("");
     if url.scheme() != "https"
@@ -463,8 +489,30 @@ async fn fetch(app: &tauri::AppHandle, c: &str, args: &Value) -> ResultValue {
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|_| err(c, "NETWORK_ERROR", "HTTP initialization failed"))?;
-    let mut r = client
-        .get(url)
+    let mut builder = if method == "POST" { client.post(url) } else { client.get(url) };
+    if let Some(hs) = req["headers"].as_object() {
+        for (k, v) in hs {
+            // Hop-by-hop / framing headers belong to reqwest, not to the caller.
+            if ["host", "content-length", "connection", "transfer-encoding", "upgrade"]
+                .iter()
+                .any(|b| k.eq_ignore_ascii_case(b))
+            {
+                continue;
+            }
+            let Some(v) = v.as_str() else { continue };
+            let (Ok(name), Ok(value)) = (
+                reqwest::header::HeaderName::from_bytes(k.as_bytes()),
+                reqwest::header::HeaderValue::from_str(v),
+            ) else {
+                continue;
+            };
+            builder = builder.header(name, value);
+        }
+    }
+    if !body.is_empty() {
+        builder = builder.body(body.to_string());
+    }
+    let mut r = builder
         .header("User-Agent", "RipleyAndroidTest/1")
         .send()
         .await
@@ -481,8 +529,8 @@ async fn fetch(app: &tauri::AppHandle, c: &str, args: &Value) -> ResultValue {
         .await
         .map_err(|_| err(c, "NETWORK_ERROR", "Response read failed"))?
     {
-        if body.len() + chunk.len() > 2 * 1024 * 1024 {
-            return Err(err(c, "RESPONSE_TOO_LARGE", "Response exceeds 2 MiB"));
+        if body.len() + chunk.len() > FETCH_MAX_RESPONSE {
+            return Err(err(c, "RESPONSE_TOO_LARGE", "Response exceeds the fetch cap"));
         }
         body.extend_from_slice(&chunk);
     }

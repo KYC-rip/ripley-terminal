@@ -54,7 +54,16 @@ mod commands {
 static ANDROID_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 static ANDROID_APP: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
 use android_policy::{DIAGNOSTICS, ORIGIN as ROS_ORIGIN};
-const MOBILE_CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: ipc: http://ipc.localhost; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+/// Release: the offline-only shell (the POC's original stance).
+const MOBILE_CSP_OFFLINE: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: ipc: http://ipc.localhost; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+/// Debug: the PWA's network surface (HTTP goes through the native CORS-free bridge, WSS relays
+/// reach the WebView directly, remote images/frames allowed). The archive's own meta CSP still
+/// narrows every host to its allowlist, so this is not an open pipe. Release builds stay offline.
+const MOBILE_CSP_NETWORK: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' blob: ipc: http://ipc.localhost https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+#[cfg(debug_assertions)]
+const MOBILE_CSP: &str = MOBILE_CSP_NETWORK;
+#[cfg(not(debug_assertions))]
+const MOBILE_CSP: &str = MOBILE_CSP_OFFLINE;
 include!(concat!(env!("OUT_DIR"), "/android_bundle.rs"));
 struct PocSession {
     wallet_unlocked: Mutex<bool>,
@@ -477,9 +486,23 @@ pub fn run() {
                 tauri::WebviewUrl::CustomProtocol("ros://localhost/index.html".parse()?),
             )
             .on_navigation(|url| local_url(url));
-            // Explicit DEBUG desktop-layout trial. Runtime status still says Android.
+            // Android: Tauri's desktop default window size (800x600) otherwise becomes the
+            // WebView's layout viewport, so width=device-width resolves to 800 at dpr 1 on a
+            // phone. Size the window to the device's logical screen.
+            #[cfg(target_os = "android")]
+            let window = {
+                let logical = app.primary_monitor().ok().flatten().map(|m| {
+                    let s = m.size();
+                    let f = m.scale_factor();
+                    (s.width as f64 / f, s.height as f64 / f)
+                }).unwrap_or((448.0, 926.0));
+                window.inner_size(logical.0, logical.1)
+            };
+            // Debug keeps the stagenet test flag, but the host presents the REAL Android WebView
+            // (default UA + real pointer) so the shell renders its mobile layout. The old desktop-UA
+            // + fake "fine pointer" trial made phones render the desktop shell at 800x600@1x.
             #[cfg(debug_assertions)]
-            let window=window.user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 RipleyRuntimeDebugDesktop/1").initialization_script("Object.defineProperty(window,'__ANDROID_STAGENET_DEBUG__',{value:true}); const actualMatchMedia=window.matchMedia.bind(window); Object.defineProperty(window,'__ANDROID_ACTUAL_COARSE_POINTER__',{value:actualMatchMedia('(pointer: coarse)').matches}); window.matchMedia=q=>actualMatchMedia(String(q).replace(/\\(pointer:\\s*coarse\\)/g,'(max-width: 0px)'));");
+            let window=window.initialization_script("Object.defineProperty(window,'__ANDROID_STAGENET_DEBUG__',{value:true});");
             window.build()?;
             Ok(())
         })
