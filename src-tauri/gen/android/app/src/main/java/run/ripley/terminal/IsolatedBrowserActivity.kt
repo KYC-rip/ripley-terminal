@@ -26,7 +26,7 @@ class IsolatedBrowserActivity: Activity() {
   override fun onCreate(state:Bundle?) {
     super.onCreate(state);current=WeakReference(this)
     val box=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-    val label=TextView(this).apply {text="← Back to ROS · CLEARNET browser · NO WALLET BRIDGE";setPadding(12,12,12,12);setOnClickListener {finish()}}
+    val label=TextView(this).apply {text="← Back to RipleyOS · CLEARNET browser · NO WALLET BRIDGE";setPadding(12,12,12,12);setOnClickListener {finish()}}
     web=WebView(this)
     web.settings.javaScriptEnabled=true
     web.settings.domStorageEnabled=true
@@ -42,7 +42,7 @@ class IsolatedBrowserActivity: Activity() {
     box.addView(label);box.addView(web,LinearLayout.LayoutParams(-1,0,1f));setContentView(box)
     ViewCompat.setOnApplyWindowInsetsListener(box){v,i->val b=i.getInsets(WindowInsetsCompat.Type.systemBars());v.setPadding(b.left,b.top,b.right,b.bottom);i}
     val url=intent.getStringExtra("url") ?: "https://example.com/"
-    if(allowed(url))web.loadUrl(url) else label.text="Unsupported URL — Back to ROS"
+    if(allowed(url))web.loadUrl(url) else label.text="Unsupported URL — Back to RipleyOS"
   }
   @Deprecated("Legacy back for minSdk24") override fun onBackPressed(){if(web.canGoBack())web.goBack()else finish()}
   override fun onDestroy(){web.destroy();current=null;super.onDestroy()}

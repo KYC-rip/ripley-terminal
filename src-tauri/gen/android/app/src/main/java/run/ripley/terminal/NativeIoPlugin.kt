@@ -98,7 +98,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
     try {
       val a = invoke.parseArgs(ClipboardArgs::class.java)
       require(a.text.length <= 65536) { "Clipboard exceeds 64 KiB text limit" }
-      val clip = ClipData.newPlainText("ROS", a.text)
+      val clip = ClipData.newPlainText("RipleyOS", a.text)
       if (Build.VERSION.SDK_INT >= 24) {
         clip.description.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
       }
