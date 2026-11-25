@@ -16,6 +16,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.provider.OpenableColumns
+import android.util.Base64
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -33,7 +35,10 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
+import java.util.concurrent.Executors
+import org.json.JSONObject
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,10 +66,12 @@ class MainActivity : TauriActivity() {
   private external fun nativeNetworkChanged()
   private external fun nativeSetLaunchSoloApp(appPath: String)
   private external fun nativeDeepLink(uri: String)
+  private external fun nativeShareInbox(payloadJson: String)
   private external fun nativeBrowserEvent(source: String, message: String)
   private external fun nativeXappBridge(id: Long, request: String)
 
   @Volatile var suppressNextAutoLock: Boolean = false
+  private val shareIoExecutor = Executors.newSingleThreadExecutor()
   private var web: WebView? = null
   private var embedWeb: WebView? = null
   private var xappWeb: WebView? = null
@@ -813,9 +820,124 @@ class MainActivity : TauriActivity() {
     w.evaluateJavascript(js, null)
   }
 
+  private fun resolveShareTarget(intent: Intent): String {
+    val cls = intent.component?.className ?: ""
+    return when {
+      cls.endsWith(".ShareToChat") -> "chat"
+      cls.endsWith(".ShareToDeadDrop") -> "deaddrop"
+      cls.endsWith(".ShareToNotepad") -> "notepad"
+      cls.endsWith(".ShareToTranslator") -> "translator"
+      else -> "nostr"
+    }
+  }
+
+  private fun extractAppRosSoloApp(uri: Uri): String? {
+    val host = uri.host?.lowercase() ?: return null
+    if (host != "app.ros.rip") return null
+    val qApp = uri.getQueryParameter("app")?.trim()?.lowercase()
+    if (!qApp.isNullOrBlank() && Regex("^[a-z0-9_-]{1,32}$").matches(qApp)) {
+      return qApp
+    }
+    val segs = uri.pathSegments ?: emptyList()
+    if (segs.isEmpty()) return null
+    val langs = setOf("en", "zh", "ja", "es", "ru", "fa")
+    val first = segs[0].lowercase()
+    val candidate = if (first in langs) segs.getOrNull(1)?.lowercase() else first
+    if (candidate.isNullOrBlank() || candidate == "index.html") return null
+    return if (Regex("^[a-z0-9_-]{1,32}$").matches(candidate)) candidate else null
+  }
+
+  private fun handleShareIntent(intent: Intent, coldStart: Boolean) {
+    val target = resolveShareTarget(intent)
+    if (coldStart) {
+      nativeSetLaunchSoloApp(target)
+    }
+    val title = intent.getStringExtra(Intent.EXTRA_SUBJECT)?.trim()?.take(256) ?: ""
+    val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.take(131072) ?: ""
+    val mime = intent.type?.trim()?.take(128) ?: "text/plain"
+    @Suppress("DEPRECATION")
+    val streamUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    } else {
+      intent.getParcelableExtra(Intent.EXTRA_STREAM)
+    }
+    if (streamUri == null) {
+      if (text.isBlank() && title.isBlank()) return
+      val payload = JSONObject().apply {
+        put("target", target)
+        if (title.isNotEmpty()) put("title", title)
+        if (text.isNotEmpty()) put("text", text)
+        put("mime", mime)
+      }.toString()
+      nativeShareInbox(payload)
+      return
+    }
+    shareIoExecutor.execute {
+      try {
+        val resolvedMime = contentResolver.getType(streamUri)?.take(128) ?: mime
+        var fileName = "shared"
+        try {
+          contentResolver.query(streamUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+              val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+              if (idx >= 0) {
+                val n = c.getString(idx)?.trim()
+                if (!n.isNullOrBlank()) fileName = n.take(120)
+              }
+            }
+          }
+        } catch (_: Exception) { }
+        val maxBytes = 8 * 1024 * 1024
+        val baos = ByteArrayOutputStream()
+        contentResolver.openInputStream(streamUri)?.use { input ->
+          val buf = ByteArray(16384)
+          var total = 0
+          while (true) {
+            val n = input.read(buf)
+            if (n <= 0) break
+            if (total + n > maxBytes) {
+              baos.reset()
+              break
+            }
+            baos.write(buf, 0, n)
+            total += n
+          }
+        }
+        val bytes = baos.toByteArray()
+        val payload = JSONObject().apply {
+          put("target", target)
+          if (title.isNotEmpty()) put("title", title)
+          if (text.isNotEmpty()) put("text", text)
+          put("mime", resolvedMime)
+          if (bytes.isNotEmpty()) {
+            put("fileName", fileName)
+            put("fileBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+          }
+        }.toString()
+        nativeShareInbox(payload)
+      } catch (_: Exception) {
+        if (text.isNotBlank() || title.isNotBlank()) {
+          val fallback = JSONObject().apply {
+            put("target", target)
+            if (title.isNotEmpty()) put("title", title)
+            if (text.isNotEmpty()) put("text", text)
+            put("mime", mime)
+          }.toString()
+          nativeShareInbox(fallback)
+        }
+      }
+    }
+  }
+
   private fun handleLaunchIntent(intent: Intent?, coldStart: Boolean) {
-    val uri = intent?.data?.toString()
-    val soloExtra = intent?.getStringExtra("ripley_solo_app")
+    if (intent == null) return
+    if (intent.action == Intent.ACTION_SEND) {
+      handleShareIntent(intent, coldStart)
+      return
+    }
+    val dataUri = intent.data
+    val uri = dataUri?.toString()
+    val soloExtra = intent.getStringExtra("ripley_solo_app")
     if (coldStart) {
       if (!soloExtra.isNullOrBlank()) {
         nativeSetLaunchSoloApp(soloExtra)
@@ -825,6 +947,11 @@ class MainActivity : TauriActivity() {
         val m = Regex("^ripley://solo/([a-zA-Z0-9_-]+(?:/[a-zA-Z0-9._~:/@-]*)?)(?:[?#].*)?$").matchEntire(uri.trim())
         if (m != null) {
           nativeSetLaunchSoloApp(m.groupValues[1])
+          return
+        }
+        if (dataUri != null && dataUri.host.equals("app.ros.rip", ignoreCase = true)) {
+          extractAppRosSoloApp(dataUri)?.let { nativeSetLaunchSoloApp(it) }
+          nativeDeepLink(uri)
           return
         }
         nativeDeepLink(uri)
@@ -919,6 +1046,7 @@ class MainActivity : TauriActivity() {
 
   override fun onDestroy() {
     handler.removeCallbacks(pump)
+    shareIoExecutor.shutdownNow()
     embedClose()
     xappClose()
     networkCallback?.let { cb ->

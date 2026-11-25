@@ -68,6 +68,7 @@ static ANDROID_FOREGROUND: AtomicBool = AtomicBool::new(true);
 static RENDERER_READY: AtomicBool = AtomicBool::new(false);
 static PENDING_SOLO_BOOT: Mutex<Option<String>> = Mutex::new(None);
 static PENDING_DEEP_LINKS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static PENDING_SHARE_INBOX: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WS_TUNNELED: AtomicBool = AtomicBool::new(false);
 
 pub struct NativeIo(pub PluginHandle<tauri::Wry>);
@@ -508,8 +509,32 @@ pub extern "system" fn Java_run_ripley_terminal_MainActivity_nativeDeepLink(
     uri: JString,
 ) {
     if let Some(raw) = jstring_to_rust(&mut env, uri) {
-        if !raw.is_empty() && raw.len() <= 2048 {
+        if !raw.is_empty() && raw.len() <= 4096 {
             queue_or_emit_deep_link(raw);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_MainActivity_nativeShareInbox(
+    mut env: JNIEnv,
+    _this: JObject,
+    payload: JString,
+) {
+    if let Some(raw) = jstring_to_rust(&mut env, payload) {
+        // Up to ~12 MiB for base64-encoded shared image/file payload.
+        if !raw.is_empty() && raw.len() <= 12 * 1024 * 1024 {
+            if RENDERER_READY.load(Ordering::SeqCst) {
+                if let Some(app) = ANDROID_APP.get() {
+                    emit_log(app, "SHARE_INBOX", "info", &raw);
+                    return;
+                }
+            }
+            if let Ok(mut q) = PENDING_SHARE_INBOX.lock() {
+                if q.len() < 8 {
+                    q.push(raw);
+                }
+            }
         }
     }
 }
@@ -603,6 +628,8 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
             "secureScreen": true,
             "appIcon": true,
             "nativeBiometric": true,
+            "nativeShare": true,
+            "xmradarApp": true,
             "nativePreferences": true,
             "nativeClipboardText": true,
             "nativeNotifications": true,
@@ -621,6 +648,13 @@ fn android_renderer_ready(app: AppHandle) -> Result<(), String> {
         .unwrap_or_default();
     for uri in drained {
         emit_log(&app, "DEEP_LINK", "info", &uri);
+    }
+    let shares: Vec<String> = PENDING_SHARE_INBOX
+        .lock()
+        .map(|mut q| std::mem::take(&mut *q))
+        .unwrap_or_default();
+    for payload in shares {
+        emit_log(&app, "SHARE_INBOX", "info", &payload);
     }
     android_sync_proxy(&app);
     Ok(())
@@ -770,6 +804,59 @@ async fn android_bio_unseal(
 async fn android_bio_clear(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
     require_local(&webview)?;
     run_native_io(&app, "bioClear", json!({})).await
+}
+
+#[tauri::command]
+async fn android_share(
+    app: AppHandle,
+    webview: WebviewWindow,
+    title: Option<String>,
+    text: Option<String>,
+    url: Option<String>,
+    file_name: Option<String>,
+    file_base64: Option<String>,
+    mime: Option<String>,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(
+        &app,
+        "share",
+        json!({
+            "title": title,
+            "text": text,
+            "url": url,
+            "fileName": file_name,
+            "fileBase64": file_base64,
+            "mime": mime,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn android_xmradar_status(app: AppHandle, webview: WebviewWindow) -> Result<Value, String> {
+    require_local(&webview)?;
+    run_native_io(&app, "xmradarAppStatus", json!({})).await
+}
+
+#[tauri::command]
+async fn android_open_xmradar(
+    app: AppHandle,
+    webview: WebviewWindow,
+    url: Option<String>,
+) -> Result<Value, String> {
+    require_local(&webview)?;
+    let safe_url = match url {
+        Some(raw) if !raw.trim().is_empty() => {
+            let parsed: tauri::Url = raw.trim().parse().map_err(|e| format!("invalid url: {e}"))?;
+            match parsed.host_str() {
+                Some(host) if parsed.scheme() == "https" && is_x_host(host) => Some(parsed.to_string()),
+                _ => return Err("XMRadar redirect only accepts https x.com URLs.".into()),
+            }
+        }
+        _ => None,
+    };
+    run_native_io(&app, "openXmradarApp", json!({ "url": safe_url })).await
 }
 
 #[tauri::command]
@@ -1389,6 +1476,9 @@ pub fn run() {
             android_bio_seal,
             android_bio_unseal,
             android_bio_clear,
+            android_share,
+            android_xmradar_status,
+            android_open_xmradar,
             commands::migration::migration_export_bundle,
             commands::migration::migration_inspect_bundle,
             commands::migration::migration_import_bundle,

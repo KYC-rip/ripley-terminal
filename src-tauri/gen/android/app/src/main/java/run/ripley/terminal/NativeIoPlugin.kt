@@ -22,6 +22,7 @@ import androidx.activity.result.ActivityResult
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -104,6 +105,17 @@ import javax.crypto.spec.GCMParameterSpec
   var title: String = "Unlock"
   var subtitle: String? = null
 }
+@InvokeArg class ShareArgs {
+  var title: String? = null
+  var text: String? = null
+  var url: String? = null
+  var fileName: String? = null
+  var fileBase64: String? = null
+  var mime: String? = null
+}
+@InvokeArg class OpenXmradarArgs {
+  var url: String? = null
+}
 
 @TauriPlugin
 class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
@@ -113,6 +125,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
     private const val PREFS_NAME = "ripley_keystore_watch_v1"
     private const val PREF_CT = "watch_root_ct"
     private const val PREF_IV = "watch_root_iv"
+    private val XMRADAR_PACKAGES = listOf("rip.kyc.xmradar", "rip.kyc.xmradar.debug")
   }
 
   private val ioExecutor = Executors.newSingleThreadExecutor()
@@ -780,6 +793,127 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   @Command fun bioClear(invoke: Invoke) {
     deleteBioKey()
     invoke.resolve(JSObject().put("cleared", true))
+  }
+
+  private fun resolveXmradarLaunch(): Pair<String, Intent>? {
+    val pm = activity.packageManager
+    for (pkg in XMRADAR_PACKAGES) {
+      val launch = pm.getLaunchIntentForPackage(pkg)
+      if (launch != null) return pkg to launch
+    }
+    return null
+  }
+
+  private fun isAllowedXUrl(raw: String): Boolean {
+    val u = Uri.parse(raw)
+    if (!u.scheme.equals("https", ignoreCase = true) || u.userInfo != null || raw.length > 2048) return false
+    val h = (u.host ?: return false).trimEnd('.').lowercase()
+    return h == "x.com" || h == "twitter.com" || h.endsWith(".x.com") || h.endsWith(".twitter.com")
+  }
+
+  /** Detect whether the standalone XMRadar Android app (`rip.kyc.xmradar` / `.debug`) is installed. */
+  @Command fun xmradarAppStatus(invoke: Invoke) {
+    try {
+      val found = resolveXmradarLaunch()
+      val out = JSObject().put("installed", found != null)
+      if (found != null) out.put("packageName", found.first)
+      invoke.resolve(out)
+    } catch (e: Exception) {
+      invoke.resolve(JSObject().put("installed", false))
+    }
+  }
+
+  /** Launch the installed XMRadar Android app (preferring an explicit x.com deep link if supported,
+   *  otherwise its standard launcher activity). */
+  @Command fun openXmradarApp(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(OpenXmradarArgs::class.java)
+      val found = resolveXmradarLaunch()
+      if (found == null) {
+        invoke.resolve(JSObject().put("opened", false).put("installed", false))
+        return
+      }
+      val (pkg, launchIntent) = found
+      val url = a.url?.trim()?.takeIf { it.isNotEmpty() && isAllowedXUrl(it) }
+      val targetIntent = if (url != null) {
+        val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { setPackage(pkg) }
+        if (activity.packageManager.resolveActivity(viewIntent, 0) != null) viewIntent else launchIntent
+      } else {
+        launchIntent
+      }
+      targetIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      activity.runOnUiThread {
+        try {
+          activity.startActivity(targetIntent)
+          invoke.resolve(JSObject().put("opened", true).put("installed", true).put("packageName", pkg))
+        } catch (e: Exception) {
+          invoke.reject(e.message ?: "Could not launch XMRadar")
+        }
+      }
+    } catch (e: Exception) {
+      invoke.reject(e.message ?: "Could not launch XMRadar")
+    }
+  }
+
+  /** Native Android Share Sheet (outbound `ACTION_SEND` chooser for text, URLs, or cached files/images). */
+  @Command fun share(invoke: Invoke) {
+    try {
+      val a = invoke.parseArgs(ShareArgs::class.java)
+      val title = a.title?.trim()?.take(200)
+      val text = a.text?.trim()?.take(131072)
+      val url = a.url?.trim()?.take(4096)
+      val combinedText = listOfNotNull(
+        text?.takeIf { it.isNotEmpty() },
+        url?.takeIf { it.isNotEmpty() && (text == null || !text.contains(it)) }
+      ).joinToString("\n")
+
+      val hasFile = !a.fileBase64.isNullOrBlank()
+      require(hasFile || combinedText.isNotEmpty()) { "Nothing to share" }
+
+      val sendIntent = Intent(Intent.ACTION_SEND)
+      if (hasFile) {
+        val raw = Base64.decode(a.fileBase64!!, Base64.DEFAULT)
+        require(raw.isNotEmpty() && raw.size <= 16 * 1024 * 1024) { "Shared file exceeds 16 MiB limit" }
+        val safeName = (a.fileName?.trim() ?: "ripley-share.bin")
+          .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+          .take(96)
+          .ifBlank { "ripley-share.bin" }
+        val shareDir = java.io.File(activity.cacheDir, "share").apply { mkdirs() }
+        // Clean stale share cache files older than 1 hour.
+        val cutoff = System.currentTimeMillis() - 3600_000L
+        shareDir.listFiles()?.forEach { f ->
+          if (f.isFile && f.lastModified() < cutoff) f.delete()
+        }
+        val outFile = java.io.File(shareDir, "${System.currentTimeMillis()}_$safeName")
+        outFile.writeBytes(raw)
+        val contentUri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", outFile)
+        sendIntent.type = a.mime?.trim()?.takeIf { it.isNotEmpty() } ?: "application/octet-stream"
+        sendIntent.putExtra(Intent.EXTRA_STREAM, contentUri)
+        sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (combinedText.isNotEmpty()) sendIntent.putExtra(Intent.EXTRA_TEXT, combinedText)
+      } else {
+        sendIntent.type = "text/plain"
+        sendIntent.putExtra(Intent.EXTRA_TEXT, combinedText)
+      }
+      if (!title.isNullOrEmpty()) {
+        sendIntent.putExtra(Intent.EXTRA_SUBJECT, title)
+        sendIntent.putExtra(Intent.EXTRA_TITLE, title)
+      }
+
+      val chooser = Intent.createChooser(sendIntent, title?.takeIf { it.isNotEmpty() } ?: "Share")
+      activity.runOnUiThread {
+        try {
+          mainActivity()?.suppressNextAutoLock = true
+          activity.startActivity(chooser)
+          invoke.resolve(JSObject().put("shared", true))
+        } catch (e: Exception) {
+          mainActivity()?.suppressNextAutoLock = false
+          invoke.reject(e.message ?: "Could not open share sheet")
+        }
+      }
+    } catch (e: Exception) {
+      invoke.reject(e.message ?: "Share failed")
+    }
   }
 
   @Command fun saveExport(invoke: Invoke) {

@@ -249,6 +249,12 @@
           "markdownDescription": "Enables the android_notify command without any pre-configured scope."
         },
         {
+          "description": "Enables the android_open_xmradar command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-open-xmradar",
+          "markdownDescription": "Enables the android_open_xmradar command without any pre-configured scope."
+        },
+        {
           "description": "Enables the android_pin_shortcut command without any pre-configured scope.",
           "type": "string",
           "const": "allow-android-pin-shortcut",
@@ -325,6 +331,18 @@
           "type": "string",
           "const": "allow-android-set-system-bars",
           "markdownDescription": "Enables the android_set_system_bars command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_share command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-share",
+          "markdownDescription": "Enables the android_share command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the android_xmradar_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-android-xmradar-status",
+          "markdownDescription": "Enables the android_xmradar_status command without any pre-configured scope."
         },
         {
           "description": "Enables the app_version command without any pre-configured scope.",
@@ -1263,6 +1281,12 @@
           "markdownDescription": "Denies the android_notify command without any pre-configured scope."
         },
         {
+          "description": "Denies the android_open_xmradar command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-open-xmradar",
+          "markdownDescription": "Denies the android_open_xmradar command without any pre-configured scope."
+        },
+        {
           "description": "Denies the android_pin_shortcut command without any pre-configured scope.",
           "type": "string",
           "const": "deny-android-pin-shortcut",
@@ -1339,6 +1363,18 @@
           "type": "string",
           "const": "deny-android-set-system-bars",
           "markdownDescription": "Denies the android_set_system_bars command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_share command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-share",
+          "markdownDescription": "Denies the android_share command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the android_xmradar_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-android-xmradar-status",
+          "markdownDescription": "Denies the android_xmradar_status command without any pre-configured scope."
         },
         {
           "description": "Denies the app_version command without any pre-configured scope.",

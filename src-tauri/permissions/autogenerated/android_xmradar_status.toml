@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-xmradar-status"
+description = "Enables the android_xmradar_status command without any pre-configured scope."
+commands.allow = ["android_xmradar_status"]
+
+[[permission]]
+identifier = "deny-android-xmradar-status"
+description = "Denies the android_xmradar_status command without any pre-configured scope."
+commands.deny = ["android_xmradar_status"]

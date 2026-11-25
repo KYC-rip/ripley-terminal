@@ -47,7 +47,14 @@
             android:name=".MainActivity"
             android:exported="true">
 
-            <!-- Deep links: SOLO shortcuts, Sign-in-with-Ripley, XMR402, payment URIs -->
+            <!-- Deep links: App Links (https://app.ros.rip), SOLO shortcuts, Sign-in-with-Ripley, XMR402, payment URIs -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.ros.rip" />
+                <data android:scheme="http" android:host="app.ros.rip" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -777,6 +784,83 @@
             </intent-filter>
         </activity-alias>
         <!-- END GENERATED APP ICON ALIASES -->
+
+        <!-- Native Android Share Sheet inbound targets (outside generated launcher aliases block) -->
+        <activity-alias
+            android:name=".ShareToNostr"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_nostr"
+            android:roundIcon="@mipmap/ic_ros_app_nostr"
+            android:label="Post to Nostr"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareToChat"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_chat"
+            android:roundIcon="@mipmap/ic_ros_app_chat"
+            android:label="Ripley Chat"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareToDeadDrop"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_deaddrop"
+            android:roundIcon="@mipmap/ic_ros_app_deaddrop"
+            android:label="DeadDrop"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareToNotepad"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_notepad"
+            android:roundIcon="@mipmap/ic_ros_app_notepad"
+            android:label="Save to Notepad"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareToTranslator"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_translator"
+            android:roundIcon="@mipmap/ic_ros_app_translator"
+            android:label="Translate (Ripley)"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
           android:name=".NostrSignerContentProvider"
