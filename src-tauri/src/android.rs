@@ -640,7 +640,8 @@ fn android_runtime_status(webview: WebviewWindow) -> Result<RuntimeStatus, Strin
 }
 
 #[tauri::command]
-fn android_renderer_ready(app: AppHandle) -> Result<(), String> {
+fn android_renderer_ready(app: AppHandle, webview: WebviewWindow) -> Result<(), String> {
+    require_local(&webview)?;
     RENDERER_READY.store(true, Ordering::SeqCst);
     let drained: Vec<String> = PENDING_DEEP_LINKS
         .lock()

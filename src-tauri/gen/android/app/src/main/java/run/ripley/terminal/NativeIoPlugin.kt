@@ -15,18 +15,15 @@ import android.os.PersistableBundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
 import android.util.Base64
 import android.util.Log
 import androidx.activity.result.ActivityResult
 import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
-import androidx.fragment.app.FragmentActivity
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -36,7 +33,6 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import java.security.GeneralSecurityException
 import java.security.KeyStore
-import java.security.ProviderException
 import java.security.SecureRandom
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -588,7 +584,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   @Command fun bioStatus(invoke: Invoke) {
     try {
       val res = checkStrongBiometric()
-      val ok = res == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
+      val ok = res == BiometricManager.BIOMETRIC_SUCCESS
       invoke.resolve(
         JSObject()
           .put("supported", ok)
@@ -601,17 +597,22 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   @Command fun bioSeal(invoke: Invoke) {
+    var plain: ByteArray? = null
     try {
       val a = invoke.parseArgs(BioSealArgs::class.java)
-      val plain = Base64.decode(a.secretBase64, Base64.DEFAULT)
-      require(plain.isNotEmpty() && plain.size <= 4096) { "Invalid secret size" }
+      val decoded = Base64.decode(a.secretBase64, Base64.DEFAULT)
+      plain = decoded
+      require(decoded.isNotEmpty() && decoded.size <= 4096) { "Invalid secret size" }
       val can = checkStrongBiometric()
-      if (can != android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) {
-        plain.fill(0)
+      if (can != BiometricManager.BIOMETRIC_SUCCESS) {
+        decoded.fill(0)
+        plain = null
         invoke.resolve(JSObject().put("status", "unsupported").put("message", "No strong biometric enrolled (code $can)"))
         return
       }
       val (_, cipher) = createHardwareBioKeyAndCipher()
+      // Ownership of `decoded` now transfers to the UI prompt callbacks; clear outer ref so outer catch won't race.
+      plain = null
       val settled = AtomicBoolean(false)
       val finish = { obj: JSObject ->
         mainActivity()?.suppressNextAutoLock = false
@@ -628,7 +629,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
               .setTitle(a.title.ifBlank { "Biometric unlock" })
               .apply { a.subtitle?.takeIf { it.isNotBlank() }?.let { setSubtitle(it) } }
               .setNegativeButton("Cancel", exec) { _, _ ->
-                plain.fill(0)
+                decoded.fill(0)
                 finish(JSObject().put("status", "cancelled"))
               }
             if (Build.VERSION.SDK_INT >= 30) {
@@ -643,9 +644,9 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
                 override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
                   try {
                     val c = result.cryptoObject?.cipher ?: error("No crypto object")
-                    val ct = c.doFinal(plain)
+                    val ct = c.doFinal(decoded)
                     val iv = c.iv
-                    plain.fill(0)
+                    decoded.fill(0)
                     finish(
                       JSObject()
                         .put("status", "ok")
@@ -654,14 +655,14 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
                     )
                   } catch (e: Exception) {
                     Log.w("RipleyBio", "bioSeal doFinal failed: ${e.javaClass.simpleName}: ${e.message}")
-                    plain.fill(0)
+                    decoded.fill(0)
                     deleteBioKey()
                     finish(JSObject().put("status", "unsupported").put("message", e.message ?: "Seal failed"))
                   }
                 }
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                   Log.w("RipleyBio", "bioSeal auth error $errorCode: $errString")
-                  plain.fill(0)
+                  decoded.fill(0)
                   val cancelled = errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED ||
                     errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED ||
                     errorCode == android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT ||
@@ -677,18 +678,19 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
               }
             )
           } else {
-            plain.fill(0)
+            decoded.fill(0)
             deleteBioKey()
             finish(JSObject().put("status", "unsupported").put("message", "Requires Android 9+"))
           }
         } catch (e: Exception) {
           Log.w("RipleyBio", "bioSeal prompt failed: ${e.javaClass.simpleName}: ${e.message}")
-          plain.fill(0)
+          decoded.fill(0)
           deleteBioKey()
           finish(JSObject().put("status", "unsupported").put("message", e.message ?: "Biometric prompt failed"))
         }
       }
     } catch (e: Exception) {
+      plain?.fill(0)
       Log.w("RipleyBio", "bioSeal setup failed: ${e.javaClass.simpleName}: ${e.message}")
       deleteBioKey()
       invoke.resolve(JSObject().put("status", "unsupported").put("message", e.message ?: "Biometric setup failed"))
