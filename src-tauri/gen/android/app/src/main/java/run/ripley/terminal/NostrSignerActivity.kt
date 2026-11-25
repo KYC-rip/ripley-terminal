@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
@@ -19,6 +20,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -53,7 +55,10 @@ class NostrSignerActivity : Activity() {
   private var unsignedEventJson: String? = null
   private var parsedEventObj: JSONObject? = null
   private var requestedUserPubkey: String? = null
-  private var rememberNonRestrictedCb: CheckBox? = null
+  private var rememberKindCb: CheckBox? = null
+  private var nativeBioState: NativeBioState = NativeBioState.Unavailable
+  private var bioPromptAutoAttempted: Boolean = false
+  private var activeBioCancel: CancellationSignal? = null
 
   private lateinit var rootContainer: LinearLayout
   private lateinit var bodyContainer: LinearLayout
@@ -117,10 +122,16 @@ class NostrSignerActivity : Activity() {
     }
 
     buildShellLayout()
-    loadVaultAsync(null)
+    if (reqType == "sign_event") {
+      tryAutoSignIfRemembered(verified)
+    } else {
+      loadVaultAsync(null)
+    }
   }
 
   override fun onDestroy() {
+    try { activeBioCancel?.cancel() } catch (_: Exception) { }
+    activeBioCancel = null
     unlockedPasscode = null
     cryptoExecutor.shutdownNow()
     super.onDestroy()
@@ -195,16 +206,70 @@ class NostrSignerActivity : Activity() {
     }
   }
 
+  /** If the user already checked "Always allow" for this verified caller + kind,
+   *  sign immediately (using vault or hardware Keystore seal) and return without prompting. */
+  private fun tryAutoSignIfRemembered(c: CallerIdentity) {
+    val ev = parsedEventObj
+    val rawEventJson = unsignedEventJson
+    if (ev == null || rawEventJson == null) {
+      loadVaultAsync(null)
+      return
+    }
+    val kind = ev.optInt("kind", -1)
+    val decision = Nip55Store.checkSignPermission(applicationContext, c, requestedUserPubkey, kind)
+    if (decision !is SignPreAuthDecision.Authorized) {
+      loadVaultAsync(null)
+      return
+    }
+    renderLoading("Signing with remembered permission…")
+    cryptoExecutor.execute {
+      var signed = Nip55Bridge.signWithVault(
+        context = applicationContext,
+        passcode = null,
+        targetPubkey = decision.pubkeyHex,
+        eventJson = rawEventJson
+      )
+      if (!signed.ok && signed.error == "LOCKED") {
+        val fromKeystore = Nip55Store.withUnsealedBackgroundKey(applicationContext, decision.pubkeyHex) { skHex ->
+          Nip55Bridge.signWithRawSk(skHex, decision.pubkeyHex, rawEventJson)
+        }
+        if (fromKeystore != null) signed = fromKeystore
+      }
+      runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        if (signed.ok && signed.event.isNotBlank() && signed.sig.length == 128) {
+          val res = Intent().apply {
+            reqId?.let { putExtra("id", it) }
+            putExtra("event", signed.event)
+            putExtra("result", signed.sig)
+            putExtra("signature", signed.sig)
+          }
+          setResult(RESULT_OK, res)
+          finish()
+        } else {
+          // Sealed key missing/invalidated — fall back cleanly to normal unlock + prompt.
+          loadVaultAsync(null)
+        }
+      }
+    }
+  }
+
   private fun loadVaultAsync(passcode: String?) {
     renderLoading(if (passcode == null) "Reading Ripley Vault…" else "Verifying passcode…")
     cryptoExecutor.execute {
       val info = Nip55Bridge.inspectVault(applicationContext, passcode)
+      val bio = if (info.status == "locked" || info.status == "bad_passcode") {
+        Nip55Store.inspectNativeBio(applicationContext)
+      } else {
+        NativeBioState.Unavailable
+      }
       runOnUiThread {
         if (isFinishing || isDestroyed) return@runOnUiThread
         if (info.status == "ready" && passcode != null) {
           unlockedPasscode = passcode
         }
         currentVault = info
+        nativeBioState = bio
         if (info.status == "ready") {
           val targetIdx = requestedUserPubkey?.let { wanted ->
             info.accounts.indexOfFirst { it.pubkey.equals(wanted, ignoreCase = true) }
@@ -307,7 +372,7 @@ class NostrSignerActivity : Activity() {
     val info = currentVault ?: return
     bodyContainer.removeAllViews()
     kindCheckboxes.clear()
-    rememberNonRestrictedCb = null
+    rememberKindCb = null
 
     bodyContainer.addView(headerView())
     bodyContainer.addView(callerCard(c))
@@ -347,6 +412,7 @@ class NostrSignerActivity : Activity() {
   }
 
   private fun renderUnlockCard(showBadPassError: Boolean) {
+    val bio = nativeBioState
     val card = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       background = roundedBg(Color.parseColor("#14141B"), Color.parseColor("#2E2E3B"), 12)
@@ -363,11 +429,39 @@ class NostrSignerActivity : Activity() {
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     })
     card.addView(TextView(this).apply {
-      text = "Enter your RipleyOS passcode to access your Nostr signing key. Keys never leave this device."
+      text = if (bio is NativeBioState.Ready) {
+        "Unlock with Fingerprint / Face ID or enter your RipleyOS passcode. Keys never leave this device."
+      } else {
+        "Enter your RipleyOS passcode to access your Nostr signing key. Keys never leave this device."
+      }
       setTextColor(Color.parseColor("#A1A1AA"))
       textSize = 12.5f
       setPadding(0, dp(4), 0, dp(10))
     })
+
+    if (bio is NativeBioState.Ready) {
+      card.addView(Button(this).apply {
+        text = "Unlock with Fingerprint / Face"
+        isAllCaps = false
+        setTextColor(Color.parseColor("#3DDC84"))
+        textSize = 14f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        background = roundedBg(Color.parseColor("#0F241A"), Color.parseColor("#2B6A49"), 10)
+        minimumHeight = dp(46)
+        layoutParams = LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(12) }
+        setOnClickListener { triggerBiometricUnlock(bio) }
+      })
+    } else if (bio is NativeBioState.Expired) {
+      card.addView(TextView(this).apply {
+        text = "Biometric unlock expired — enter your passcode to continue."
+        setTextColor(Color.parseColor("#FFB020"))
+        textSize = 11.5f
+        setPadding(0, 0, 0, dp(8))
+      })
+    }
 
     val passInput = EditText(this).apply {
       hint = "RipleyOS passcode"
@@ -400,6 +494,76 @@ class NostrSignerActivity : Activity() {
         }
       )
     )
+
+    if (bio is NativeBioState.Ready && !showBadPassError && !bioPromptAutoAttempted) {
+      bioPromptAutoAttempted = true
+      window.decorView.post {
+        if (!isFinishing && !isDestroyed) {
+          triggerBiometricUnlock(bio)
+        }
+      }
+    }
+  }
+
+  private fun triggerBiometricUnlock(bio: NativeBioState.Ready) {
+    if (Build.VERSION.SDK_INT < 28) return
+    val cipher = Nip55Store.initNativeBioDecryptCipher(bio.iv)
+    if (cipher == null) {
+      nativeBioState = NativeBioState.Unavailable
+      renderScreen()
+      return
+    }
+    try { activeBioCancel?.cancel() } catch (_: Exception) { }
+    val cancel = CancellationSignal()
+    activeBioCancel = cancel
+    val exec = ContextCompat.getMainExecutor(this)
+    val c = caller
+    val builder = android.hardware.biometrics.BiometricPrompt.Builder(this)
+      .setTitle("Unlock Ripley Vault")
+      .setSubtitle(
+        if (reqType == "get_public_key") {
+          "Authorize ${c?.appLabel ?: "external app"}"
+        } else {
+          "Sign Nostr event for ${c?.appLabel ?: "external app"}"
+        }
+      )
+      .setNegativeButton("Use passcode", exec) { _, _ -> }
+    if (Build.VERSION.SDK_INT >= 30) {
+      builder.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+    }
+    try {
+      builder.build().authenticate(
+        android.hardware.biometrics.BiometricPrompt.CryptoObject(cipher),
+        cancel,
+        exec,
+        object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+          override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
+            activeBioCancel = null
+            var plain: ByteArray? = null
+            try {
+              val unlockedCipher = result.cryptoObject?.cipher ?: error("Missing crypto object")
+              plain = unlockedCipher.doFinal(bio.ct)
+              val pass = String(plain, Charsets.UTF_8)
+              if (pass.isNotEmpty()) {
+                loadVaultAsync(pass)
+              }
+            } catch (_: Exception) {
+              nativeBioState = NativeBioState.Unavailable
+              renderScreen()
+            } finally {
+              plain?.fill(0)
+            }
+          }
+
+          override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+            activeBioCancel = null
+            // User chose "Use passcode" or cancelled — keep the passcode card open.
+          }
+        }
+      )
+    } catch (_: Exception) {
+      activeBioCancel = null
+    }
   }
 
   private fun renderNoIdentityCard() {
@@ -570,9 +734,9 @@ class NostrSignerActivity : Activity() {
 
     permCard.addView(TextView(this).apply {
       text = if (requestedBlockedKinds.isNotEmpty()) {
-        "Note: Restricted kinds (${requestedBlockedKinds.joinToString(", ")}) were blocked from background auto-signing and will always require your explicit confirmation."
+        "Note: Public post kinds (${requestedBlockedKinds.joinToString(", ")}) are not pre-authorized on connect; you can choose Always allow when you first post."
       } else {
-        "Public notes (kind 1) and articles (kind 30023) are never auto-signed and always prompt here."
+        "Public notes (kind 1) and articles (kind 30023) prompt on first post — you can choose Always allow for this app then."
       }
       setTextColor(Color.parseColor("#FFB020"))
       textSize = 11.5f
@@ -694,7 +858,7 @@ class NostrSignerActivity : Activity() {
         letterSpacing = 0.08f
       })
       warn.addView(TextView(this).apply {
-        text = "Signed Nostr posts are public and cryptographically bound to your identity. Ripley Vault never auto-signs this kind."
+        text = "Signed Nostr posts are public and cryptographically bound to your identity. Check below to always allow this app."
         setTextColor(Color.parseColor("#F5DFC0"))
         textSize = 12f
         setPadding(0, dp(4), 0, 0)
@@ -774,18 +938,19 @@ class NostrSignerActivity : Activity() {
     evCard.addView(rawToggle)
     evCard.addView(rawBox)
 
-    // Only non-restricted kinds may optionally be remembered for background signing.
-    if (!isHighRisk) {
-      val cb = CheckBox(this).apply {
-        text = "Remember kind $kind for ${c.appLabel} (allow background signing)"
-        isChecked = false
-        setTextColor(Color.parseColor("#C4C4CE"))
-        textSize = 12f
-        setPadding(0, dp(8), 0, 0)
-      }
-      rememberNonRestrictedCb = cb
-      evCard.addView(cb)
+    // Allow the user to explicitly authorize this verified caller + kind forever (including kind 1 / 30023)
+    // so they don't have to re-approve or re-enter passcode on every post. Unchecked by default.
+    val cb = CheckBox(this).apply {
+      text = "Always allow kind $kind (${Nip55Store.describeKind(kind)}) for ${c.appLabel}"
+      isChecked = false
+      setTextColor(Color.parseColor("#E4E4EA"))
+      textSize = 12.5f
+      minHeight = dp(40)
+      minimumHeight = dp(40)
+      setPadding(dp(4), dp(8), dp(4), dp(4))
     }
+    rememberKindCb = cb
+    evCard.addView(cb)
 
     bodyContainer.addView(evCard)
     bodyContainer.addView(statusText)
@@ -796,7 +961,7 @@ class NostrSignerActivity : Activity() {
         positiveLabel = "Sign & Return",
         onNegative = { finishRejected(persistDenial = false) },
         onPositive = {
-          val remember = !isHighRisk && (rememberNonRestrictedCb?.isChecked == true)
+          val remember = rememberKindCb?.isChecked == true
           performSignEvent(c, account, info.hasPasscode, kind, rawEventJson, remember)
         }
       )
@@ -819,13 +984,14 @@ class NostrSignerActivity : Activity() {
         targetPubkey = account.pubkey,
         eventJson = rawEventJson
       )
-      if (outcome.ok && rememberKind && !Nip55Store.isRestrictedKind(kind)) {
+      if (outcome.ok && rememberKind) {
         Nip55Store.saveApproval(
           context = applicationContext,
           caller = c,
           pubkeyHex = account.pubkey,
           kindsToApprove = setOf(kind),
-          replaceKinds = false
+          replaceKinds = false,
+          allowExplicitRestricted = true
         )
         if (hasPasscode) {
           val mat = Nip55Bridge.exportForKeystoreSeal(applicationContext, unlockedPasscode, account.pubkey)

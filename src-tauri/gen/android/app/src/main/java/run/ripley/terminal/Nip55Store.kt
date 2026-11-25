@@ -6,8 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.biometric.BiometricManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -17,6 +19,12 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+
+sealed class NativeBioState {
+  data class Ready(val iv: ByteArray, val ct: ByteArray) : NativeBioState()
+  object Expired : NativeBioState()
+  object Unavailable : NativeBioState()
+}
 
 data class CallerIdentity(
   val packageName: String,
@@ -54,9 +62,12 @@ object Nip55Store {
   private const val GRANTS_PREFS = "ripley_nip55_grants_v1"
   private const val SEALED_PREFS = "ripley_nip55_sealed_v1"
   private const val KEYSTORE_ALIAS = "ripley_nip55_vault_v1"
+  private const val BIO_KEYSTORE_ALIAS = "ripley_bio_unlock_v1"
+  private const val BIO_KV_FILE = "ripleyos%3Alock%3Abio"
 
-  /** Hardcoded security invariant: public text notes (1) and long-form articles (30023)
-   *  are NEVER auto-signed in the background and ALWAYS require interactive approval. */
+  /** Public text notes (1) and long-form articles (30023) are NEVER pre-authorized during
+   *  initial `get_public_key` connect, and can only be remembered when the user explicitly
+   *  opts in on an interactive `sign_event` prompt. */
   val NEVER_AUTO_SIGN_KINDS: Set<Int> = setOf(1, 30023)
 
   fun isRestrictedKind(kind: Int): Boolean = kind in NEVER_AUTO_SIGN_KINDS
@@ -153,7 +164,7 @@ object Nip55Store {
 
   fun describeKind(kind: Int): String = when (kind) {
     0 -> "Profile Metadata"
-    1 -> "Public Note (Interactive Only)"
+    1 -> "Public Note"
     5 -> "Event Deletion"
     17 -> "External / Website Reaction"
     9042 -> "XMRadar / Zap Event"
@@ -163,7 +174,7 @@ object Nip55Store {
     10133 -> "App Preferences"
     24242 -> "Blossom Media Auth"
     27235 -> "NIP-98 HTTP Auth"
-    30023 -> "Long-Form Article (Interactive Only)"
+    30023 -> "Long-Form Article"
     else -> "Event Kind $kind"
   }
 
@@ -181,7 +192,7 @@ object Nip55Store {
       val aArr = o.optJSONArray("approvedKinds") ?: JSONArray()
       for (i in 0 until aArr.length()) {
         val k = aArr.optInt(i, -1)
-        if (k in 0..65535 && !isRestrictedKind(k)) approvedKinds.add(k)
+        if (k in 0..65535) approvedKinds.add(k)
       }
       val rejectedKinds = mutableSetOf<Int>()
       val rArr = o.optJSONArray("rejectedKinds") ?: JSONArray()
@@ -210,14 +221,17 @@ object Nip55Store {
     caller: CallerIdentity,
     pubkeyHex: String,
     kindsToApprove: Collection<Int>,
-    replaceKinds: Boolean = false
+    replaceKinds: Boolean = false,
+    allowExplicitRestricted: Boolean = false
   ) {
     val existing = loadGrant(context, caller)
-    val safeIncoming = kindsToApprove.filter { it in 0..65535 && !isRestrictedKind(it) }.toSet()
+    val safeIncoming = kindsToApprove
+      .filter { it in 0..65535 && (allowExplicitRestricted || !isRestrictedKind(it)) }
+      .toSet()
     val mergedApproved = if (replaceKinds || existing == null || existing.pubkeyHex != pubkeyHex) {
       safeIncoming
     } else {
-      (existing.approvedKinds + safeIncoming).filterNot { isRestrictedKind(it) }.toSet()
+      existing.approvedKinds + safeIncoming
     }
     val mergedRejected = if (existing == null || existing.pubkeyHex != pubkeyHex) {
       emptySet()
@@ -278,7 +292,7 @@ object Nip55Store {
       put("pubkeyHex", rec.pubkeyHex)
       put("approved", rec.approved)
       put("rejected", rec.rejected)
-      put("approvedKinds", JSONArray(rec.approvedKinds.filterNot { isRestrictedKind(it) }.sorted()))
+      put("approvedKinds", JSONArray(rec.approvedKinds.sorted()))
       put("rejectedKinds", JSONArray(rec.rejectedKinds.sorted()))
       put("updatedAt", rec.updatedAt)
     }
@@ -294,8 +308,6 @@ object Nip55Store {
     requestedPubkeyHex: String?,
     kind: Int
   ): SignPreAuthDecision {
-    // Hardcoded invariant: kinds 1 and 30023 are NEVER auto-signed.
-    if (isRestrictedKind(kind)) return SignPreAuthDecision.NotAuthorized
     if (!hasVaultNostrKeys(context)) {
       clearAll(context)
       return SignPreAuthDecision.NotAuthorized
@@ -407,6 +419,74 @@ object Nip55Store {
       null
     } finally {
       plain?.fill(0)
+    }
+  }
+
+  // ── Native Hardware Biometric Unlock (reuses RipleyOS `ripleyos:lock:bio` + `ripley_bio_unlock_v1`) ──
+
+  /** Inspect whether RipleyOS's native hardware biometric unlock is enabled and usable on this device. */
+  fun inspectNativeBio(context: Context, nowMs: Long = System.currentTimeMillis()): NativeBioState {
+    if (Build.VERSION.SDK_INT < 28) return NativeBioState.Unavailable
+    val bioFile = File(File(Nip55Bridge.appDataDir(context), "ros-kv"), BIO_KV_FILE)
+    if (!bioFile.isFile || bioFile.length() <= 0 || bioFile.length() > 16384) {
+      return NativeBioState.Unavailable
+    }
+    val obj = try { JSONObject(bioFile.readText(Charsets.UTF_8)) } catch (_: Exception) {
+      return NativeBioState.Unavailable
+    }
+    if (obj.optInt("v", 0) != 1 || obj.optString("kind", "") != "native") {
+      return NativeBioState.Unavailable
+    }
+    val exp = obj.optLong("exp", 0L)
+    if (exp <= 0L || nowMs > exp) {
+      return NativeBioState.Expired
+    }
+    val iv = try { Base64.decode(obj.optString("salt", ""), Base64.DEFAULT) } catch (_: Exception) {
+      return NativeBioState.Unavailable
+    }
+    val ct = try { Base64.decode(obj.optString("blob", ""), Base64.DEFAULT) } catch (_: Exception) {
+      return NativeBioState.Unavailable
+    }
+    if (iv.size != 12 || ct.size < 17 || ct.size > 4200) {
+      return NativeBioState.Unavailable
+    }
+    val canAuth = try {
+      if (Build.VERSION.SDK_INT >= 30) {
+        val bm = context.getSystemService(android.hardware.biometrics.BiometricManager::class.java)
+        bm?.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+          ?: android.hardware.biometrics.BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+      } else if (Build.VERSION.SDK_INT == 29) {
+        val bm = context.getSystemService(android.hardware.biometrics.BiometricManager::class.java)
+        @Suppress("DEPRECATION")
+        bm?.canAuthenticate()
+          ?: android.hardware.biometrics.BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+      } else {
+        BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      }
+    } catch (_: Exception) {
+      return NativeBioState.Unavailable
+    }
+    if (canAuth != android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS) {
+      return NativeBioState.Unavailable
+    }
+    // Verify the hardware Keystore key still exists and hasn't been invalidated by new enrollment.
+    if (initNativeBioDecryptCipher(iv) == null) {
+      return NativeBioState.Unavailable
+    }
+    return NativeBioState.Ready(iv = iv, ct = ct)
+  }
+
+  fun initNativeBioDecryptCipher(iv: ByteArray): Cipher? {
+    return try {
+      val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+      val key = ks.getKey(BIO_KEYSTORE_ALIAS, null) as? SecretKey ?: return null
+      Cipher.getInstance("AES/GCM/NoPadding").apply {
+        init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+      }
+    } catch (_: KeyPermanentlyInvalidatedException) {
+      null
+    } catch (_: Exception) {
+      null
     }
   }
 

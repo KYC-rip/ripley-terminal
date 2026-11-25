@@ -17,7 +17,9 @@ import org.json.JSONObject
  * SHA-256 digest against saved grants.
  *
  * Security invariants:
- *  - Kinds 1 (public note) and 30023 (long-form article) are NEVER auto-signed.
+ *  - Kinds 1 (public note) and 30023 (long-form article) are NEVER pre-authorized during
+ *    initial `get_public_key` connect, and only sign silently if the user explicitly opted
+ *    into "Always allow" for that verified caller + kind during an interactive prompt.
  *  - Unauthorized callers or non-pre-authorized kinds receive an empty cursor so the
  *    caller cleanly falls back to the interactive `nostrsigner:` Activity Intent.
  *  - Explicitly rejected callers/kinds receive a 1-row cursor with `rejected="true"`.
@@ -79,11 +81,6 @@ class NostrSignerContentProvider : ContentProvider() {
       if (!obj.has("kind")) return emptySignCursor()
       obj.getInt("kind")
     } catch (_: Exception) {
-      return emptySignCursor()
-    }
-
-    // Hardcoded invariant: NEVER auto-sign kinds 1 or 30023 in the background.
-    if (Nip55Store.isRestrictedKind(kind)) {
       return emptySignCursor()
     }
 

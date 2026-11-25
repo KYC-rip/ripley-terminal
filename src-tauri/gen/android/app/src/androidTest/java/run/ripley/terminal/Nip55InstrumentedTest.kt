@@ -156,18 +156,46 @@ class Nip55InstrumentedTest {
       }
     }
 
-    // 5. Kinds 1 and 30023 MUST NEVER be auto-signed -> empty cursor
+    // 5. Kinds 1 and 30023 MUST NOT be auto-signed by default -> empty cursor
     for (restrictedKind in listOf(1, 30023)) {
       val evJson = JSONObject()
         .put("kind", restrictedKind)
         .put("created_at", 1700000123L)
         .put("tags", JSONArray())
-        .put("content", "public post must prompt")
+        .put("content", "public post must prompt by default")
         .toString()
       ctx.contentResolver.query(signUri, arrayOf(evJson, "", testPubkeyHex), null, null, null).use { c ->
         assertNotNull(c)
-        assertEquals("Kind $restrictedKind must NEVER auto-sign", 0, c!!.count)
+        assertEquals("Kind $restrictedKind must NOT auto-sign before explicit opt-in", 0, c!!.count)
       }
+    }
+
+    // 5b. Once user explicitly opts into "Always allow kind 1" interactively, ContentProvider signs kind 1 silently
+    Nip55Store.saveApproval(
+      context = ctx,
+      caller = selfCaller,
+      pubkeyHex = testPubkeyHex,
+      kindsToApprove = setOf(1),
+      replaceKinds = false,
+      allowExplicitRestricted = true
+    )
+    val k1Json = JSONObject()
+      .put("kind", 1)
+      .put("created_at", 1700000456L)
+      .put("tags", JSONArray())
+      .put("content", "remembered kind 1 post")
+      .toString()
+    ctx.contentResolver.query(signUri, arrayOf(k1Json, "", testPubkeyHex), null, null, null).use { c ->
+      assertNotNull(c)
+      assertTrue("Expected kind 1 to sign silently after explicit opt-in", c!!.moveToFirst())
+      assertEquals(128, c.getString(c.getColumnIndexOrThrow("result")).length)
+      assertEquals(1, JSONObject(c.getString(c.getColumnIndexOrThrow("event"))).getInt("kind"))
+    }
+    // Kind 30023 still requires its own opt-in
+    val k30023Json = JSONObject().put("kind", 30023).put("tags", JSONArray()).put("content", "article").toString()
+    ctx.contentResolver.query(signUri, arrayOf(k30023Json, "", testPubkeyHex), null, null, null).use { c ->
+      assertNotNull(c)
+      assertEquals("Kind 30023 must remain unapproved until opted in", 0, c!!.count)
     }
 
     // 6. Mismatched pubkey -> empty cursor
@@ -274,11 +302,18 @@ class Nip55InstrumentedTest {
     val allText = views.filterIsInstance<TextView>().joinToString("\n") { it.text?.toString() ?: "" }
     assertTrue("Expected kind 1 public note warning banner", allText.contains("PUBLIC NOTE (KIND 1)"))
     assertTrue("Expected event content preview", allText.contains("Testing sovereign NIP-55 signing"))
-    assertTrue("Kind 1 must never offer remember/auto-sign checkbox", views.filterIsInstance<CheckBox>().isEmpty())
+    val rememberCbs = views.filterIsInstance<CheckBox>()
+    assertEquals("Expected explicit opt-in checkbox for kind 1", 1, rememberCbs.size)
+    assertFalse("Always-allow checkbox for kind 1 must default unchecked", rememberCbs[0].isChecked)
+    assertTrue("Checkbox label should mention Always allow kind 1", rememberCbs[0].text.toString().contains("Always allow kind 1"))
 
     saveActivitySnapshot(signerActivity, "nip55_sign_event_k1.png")
 
-    InstrumentationRegistry.getInstrumentation().runOnMainSync { signBtn.performClick() }
+    // Check "Always allow kind 1" and sign -> next kind 1 intent from same caller auto-signs immediately
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      rememberCbs[0].isChecked = true
+      signBtn.performClick()
+    }
     val (resultCode, data) = pendingResult.await()
     assertEquals(Activity.RESULT_OK, resultCode)
     assertNotNull(data)
@@ -293,6 +328,51 @@ class Nip55InstrumentedTest {
     assertEquals(1, ev.getInt("kind"))
     assertEquals(sig, ev.getString("sig"))
     assertEquals(64, ev.getString("id").length)
+
+    // Second kind 1 intent from the SAME verified caller should auto-sign with zero interaction!
+    val secondUuid = "xmradar-req-uuid-auto-2"
+    val secondIntent = Intent(Intent.ACTION_VIEW, Uri.parse("nostrsigner:${Uri.encode(unsigned)}")).apply {
+      setPackage(ctx.packageName)
+      putExtra("type", "sign_event")
+      putExtra("current_user", testPubkeyHex)
+      putExtra("id", secondUuid)
+    }
+    val pendingAuto = PendingActivityResult()
+    val testCtx = InstrumentationRegistry.getInstrumentation().context
+    val launcher = Intent(testCtx, Nip55CallerTestActivity::class.java).apply {
+      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      putExtra(Nip55CallerTestActivity.EXTRA_TARGET_INTENT, secondIntent)
+    }
+    testCtx.startActivity(launcher)
+    val (autoCode, autoData) = pendingAuto.await()
+    assertEquals("Expected remembered kind 1 to auto-sign without prompt", Activity.RESULT_OK, autoCode)
+    assertNotNull(autoData)
+    assertEquals(secondUuid, autoData!!.getStringExtra("id"))
+    assertEquals(128, autoData.getStringExtra("result")?.length)
+  }
+
+  @Test
+  fun inspectNativeBioDetectsMissingAndExpiredRecords() {
+    val kvDir = File(Nip55Bridge.appDataDir(ctx), "ros-kv").apply { mkdirs() }
+    val bioFile = File(kvDir, "ripleyos%3Alock%3Abio")
+    val backup = if (bioFile.isFile) bioFile.readBytes() else null
+    try {
+      bioFile.delete()
+      assertTrue(Nip55Store.inspectNativeBio(ctx) is NativeBioState.Unavailable)
+
+      val expired = JSONObject()
+        .put("v", 1)
+        .put("kind", "native")
+        .put("cred", "android-keystore-v1")
+        .put("salt", "AAAAAAAAAAAAAAAA")
+        .put("blob", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        .put("exp", 1000L)
+        .toString()
+      bioFile.writeText(expired)
+      assertTrue(Nip55Store.inspectNativeBio(ctx) is NativeBioState.Expired)
+    } finally {
+      if (backup != null) bioFile.writeBytes(backup) else bioFile.delete()
+    }
   }
 
   @Test
