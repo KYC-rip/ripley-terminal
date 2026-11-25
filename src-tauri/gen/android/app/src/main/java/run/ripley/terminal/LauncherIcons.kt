@@ -49,6 +49,7 @@ object LauncherIcons {
     Entry("notepad", "Notepad", "run.ripley.terminal.Launcher_notepad", R.mipmap.ic_ros_app_notepad),
     Entry("pay", "Pay", "run.ripley.terminal.Launcher_pay", R.mipmap.ic_ros_app_pay),
     Entry("planner", "Planner", "run.ripley.terminal.Launcher_planner", R.mipmap.ic_ros_app_planner),
+    Entry("pos", "POS", "run.ripley.terminal.Launcher_pos", R.mipmap.ic_ros_app_pos),
     Entry("privacy", "Privacy", "run.ripley.terminal.Launcher_privacy", R.mipmap.ic_ros_app_privacy),
     Entry("radar", "Radar", "run.ripley.terminal.Launcher_radar", R.mipmap.ic_ros_app_radar),
     Entry("reader", "Reader", "run.ripley.terminal.Launcher_reader", R.mipmap.ic_ros_app_reader),

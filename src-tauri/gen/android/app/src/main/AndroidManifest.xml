@@ -535,6 +535,19 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
+            android:name=".Launcher_pos"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_ros_app_pos"
+            android:roundIcon="@mipmap/ic_ros_app_pos"
+            android:label="POS"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
             android:name=".Launcher_privacy"
             android:enabled="false"
             android:exported="true"
