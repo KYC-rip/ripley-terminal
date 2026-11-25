@@ -8,6 +8,7 @@ mod boot;
 mod commands;
 mod dns_filter;
 pub mod migration;
+pub mod nostr_signer;
 mod tor;
 mod updater;
 #[cfg(target_os = "macos")]

@@ -9,6 +9,7 @@ mod android_net;
 mod android_policy;
 mod boot;
 pub mod migration;
+pub mod nostr_signer;
 mod tor;
 mod updater;
 mod wallet;
@@ -265,7 +266,166 @@ fn queue_or_emit_deep_link(uri: String) {
 }
 
 fn jstring_to_rust(env: &mut JNIEnv, s: JString) -> Option<String> {
+    if s.is_null() {
+        return None;
+    }
     env.get_string(&s).ok().map(|js| js.into())
+}
+
+fn rust_to_jstring(env: &mut JNIEnv, s: &str) -> jni::sys::jstring {
+    env.new_string(s)
+        .map(|j| j.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
+// ── JNI Callbacks from `run.ripley.terminal.Nip55Bridge` (NIP-55 Android Nostr Signer) ──
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeInspectVault(
+    mut env: JNIEnv,
+    _class: JObject,
+    app_data_dir: JString,
+    passcode: JString,
+) -> jni::sys::jstring {
+    let dir = match jstring_to_rust(&mut env, app_data_dir) {
+        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+        _ => return rust_to_jstring(&mut env, r#"{"status":"error","error":"missing appDataDir"}"#),
+    };
+    let pass = jstring_to_rust(&mut env, passcode);
+    let info = nostr_signer::inspect_vault(&dir, pass.as_deref());
+    let out = serde_json::to_string(&info)
+        .unwrap_or_else(|_| r#"{"status":"error","error":"serialize failed"}"#.to_string());
+    rust_to_jstring(&mut env, &out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeCreateIdentity(
+    mut env: JNIEnv,
+    _class: JObject,
+    app_data_dir: JString,
+) -> jni::sys::jstring {
+    let dir = match jstring_to_rust(&mut env, app_data_dir) {
+        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+        _ => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing appDataDir"}"#),
+    };
+    let out = match nostr_signer::create_identity_in_vault(&dir) {
+        Ok(acc) => json!({ "ok": true, "account": acc }).to_string(),
+        Err(e) => json!({ "ok": false, "error": e }).to_string(),
+    };
+    rust_to_jstring(&mut env, &out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeSignWithVault(
+    mut env: JNIEnv,
+    _class: JObject,
+    app_data_dir: JString,
+    passcode: JString,
+    target_pubkey: JString,
+    event_json: JString,
+) -> jni::sys::jstring {
+    let dir = match jstring_to_rust(&mut env, app_data_dir) {
+        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+        _ => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing appDataDir"}"#),
+    };
+    let pass = jstring_to_rust(&mut env, passcode);
+    let target = jstring_to_rust(&mut env, target_pubkey);
+    let ev = match jstring_to_rust(&mut env, event_json) {
+        Some(s) => s,
+        None => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing event JSON"}"#),
+    };
+    let out = match nostr_signer::sign_with_vault(&dir, pass.as_deref(), target.as_deref(), &ev) {
+        Ok(signed) => json!({
+            "ok": true,
+            "id": signed.id,
+            "pubkey": signed.pubkey,
+            "sig": signed.sig,
+            "event": signed.event,
+            "kind": signed.kind,
+        })
+        .to_string(),
+        Err(e) => json!({ "ok": false, "error": e }).to_string(),
+    };
+    rust_to_jstring(&mut env, &out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeSignWithRawSk(
+    mut env: JNIEnv,
+    _class: JObject,
+    sk_hex: JString,
+    expected_pubkey: JString,
+    event_json: JString,
+) -> jni::sys::jstring {
+    let sk = match jstring_to_rust(&mut env, sk_hex) {
+        Some(s) => Zeroizing::new(s),
+        None => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing key"}"#),
+    };
+    let expected = jstring_to_rust(&mut env, expected_pubkey);
+    let ev = match jstring_to_rust(&mut env, event_json) {
+        Some(s) => s,
+        None => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing event JSON"}"#),
+    };
+    let out = match nostr_signer::sign_with_raw_sk(&sk, expected.as_deref(), &ev) {
+        Ok(signed) => json!({
+            "ok": true,
+            "id": signed.id,
+            "pubkey": signed.pubkey,
+            "sig": signed.sig,
+            "event": signed.event,
+            "kind": signed.kind,
+        })
+        .to_string(),
+        Err(e) => json!({ "ok": false, "error": e }).to_string(),
+    };
+    rust_to_jstring(&mut env, &out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeExportForKeystoreSeal(
+    mut env: JNIEnv,
+    _class: JObject,
+    app_data_dir: JString,
+    passcode: JString,
+    target_pubkey: JString,
+) -> jni::sys::jstring {
+    let dir = match jstring_to_rust(&mut env, app_data_dir) {
+        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+        _ => return rust_to_jstring(&mut env, r#"{"ok":false,"error":"missing appDataDir"}"#),
+    };
+    let pass = jstring_to_rust(&mut env, passcode);
+    let target = jstring_to_rust(&mut env, target_pubkey);
+    let out = match nostr_signer::export_for_keystore_seal(&dir, pass.as_deref(), target.as_deref()) {
+        Ok((pk, sk)) => Zeroizing::new(
+            json!({ "ok": true, "pubkey": pk, "sk": sk.as_str() }).to_string(),
+        ),
+        Err(e) => Zeroizing::new(json!({ "ok": false, "error": e }).to_string()),
+    };
+    rust_to_jstring(&mut env, &out)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeNormalizePubkey(
+    mut env: JNIEnv,
+    _class: JObject,
+    input: JString,
+) -> jni::sys::jstring {
+    let norm = jstring_to_rust(&mut env, input)
+        .and_then(|s| nostr_signer::normalize_pubkey_hex(&s).ok())
+        .unwrap_or_default();
+    rust_to_jstring(&mut env, &norm)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_run_ripley_terminal_Nip55Bridge_nativeHexToNpub(
+    mut env: JNIEnv,
+    _class: JObject,
+    input: JString,
+) -> jni::sys::jstring {
+    let npub = jstring_to_rust(&mut env, input)
+        .and_then(|s| nostr_signer::hex_to_npub(&s).ok())
+        .unwrap_or_default();
+    rust_to_jstring(&mut env, &npub)
 }
 
 // ── JNI Callbacks from `run.ripley.terminal.MainActivity` ──

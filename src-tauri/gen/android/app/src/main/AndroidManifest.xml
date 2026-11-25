@@ -10,6 +10,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
+    <!-- Package visibility for known NIP-55 Nostr client callers (Android 11+) -->
+    <queries>
+        <package android:name="rip.kyc.xmradar" />
+        <package android:name="rip.kyc.xmradar.debug" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -19,6 +25,21 @@
         android:theme="@style/Theme.ripley_terminal"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
         <activity android:name=".IsolatedBrowserActivity" android:exported="false" />
+        <activity
+            android:name=".NostrSignerActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="standard"
+            android:windowSoftInputMode="adjustResize"
+            android:label="Ripley Nostr Signer"
+            android:theme="@style/Theme.ripley_terminal">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="nostrsigner" />
+            </intent-filter>
+        </activity>
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
@@ -756,6 +777,11 @@
             </intent-filter>
         </activity-alias>
         <!-- END GENERATED APP ICON ALIASES -->
+
+        <provider
+          android:name=".NostrSignerContentProvider"
+          android:authorities="${applicationId}.SIGN_EVENT;${applicationId}.GET_PUBLIC_KEY"
+          android:exported="true" />
 
         <provider
           android:name="androidx.core.content.FileProvider"
