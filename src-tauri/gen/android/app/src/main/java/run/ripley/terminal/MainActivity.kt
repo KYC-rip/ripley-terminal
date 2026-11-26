@@ -84,6 +84,7 @@ class MainActivity : TauriActivity() {
   private var networkCallback: ConnectivityManager.NetworkCallback? = null
   private var hasSeenNetwork = false
   private var pendingCameraRequest: PermissionRequest? = null
+  private var pendingEmbedFileChooser: ValueCallback<Array<Uri>>? = null
   private var bootPumpTicks = 0
   private val navBarModeResId: Int by lazy {
     resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
@@ -96,6 +97,17 @@ class MainActivity : TauriActivity() {
     pendingCameraRequest = null
     if (req != null) {
       if (granted) req.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else req.deny()
+    }
+  }
+
+  private val embedFileChooserLauncher = registerForActivityResult(
+    ActivityResultContracts.StartActivityForResult()
+  ) { res ->
+    val cb = pendingEmbedFileChooser
+    pendingEmbedFileChooser = null
+    if (cb != null) {
+      val uris = WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data)
+      cb.onReceiveValue(uris)
     }
   }
 
@@ -320,8 +332,9 @@ class MainActivity : TauriActivity() {
           settings.allowContentAccess = false
           settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
           settings.useWideViewPort = true
-          settings.loadWithOverviewMode = true
-          settings.setSupportMultipleWindows(false)
+          settings.loadWithOverviewMode = false
+          settings.setSupportMultipleWindows(true)
+          setInitialScale(0)
           enableWebAuthn(settings)
           if (zoom != null && zoom > 0.2 && zoom <= 3.0) {
             settings.textZoom = (zoom * 100.0).toInt().coerceIn(50, 250)
@@ -330,6 +343,59 @@ class MainActivity : TauriActivity() {
             val rgb = bg.split(",").mapNotNull { it.trim().toIntOrNull() }
             if (rgb.size >= 3) {
               setBackgroundColor(Color.rgb(rgb[0].coerceIn(0, 255), rgb[1].coerceIn(0, 255), rgb[2].coerceIn(0, 255)))
+            }
+          }
+          webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+              if (request == null) return
+              val origin = request.origin?.toString() ?: ""
+              val wantsVideo = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
+              if (origin.startsWith("https://") && wantsVideo) {
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                  request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                } else {
+                  pendingCameraRequest?.deny()
+                  pendingCameraRequest = request
+                  suppressNextAutoLock = true
+                  cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+              } else {
+                request.deny()
+              }
+            }
+
+            override fun onShowFileChooser(
+              w: WebView?,
+              filePathCallback: ValueCallback<Array<Uri>>?,
+              fileChooserParams: FileChooserParams?
+            ): Boolean {
+              if (filePathCallback == null) return false
+              pendingEmbedFileChooser?.onReceiveValue(null)
+              pendingEmbedFileChooser = filePathCallback
+              return try {
+                val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                  addCategory(Intent.CATEGORY_OPENABLE)
+                  type = "*/*"
+                }
+                suppressNextAutoLock = true
+                embedFileChooserLauncher.launch(intent)
+                true
+              } catch (_: Exception) {
+                pendingEmbedFileChooser = null
+                false
+              }
+            }
+
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+              if (!isUserGesture || view == null) return false
+              val target = view.hitTestResult.extra
+              if (!target.isNullOrBlank() && (target.startsWith("https://") || target.startsWith("http://"))) {
+                try {
+                  startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                } catch (_: Exception) { }
+                return true
+              }
+              return false
             }
           }
           webViewClient = object : WebViewClient() {
@@ -426,6 +492,8 @@ class MainActivity : TauriActivity() {
 
   fun embedClose() {
     runOnUiThread {
+      pendingEmbedFileChooser?.onReceiveValue(null)
+      pendingEmbedFileChooser = null
       embedWeb?.let { child ->
         child.stopLoading()
         child.webViewClient = WebViewClient()
