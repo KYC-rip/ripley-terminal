@@ -14,6 +14,8 @@ import android.window.OnBackInvokedDispatcher
 import java.lang.ref.WeakReference
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 
 // Deliberately NOT TauriActivity: no invoke bridge, JS interfaces, custom protocols,
 // file access, wallet commands, permission grants or inherited native capabilities.
@@ -42,6 +44,12 @@ class IsolatedBrowserActivity: Activity() {
     web.settings.allowFileAccess=false
     web.settings.allowContentAccess=false
     web.settings.mixedContentMode=android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
+      WebSettingsCompat.setWebAuthenticationSupport(
+        web.settings,
+        WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
+      )
+    }
     web.webViewClient=object:WebViewClient() {
       override fun onPageFinished(v:WebView,url:String) {
         if(BuildConfig.DEBUG) v.evaluateJavascript("JSON.stringify({tauri:typeof window.__TAURI__,native:typeof window.__rosNative,ipc:typeof window.ipc,origin:location.origin})") {android.util.Log.i("AndroidBrowserIsolation",it)}

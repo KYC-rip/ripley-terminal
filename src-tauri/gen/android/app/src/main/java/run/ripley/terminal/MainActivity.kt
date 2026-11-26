@@ -48,6 +48,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
@@ -321,6 +322,7 @@ class MainActivity : TauriActivity() {
           settings.useWideViewPort = true
           settings.loadWithOverviewMode = true
           settings.setSupportMultipleWindows(false)
+          enableWebAuthn(settings)
           if (zoom != null && zoom > 0.2 && zoom <= 3.0) {
             settings.textZoom = (zoom * 100.0).toInt().coerceIn(50, 250)
           }
@@ -742,6 +744,7 @@ class MainActivity : TauriActivity() {
       textZoom = 100
       mediaPlaybackRequiresUserGesture = false
       setSupportMultipleWindows(true)
+      enableWebAuthn(this)
     }
     webView.setInitialScale(0)
 
@@ -793,7 +796,9 @@ class MainActivity : TauriActivity() {
         if (request == null) return
         val origin = request.origin?.toString() ?: ""
         val wantsVideo = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-        if (origin == "https://ros.localhost" && wantsVideo) {
+        // Only grant camera to RipleyOS itself or cross-origin HTTPS remote apps whose iframe
+        // explicitly delegated `allow="camera"` (opaque-origin SandboxFrames have origin "null").
+        if ((origin == "https://ros.localhost" || origin.startsWith("https://")) && wantsVideo) {
           if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
           } else {
@@ -821,6 +826,15 @@ class MainActivity : TauriActivity() {
       }
     }
     pushInsets()
+  }
+
+  private fun enableWebAuthn(settings: WebSettings) {
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
+      WebSettingsCompat.setWebAuthenticationSupport(
+        settings,
+        WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
+      )
+    }
   }
 
   private fun pushInsets() {
