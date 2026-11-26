@@ -83,6 +83,10 @@ class MainActivity : TauriActivity() {
   private var networkCallback: ConnectivityManager.NetworkCallback? = null
   private var hasSeenNetwork = false
   private var pendingCameraRequest: PermissionRequest? = null
+  private var bootPumpTicks = 0
+  private val navBarModeResId: Int by lazy {
+    resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
+  }
 
   private val cameraPermissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
@@ -94,9 +98,14 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /** Re-push safe-area CSS tokens and gesture-nav flag while the ROS bundle boots. */
+  /** Re-push safe-area CSS tokens and gesture-nav flag while the ROS bundle boots (bounded, never infinite). */
   private val pump = object : Runnable {
-    override fun run() { pushInsets(); handler.postDelayed(this, 700) }
+    override fun run() {
+      pushInsets()
+      if (++bootPumpTicks < 12) {
+        handler.postDelayed(this, 700)
+      }
+    }
   }
 
   fun setSecureScreen(enabled: Boolean) {
@@ -416,6 +425,10 @@ class MainActivity : TauriActivity() {
   fun embedClose() {
     runOnUiThread {
       embedWeb?.let { child ->
+        child.stopLoading()
+        child.webViewClient = WebViewClient()
+        child.webChromeClient = null
+        child.loadUrl("about:blank")
         (child.parent as? ViewGroup)?.removeView(child)
         child.destroy()
       }
@@ -513,7 +526,6 @@ class MainActivity : TauriActivity() {
         val child = WebView(this).apply {
           settings.javaScriptEnabled = true
           settings.domStorageEnabled = true
-          settings.databaseEnabled = true
           settings.allowFileAccess = false
           settings.allowContentAccess = false
           settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -704,6 +716,11 @@ class MainActivity : TauriActivity() {
   fun xappClose() {
     runOnUiThread {
       xappWeb?.let { child ->
+        child.stopLoading()
+        child.removeJavascriptInterface("__RipleyXBridge")
+        child.webViewClient = WebViewClient()
+        child.webChromeClient = null
+        child.loadUrl("about:blank")
         (child.parent as? ViewGroup)?.removeView(child)
         child.destroy()
       }
@@ -809,8 +826,7 @@ class MainActivity : TauriActivity() {
   private fun pushInsets() {
     val w = web ?: return
     val d = resources.displayMetrics.density
-    val modeId = resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
-    val nav = if (modeId > 0 && resources.getInteger(modeId) == 2) "gestures" else "buttons"
+    val nav = if (navBarModeResId > 0 && resources.getInteger(navBarModeResId) == 2) "gestures" else "buttons"
     val js = "(function(){var r=document.documentElement;if(!r)return;" +
       "r.style.setProperty('--sa-t','${insetTop / d}px');" +
       "r.style.setProperty('--sa-b','${insetBottom / d}px');" +
@@ -990,13 +1006,20 @@ class MainActivity : TauriActivity() {
     handleLaunchIntent(intent, coldStart = true)
     super.onCreate(state)
     LauncherIcons.applyTaskDescription(this)
-    // Edge-to-edge: the WebView reaches the screen edges; the insets go to the web app as
-    // --sa-* (its topbar/nav/panes already reserve those), instead of padding the content.
+    // Edge-to-edge: the WebView reaches the screen edges; system bar insets go to ROS as
+    // --sa-*, while IME (soft keyboard) pads the root bottom so composers never hide behind the keyboard.
     WindowCompat.setDecorFitsSystemWindows(window, false)
-    window.statusBarColor = Color.TRANSPARENT
-    window.navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT < 35) {
+      @Suppress("DEPRECATION")
+      window.statusBarColor = Color.TRANSPARENT
+      @Suppress("DEPRECATION")
+      window.navigationBarColor = Color.TRANSPARENT
+      if (Build.VERSION.SDK_INT >= 29) {
+        @Suppress("DEPRECATION")
+        window.isStatusBarContrastEnforced = false
+      }
+    }
     if (Build.VERSION.SDK_INT >= 29) {
-      window.isStatusBarContrastEnforced = false
       window.isNavigationBarContrastEnforced = false
     }
     WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -1004,13 +1027,22 @@ class MainActivity : TauriActivity() {
       isAppearanceLightNavigationBars = false
     }
     val content = findViewById<View>(android.R.id.content)
-    ViewCompat.setOnApplyWindowInsetsListener(content) { _, i ->
+    ViewCompat.setOnApplyWindowInsetsListener(content) { v, i ->
       val b = i.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-      insetTop = b.top; insetBottom = b.bottom; insetLeft = b.left; insetRight = b.right
+      val ime = i.getInsets(WindowInsetsCompat.Type.ime())
+      val imeBottom = ime.bottom
+      if (v.paddingBottom != imeBottom) {
+        v.setPadding(0, 0, 0, imeBottom)
+      }
+      insetTop = b.top
+      insetBottom = if (imeBottom > 0) 0 else b.bottom
+      insetLeft = b.left
+      insetRight = b.right
       pushInsets()
       i
     }
     ViewCompat.requestApplyInsets(content)
+    bootPumpTicks = 0
     handler.post(pump)
     registerNetworkMonitor()
 
@@ -1045,10 +1077,13 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onDestroy() {
-    handler.removeCallbacks(pump)
+    handler.removeCallbacksAndMessages(null)
+    pendingCameraRequest?.deny()
+    pendingCameraRequest = null
     shareIoExecutor.shutdownNow()
     embedClose()
     xappClose()
+    web = null
     networkCallback?.let { cb ->
       try {
         (getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager)?.unregisterNetworkCallback(cb)
@@ -1062,9 +1097,15 @@ class MainActivity : TauriActivity() {
     super.onResume()
     suppressNextAutoLock = false
     LauncherIcons.applyTaskDescription(this)
+    embedWeb?.onResume()
+    xappWeb?.onResume()
+    pushInsets()
     nativeResume()
   }
   override fun onPause() {
+    handler.removeCallbacks(pump)
+    embedWeb?.onPause()
+    xappWeb?.onPause()
     nativeLock()
     super.onPause()
   }

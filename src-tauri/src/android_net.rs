@@ -251,11 +251,21 @@ async fn route_fetch(app: &AppHandle, req: &RosFetchReq) -> Result<(u16, Vec<u8>
             None => Err("Tor is enabled but not connected yet".into()),
         },
         "custom" => {
-            let proxy = crate::wallet::scanner::read_proxy_address(app);
-            if proxy.trim().is_empty() {
+            let raw_proxy = crate::wallet::scanner::read_proxy_address(app);
+            let trimmed = raw_proxy.trim();
+            if trimmed.is_empty() {
                 return Err("Custom routing selected but no proxy address is set".into());
             }
-            let px = reqwest::Proxy::all(&proxy).map_err(|e| e.to_string())?;
+            // Normalize bare `host:port` → `socks5h://host:port` and `socks5://` → `socks5h://`
+            // so DNS always resolves remotely through the custom proxy without clearnet leaks.
+            let normalized = if let Some(rest) = trimmed.strip_prefix("socks5://") {
+                format!("socks5h://{rest}")
+            } else if trimmed.contains("://") {
+                trimmed.to_string()
+            } else {
+                format!("socks5h://{trimmed}")
+            };
+            let px = reqwest::Proxy::all(&normalized).map_err(|e| e.to_string())?;
             ros_reqwest(
                 reqwest::Client::builder().proxy(px),
                 &method,

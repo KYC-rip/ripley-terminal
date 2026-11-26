@@ -64,6 +64,7 @@ class NostrSignerActivity : Activity() {
   private lateinit var bodyContainer: LinearLayout
   private lateinit var footerContainer: LinearLayout
   private lateinit var statusText: TextView
+  private var backInvokedCb: android.window.OnBackInvokedCallback? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -72,10 +73,20 @@ class NostrSignerActivity : Activity() {
     window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       setRecentsScreenshotEnabled(false)
+      val cb = android.window.OnBackInvokedCallback { finishRejected(persistDenial = false) }
+      backInvokedCb = cb
+      onBackInvokedDispatcher.registerOnBackInvokedCallback(
+        android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+        cb
+      )
     }
     WindowCompat.setDecorFitsSystemWindows(window, false)
-    window.statusBarColor = Color.TRANSPARENT
-    window.navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT < 35) {
+      @Suppress("DEPRECATION")
+      window.statusBarColor = Color.TRANSPARENT
+      @Suppress("DEPRECATION")
+      window.navigationBarColor = Color.TRANSPARENT
+    }
     WindowCompat.getInsetsController(window, window.decorView).apply {
       isAppearanceLightStatusBars = false
       isAppearanceLightNavigationBars = false
@@ -130,6 +141,12 @@ class NostrSignerActivity : Activity() {
   }
 
   override fun onDestroy() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      backInvokedCb?.let {
+        try { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) } catch (_: Exception) { }
+      }
+      backInvokedCb = null
+    }
     try { activeBioCancel?.cancel() } catch (_: Exception) { }
     activeBioCancel = null
     unlockedPasscode = null
@@ -539,17 +556,20 @@ class NostrSignerActivity : Activity() {
         object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
           override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult) {
             activeBioCancel = null
+            if (isFinishing || isDestroyed) return
             var plain: ByteArray? = null
             try {
               val unlockedCipher = result.cryptoObject?.cipher ?: error("Missing crypto object")
               plain = unlockedCipher.doFinal(bio.ct)
               val pass = String(plain, Charsets.UTF_8)
-              if (pass.isNotEmpty()) {
+              if (pass.isNotEmpty() && !isFinishing && !isDestroyed) {
                 loadVaultAsync(pass)
               }
             } catch (_: Exception) {
-              nativeBioState = NativeBioState.Unavailable
-              renderScreen()
+              if (!isFinishing && !isDestroyed) {
+                nativeBioState = NativeBioState.Unavailable
+                renderScreen()
+              }
             } finally {
               plain?.fill(0)
             }

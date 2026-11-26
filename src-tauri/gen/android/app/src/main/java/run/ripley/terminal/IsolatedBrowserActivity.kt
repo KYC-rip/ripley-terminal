@@ -1,6 +1,7 @@
 package run.ripley.terminal
 
 import android.app.Activity
+import android.os.Build
 import android.os.Bundle
 import android.net.Uri
 import android.webkit.WebView
@@ -8,6 +9,8 @@ import android.webkit.WebViewClient
 import android.webkit.WebResourceRequest
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import java.lang.ref.WeakReference
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,8 +26,14 @@ class IsolatedBrowserActivity: Activity() {
     }
   }
   private lateinit var web:WebView
+  private var backInvokedCb: OnBackInvokedCallback? = null
   override fun onCreate(state:Bundle?) {
     super.onCreate(state);current=WeakReference(this)
+    if (Build.VERSION.SDK_INT >= 33) {
+      val cb = OnBackInvokedCallback { if (web.canGoBack()) web.goBack() else finish() }
+      backInvokedCb = cb
+      onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+    }
     val box=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
     val label=TextView(this).apply {text="← Back to RipleyOS · CLEARNET browser · NO WALLET BRIDGE";setPadding(12,12,12,12);setOnClickListener {finish()}}
     web=WebView(this)
@@ -45,5 +54,11 @@ class IsolatedBrowserActivity: Activity() {
     if(allowed(url))web.loadUrl(url) else label.text="Unsupported URL — Back to RipleyOS"
   }
   @Deprecated("Legacy back for minSdk24") override fun onBackPressed(){if(web.canGoBack())web.goBack()else finish()}
-  override fun onDestroy(){web.destroy();current=null;super.onDestroy()}
+  override fun onDestroy(){
+    if (Build.VERSION.SDK_INT >= 33) {
+      backInvokedCb?.let { try { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) } catch (_: Exception) {} }
+      backInvokedCb = null
+    }
+    web.stopLoading();web.destroy();current=null;super.onDestroy()
+  }
 }
