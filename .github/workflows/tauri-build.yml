@@ -8,10 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      # Build the migration branch on every push so release-build breaks (e.g. the
-      # recursion_limit overflow) surface in CI immediately. Scope down to `main`
-      # once the migration merges.
-      - feat/tauri-migration
+      - main
     tags:
       - 'tauri-v*'
 
@@ -56,6 +53,7 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            cmake clang libclang-dev \
             patchelf build-essential curl wget file libssl-dev libxdo-dev
 
       - name: Install pnpm
@@ -143,6 +141,104 @@ jobs:
             src-tauri/target/**/release/bundle/nsis/*.exe
             src-tauri/target/**/release/bundle/msi/*.msi
 
+  build-android:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK components
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" \
+            "build-tools;35.0.0" \
+            "ndk;27.1.12297006"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: android-aarch64
+
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tauri
+
+      - name: Install frontend deps
+        run: pnpm install --ignore-scripts
+
+      - name: Decode optional Android release keystore
+        id: keystore
+        env:
+          RIPLEY_KEYSTORE_BASE64: ${{ secrets.RIPLEY_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$RIPLEY_KEYSTORE_BASE64" ]; then
+            KS_PATH="$RUNNER_TEMP/ripley-release.keystore"
+            printf '%s' "$RIPLEY_KEYSTORE_BASE64" | base64 -d > "$KS_PATH"
+            echo "path=$KS_PATH" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Android APK (aarch64, 16 KB aligned)
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.1.12297006
+          RUSTFLAGS: -C link-arg=-Wl,-z,max-page-size=16384
+          RIPLEY_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          RIPLEY_KEYSTORE_PASSWORD: ${{ secrets.RIPLEY_KEYSTORE_PASSWORD }}
+          RIPLEY_KEY_ALIAS: ${{ secrets.RIPLEY_KEY_ALIAS }}
+          RIPLEY_KEY_PASSWORD: ${{ secrets.RIPLEY_KEY_PASSWORD }}
+        run: |
+          cargo tauri android build --target aarch64 --apk --config src-tauri/tauri.android.conf.json
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          SRC_APK="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
+          OUT_DIR="android-release"
+          mkdir -p "$OUT_DIR"
+          OUT_APK="$OUT_DIR/Ripley.Terminal_${VERSION}_android-arm64.apk"
+          cp "$SRC_APK" "$OUT_APK"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$OUT_APK"
+          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$OUT_APK" | tail -5
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-android
+          path: android-release/*.apk
+
+      - name: Attest Android APK build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: android-release/*.apk
+
   # Aggregate every platform's bundles into one SHA256SUMS — a convenience integrity
   # file for UNSIGNED releases. Tamper-evidence is anchored by the per-bundle build
   # provenance attestation above (gh attestation verify); this SHA256SUMS lets users
@@ -150,7 +246,7 @@ jobs:
   # (sign SHA256SUMS offline, publish SHA256SUMS.asc) — not required for v1.
   # See INSTALL.md for the user-side verify + per-platform install steps.
   checksums:
-    needs: build-tauri
+    needs: [build-tauri, build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -163,7 +259,7 @@ jobs:
       - name: Compute SHA256SUMS
         run: |
           mkdir -p out
-          find dist-artifacts -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec cp -n {} out/ \;
+          find dist-artifacts -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.apk' \) -exec cp -n {} out/ \;
           # GitHub replaces spaces with dots in release asset filenames (e.g.
           # "Ripley Terminal_...dmg" -> "Ripley.Terminal_...dmg"). Match that so a
           # user's `sha256sum -c SHA256SUMS` verifies the FILE THEY DOWNLOADED by
@@ -178,9 +274,10 @@ jobs:
           name: SHA256SUMS
           path: SHA256SUMS
 
-      # On a tauri-v* release tag, attach the checksums to the draft release tauri-action created.
-      - name: Attach SHA256SUMS to release
+      # On a tauri-v* release tag, attach the Android APK and checksums to the draft release tauri-action created.
+      - name: Attach Android APK & SHA256SUMS to release
         if: startsWith(github.ref, 'refs/tags/tauri-v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" SHA256SUMS --clobber --repo "${{ github.repository }}"
+        run: |
+          gh release upload "${{ github.ref_name }}" out/*.apk SHA256SUMS --clobber --repo "${{ github.repository }}"

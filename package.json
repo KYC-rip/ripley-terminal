@@ -1,7 +1,7 @@
 {
   "name": "ripley-terminal",
   "displayName": "Ripley Terminal",
-  "version": "1.0.35",
+  "version": "2.1.7",
   "description": "Tactical Monero Desktop Wallet",
   "repository": {
     "type": "git",
@@ -27,7 +27,7 @@
     "tauri:build": "cargo tauri build",
     "dev:renderer": "vite --config vite.config.ts",
     "build:renderer": "vite build --config vite.config.ts",
-    "test": "vitest run"
+    "test": "vitest run src"
   },
   "build": {
     "publish": [

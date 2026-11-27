@@ -6144,7 +6144,7 @@ dependencies = [
 
 [[package]]
 name = "ripley-terminal"
-version = "2.1.0"
+version = "2.1.7"
 dependencies = [
  "aes-gcm",
  "anyhow",

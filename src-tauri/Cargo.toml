@@ -1,9 +1,12 @@
 [package]
 name = "ripley-terminal"
-version = "2.1.0"
+version = "2.1.7"
 description = "Tactical Monero Desktop Wallet"
 authors = ["KYC.rip"]
 edition = "2021"
+
+[features]
+devtools = ["tauri/devtools"]
 
 [lib]
 name = "ripley_terminal_lib"
@@ -50,7 +53,7 @@ features = ["apple-native", "windows-native", "sync-secret-service"]
 # macos-proxy → wry/mac-proxy: without it WebviewWindowBuilder::proxy_url is a
 # silent no-op on macOS (the SOCKS/HTTP proxy code is cfg-gated). Needs macOS 14+.
 # image-png: lets tauri::image::Image decode the PNG the webview hands us for clipboard copy.
-tauri = { version = "2", features = ["devtools", "protocol-asset", "image-png"] }
+tauri = { version = "2", features = ["protocol-asset", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 # Used from RUST only (commands::system::clipboard_write_image), so it needs no JS capability:
