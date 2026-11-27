@@ -1,0 +1,5 @@
+- First official Android release of Ripley Terminal + RipleyOS (aarch64, 16 KB page-aligned)
+- Pure-Rust Monero wallet (monero-oxide) + embedded Arti Tor + hardware Keystore watch sync
+- First-class Single-App Mode with deferred launcher icon switching (Android 15 safe)
+- Signed Ed25519 UI-only OTA updates in Settings -> About
+- Full localization across 6 languages (en, zh, es, fa, ja, ru)

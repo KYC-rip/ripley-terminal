@@ -1,0 +1,12 @@
+Ripley Terminal brings a pure-Rust self-custodial Monero wallet, embedded Arti Tor routing, and RipleyOS to Android with zero Google Play Services, zero Firebase, and zero telemetry.
+
+Features:
+- Pure-Rust Monero wallet engine (monero-oxide) with hardware Android Keystore protection, optional watch-only sync, subaddresses, TX proofs, and cold offline signing.
+- Embedded Arti Tor client: route wallet RPC, .onion services, and the built-in overlay browser through Tor with fail-closed proxy enforcement.
+- First-class Single-App Mode (SOLO): boot straight into Wallet (or any RipleyOS app) with a matching launcher icon, or use the full RipleyOS workspace.
+- Signed Ed25519 UI-only OTA updates verified locally against a pinned key — receive RipleyOS updates without reinstalling the APK.
+- Hardware-backed NIP-55 Nostr signer and encrypted device migration (QR / LAN / offline bundle).
+
+Privacy:
+- Zero Google Play Services, zero Firebase/FCM, zero ads, zero analytics.
+- Keys stay encrypted on device; all wallet sends require explicit confirmation.

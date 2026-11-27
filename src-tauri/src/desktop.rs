@@ -6,6 +6,7 @@
 mod agent;
 mod boot;
 mod commands;
+#[cfg(target_os = "macos")]
 mod dns_filter;
 pub mod migration;
 pub mod nostr_signer;

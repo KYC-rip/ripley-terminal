@@ -686,12 +686,15 @@ pub async fn vpn_recover(app: AppHandle) -> Result<Value, String> {
 /// Tightening-only (never opens egress). Host-window only.
 #[tauri::command]
 pub async fn vpn_set_dns_filter(app: AppHandle, on: bool) -> Result<Value, String> {
-    // Start/stop the persistent proxy in THIS process (the helper is one-shot
+    // Start/stop the persistent proxy in THIS process on macOS (the helper is one-shot
     // and cannot host it); the PF rdr rules are installed by the helper.
-    if on {
-        crate::dns_filter::start(None)?;
-    } else {
-        crate::dns_filter::stop();
+    #[cfg(target_os = "macos")]
+    {
+        if on {
+            crate::dns_filter::start(None)?;
+        } else {
+            crate::dns_filter::stop();
+        }
     }
     logged_mutation(
         &app,
