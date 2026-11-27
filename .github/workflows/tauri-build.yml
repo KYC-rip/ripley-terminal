@@ -156,12 +156,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Android SDK & NDK
-        uses: android-actions/setup-android@v3
-      - name: Install Android SDK components
+      - name: Install Android SDK & NDK components
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDKMANAGER=$(ls -1 "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -n 1)
+          [ -x "$SDKMANAGER" ] || { echo "sdkmanager not found under $SDK_ROOT" >&2; exit 1; }
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" \
             "platforms;android-36" \
             "build-tools;35.0.0" \
             "ndk;27.1.12297006"
@@ -197,15 +200,25 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --ignore-scripts
 
-      - name: Decode optional Android release keystore
+      - name: Decode Android release keystore
         id: keystore
         env:
           RIPLEY_KEYSTORE_BASE64: ${{ secrets.RIPLEY_KEYSTORE_BASE64 }}
+          RIPLEY_KEYSTORE_PASSWORD: ${{ secrets.RIPLEY_KEYSTORE_PASSWORD }}
+          RIPLEY_KEY_ALIAS: ${{ secrets.RIPLEY_KEY_ALIAS }}
+          RIPLEY_KEY_PASSWORD: ${{ secrets.RIPLEY_KEY_PASSWORD }}
         run: |
-          if [ -n "$RIPLEY_KEYSTORE_BASE64" ]; then
+          if [ -n "$RIPLEY_KEYSTORE_BASE64" ] && [ -n "$RIPLEY_KEYSTORE_PASSWORD" ] && [ -n "$RIPLEY_KEY_ALIAS" ] && [ -n "$RIPLEY_KEY_PASSWORD" ]; then
+            umask 077
             KS_PATH="$RUNNER_TEMP/ripley-release.keystore"
             printf '%s' "$RIPLEY_KEYSTORE_BASE64" | base64 -d > "$KS_PATH"
+            chmod 600 "$KS_PATH"
             echo "path=$KS_PATH" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/tauri-v* ]]; then
+            echo "Refusing to cut a debug-signed Android release APK: configure RIPLEY_KEYSTORE_* secrets." >&2
+            exit 1
+          else
+            echo "::warning::RIPLEY_KEYSTORE_* secrets not set; branch build will use debug signing."
           fi
 
       - name: Build Android APK (aarch64, 16 KB aligned)
