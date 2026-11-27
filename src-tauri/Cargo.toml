@@ -4,7 +4,16 @@ version = "2.1.7"
 description = "Tactical Monero Desktop Wallet"
 authors = ["KYC.rip"]
 edition = "2021"
+autobins = false
 default-run = "ripley-terminal"
+
+[[bin]]
+name = "ripley-terminal"
+path = "src/main.rs"
+
+[[example]]
+name = "ripley-migrate"
+path = "src/bin/ripley-migrate.rs"
 
 [features]
 devtools = ["tauri/devtools"]
