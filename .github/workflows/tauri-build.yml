@@ -192,11 +192,6 @@ jobs:
           workspaces: './src-tauri -> target'
           key: android-aarch64
 
-      - name: Install Tauri CLI
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-tauri
-
       - name: Install frontend deps
         run: pnpm install --ignore-scripts
 
@@ -230,7 +225,7 @@ jobs:
           RIPLEY_KEY_ALIAS: ${{ secrets.RIPLEY_KEY_ALIAS }}
           RIPLEY_KEY_PASSWORD: ${{ secrets.RIPLEY_KEY_PASSWORD }}
         run: |
-          cargo tauri android build --target aarch64 --apk --config src-tauri/tauri.android.conf.json
+          npx --yes @tauri-apps/cli@2 android build --target aarch64 --apk --config src-tauri/tauri.android.conf.json
           VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
           SRC_APK="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
           OUT_DIR="android-release"
