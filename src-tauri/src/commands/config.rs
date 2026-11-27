@@ -144,13 +144,19 @@ pub fn seed_first_launch_ui_mode(app: &AppHandle) -> Option<String> {
     Some(mode.to_string())
 }
 
-/// Where a `ui_mode=ros` window sources its UI from:
-/// - `"beta"` → remote `https://app.ros.rip` (fast iteration; the current default),
-/// - `"ota"`  → the on-device verified `ros://local` bundle (signed OTA — the stable path).
-///
-/// Kept a SEPARATE key from `ui_mode` so the beta remote path and the OTA local path can
-/// coexist during bring-up (a bad OTA bundle can't strand the user — flip back to beta).
-/// Unknown/absent → `"beta"`.
+/// Normalize a stored `ros_source` value:
+/// - `"ota"`  → on-device verified `ros://local` bundle + signed Ed25519 OTA updates (the default;
+///              matches Android — zero CDN trust and zero clearnet touch at launch),
+/// - `"beta"` → opt-in remote `https://app.ros.rip` (fast iteration; auto-falls back to local offline).
+/// Unknown/absent → `"ota"`.
+pub fn normalize_ros_source(stored: Option<&str>) -> &'static str {
+    match stored {
+        Some("beta") => "beta",
+        _ => "ota",
+    }
+}
+
+/// Where a `ui_mode=ros` window sources its UI from (see [`normalize_ros_source`]).
 pub fn read_ros_source(app: &AppHandle) -> String {
     let stored = std::fs::read_to_string(config_path(app))
         .ok()
@@ -160,10 +166,7 @@ pub fn read_ros_source(app: &AppHandle) -> String {
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
         });
-    match stored.as_deref() {
-        Some("ota") => "ota".to_string(),
-        _ => "beta".to_string(),
-    }
+    normalize_ros_source(stored.as_deref()).to_string()
 }
 
 /// Validate + set `ui_mode` on a config object. Pure (no I/O) so it's unit-testable;
@@ -675,6 +678,15 @@ mod ui_mode_tests {
             );
             assert_eq!(c["ui_mode"], "classic", "{bad:?} must not change the mode");
         }
+    }
+
+    #[test]
+    fn ros_source_defaults_to_local_ota_with_beta_opt_in() {
+        use super::normalize_ros_source;
+        assert_eq!(normalize_ros_source(None), "ota");
+        assert_eq!(normalize_ros_source(Some("ota")), "ota");
+        assert_eq!(normalize_ros_source(Some("garbage")), "ota");
+        assert_eq!(normalize_ros_source(Some("beta")), "beta");
     }
 
     #[test]

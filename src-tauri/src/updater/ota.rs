@@ -14,8 +14,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Ed25519 verifying key, pinned in the signed binary — the OTA trust anchor.
-/// DEV key (2026-07-09); rotated to a production key via a signed native release
-/// before stable (decision #5 in the runbook: rotation-via-release only, never in-band).
+/// Production key (backed up offline; rotation-via-release only — decision #5).
 pub const OTA_UPDATE_PUBKEY: [u8; 32] =
     hex_literal::hex!("499e307aa4fd84e47a2e3dffbf030eeedd95cee566a67c87ad66afd814cf8907");
 
@@ -39,7 +38,7 @@ pub const OTA_MAX_AGE_SECS: i64 = 30 * 24 * 3600;
 /// load: if the on-disk resource doesn't match, the binary's integrity is compromised.
 /// Regenerated together with the resource by `ripley-os/scripts/build-ota.mjs`.
 pub const FALLBACK_SHA256: &str =
-    "dd3a3f10a0ade81a9b14fae638627b76560ee63f435b90978bef0657b309a3f8";
+    "0052e3bc248a3d69d8fe617fbafa9361416a6c52ce9b798e5b18005d9fb40ede";
 
 /// The signed manifest served at `OTA_MANIFEST_URL`. Its detached `.sig` is Ed25519
 /// over the RAW bytes of this document exactly as served — so we verify the bytes

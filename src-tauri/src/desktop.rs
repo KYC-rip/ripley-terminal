@@ -264,10 +264,10 @@ pub fn run() {
             // Built AFTER every manage() above so an early IPC call finds its state.
             let ui_mode = commands::config::seed_first_launch_ui_mode(app.handle())
                 .unwrap_or_else(|| commands::config::read_ui_mode(app.handle()));
-            // Within ros mode, `ros_source` selects WHERE the UI comes from: "beta" =
-            // remote app.ros.rip (fast iteration), "ota" = the on-device verified
-            // ros://local bundle (the stable signed path). Default beta so a bad OTA
-            // bundle can never strand the user.
+            // Within ros mode, `ros_source` selects WHERE the UI comes from: "ota" =
+            // on-device verified ros://local bundle + signed OTA updates (default, same
+            // as Android — zero CDN trust / zero clearnet leak at launch), "beta" =
+            // opt-in remote app.ros.rip (falls back to local bundle when offline).
             let ros_source = commands::config::read_ros_source(app.handle());
             // ROS_URL is a DEV-ONLY override. In release it is IGNORED (with a loud
             // warning if set): a shipped wallet must never be pointed at an
@@ -302,7 +302,9 @@ pub fn run() {
             if ui_mode == "ros" && ros_source != "ota" && !remote_ok {
                 println!("[UI/warn] {ROS_REMOTE_URL} unreachable at launch — booting the on-device RipleyOS bundle");
             }
-            let window_url = if boot::wants_bundle(&ui_mode, &ros_source, remote_ok) {
+            // Dev-only ROS_URL override (always None in release) bypasses the local bundle
+            // so `tauri dev` with a live Vite server works without mutating config.json.
+            let window_url = if ros_override.is_none() && boot::wants_bundle(&ui_mode, &ros_source, remote_ok) {
                 // Stable path: serve the on-device VERIFIED bundle over ros://. The bundle
                 // is loaded + re-verified here (cache, else the pinned bundled fallback)
                 // and managed so the ros:// protocol handler can serve it. A None return
