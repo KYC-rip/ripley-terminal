@@ -122,6 +122,43 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
     private const val PREF_CT = "watch_root_ct"
     private const val PREF_IV = "watch_root_iv"
     private val XMRADAR_PACKAGES = listOf("rip.kyc.xmradar", "rip.kyc.xmradar.debug")
+
+    @Volatile
+    private var pendingIconTarget: LauncherIcons.Entry? = null
+
+    fun activeOrPendingIcon(context: Context): LauncherIcons.Entry =
+      pendingIconTarget ?: LauncherIcons.currentActiveEntry(context)
+
+    /** Apply any queued launcher alias flip once the activity stops (user goes Home or
+     *  switches apps). Disabling the currently running launcher alias while in the foreground
+     *  causes Android 14/15 to kill the process the instant a permission dialog pauses it. */
+    fun flushPendingAppIcon(context: Context) {
+      val target = pendingIconTarget ?: return
+      pendingIconTarget = null
+      try {
+        val pm = context.packageManager
+        val pkg = context.packageName
+        val targetCn = ComponentName(pkg, target.aliasClass)
+        pm.setComponentEnabledSetting(
+          targetCn,
+          PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+          PackageManager.DONT_KILL_APP
+        )
+        for (entry in LauncherIcons.ALL) {
+          if (entry.id == target.id) continue
+          val cn = ComponentName(pkg, entry.aliasClass)
+          val st = pm.getComponentEnabledSetting(cn)
+          val isImplicitlyDisabled = st == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.id != LauncherIcons.DEFAULT_ID
+          if (st != PackageManager.COMPONENT_ENABLED_STATE_DISABLED && !isImplicitlyDisabled) {
+            pm.setComponentEnabledSetting(
+              cn,
+              PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+              PackageManager.DONT_KILL_APP
+            )
+          }
+        }
+      } catch (_: Exception) { }
+    }
   }
 
   private val ioExecutor = Executors.newSingleThreadExecutor()
@@ -168,6 +205,7 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   private fun currentActiveIconId(): String {
+    pendingIconTarget?.let { return it.id }
     val pm = activity.packageManager
     val pkg = activity.packageName
     for (entry in LauncherIcons.ALL) {
@@ -219,31 +257,16 @@ class NativeIoPlugin(private val activity: Activity) : Plugin(activity) {
         }
 
       if (alreadySoleActive) {
+        pendingIconTarget = null
         LauncherIcons.applyTaskDescription(activity, target)
         invoke.resolve(JSObject().put("applied", true).put("changed", false).put("activeIcon", target.id))
         return
       }
 
-      // 1. Enable target first so the package always has at least one LAUNCHER component.
-      pm.setComponentEnabledSetting(
-        targetCn,
-        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-        PackageManager.DONT_KILL_APP
-      )
-      // 2. Disable all other aliases.
-      for (entry in LauncherIcons.ALL) {
-        if (entry.id == target.id) continue
-        val cn = ComponentName(pkg, entry.aliasClass)
-        val st = pm.getComponentEnabledSetting(cn)
-        val isImplicitlyDisabled = st == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && entry.id != LauncherIcons.DEFAULT_ID
-        if (st != PackageManager.COMPONENT_ENABLED_STATE_DISABLED && !isImplicitlyDisabled) {
-          pm.setComponentEnabledSetting(
-            cn,
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
-          )
-        }
-      }
+      // Queue the PackageManager alias swap for MainActivity.onStop() so disabling the
+      // currently active alias while foregrounded (or under a permission dialog) never
+      // kills the running onboarding session on Android 14/15. Update Recents immediately.
+      pendingIconTarget = target
       LauncherIcons.applyTaskDescription(activity, target)
       invoke.resolve(JSObject().put("applied", true).put("changed", true).put("activeIcon", target.id))
     } catch (e: Exception) { invoke.reject(e.message ?: "App icon switch failed") }

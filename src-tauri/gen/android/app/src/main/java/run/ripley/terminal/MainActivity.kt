@@ -1178,7 +1178,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     suppressNextAutoLock = false
-    LauncherIcons.applyTaskDescription(this)
+    LauncherIcons.applyTaskDescription(this, NativeIoPlugin.activeOrPendingIcon(this))
     embedWeb?.onResume()
     xappWeb?.onResume()
     pushInsets()
@@ -1194,6 +1194,9 @@ class MainActivity : TauriActivity() {
   override fun onStop() {
     if (!suppressNextAutoLock && !isChangingConfigurations) {
       nativeBackgroundLock()
+    }
+    if (!isChangingConfigurations) {
+      NativeIoPlugin.flushPendingAppIcon(this)
     }
     super.onStop()
   }
