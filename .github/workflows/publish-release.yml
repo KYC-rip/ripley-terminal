@@ -1,0 +1,41 @@
+name: Publish Release from CI Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Green Tauri Build run ID to promote'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag (e.g. v2.1.7)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download & verify CI artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl out
+          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" -D dl
+          find dl -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' -o -name '*.apk' -o -name 'SHA256SUMS' \) -exec cp {} out/ \;
+          for f in out/*\ *; do [ -e "$f" ] && mv "$f" "${f// /.}"; done
+          ls -lh out/
+          (cd out && sha256sum -c SHA256SUMS)
+
+      - name: Upload verified assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ inputs.tag }}" out/* -R "${{ github.repository }}" --clobber
+          gh release view "${{ inputs.tag }}" -R "${{ github.repository }}" --json assets --jq '.assets[] | "\(.name) (\(.size) bytes)"'
